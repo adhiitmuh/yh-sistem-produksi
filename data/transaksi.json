@@ -1,0 +1,211 @@
+[
+  {
+    "type": "jahit",
+    "tanggal": "2026-04-27",
+    "orang": "Widya",
+    "items": [
+      {
+        "nama": "Kemeja Korpri",
+        "ukuran": "S",
+        "pcs": 5,
+        "upah": 15000,
+        "subtotal": 75000
+      }
+    ],
+    "totalPcs": 5,
+    "totalUpah": 75000,
+    "keterangan": "",
+    "fotos": [],
+    "id": 1777329646468,
+    "createdAt": "2026-04-28T06:40:46.468580"
+  },
+  {
+    "type": "gunting",
+    "tanggal": "2026-04-27",
+    "orang": "Aswar",
+    "order": "",
+    "kain": "Korpri",
+    "items": [
+      {
+        "nama": "Kemeja Korpri",
+        "ukuran": "S",
+        "pcs": 20,
+        "lembar": 0
+      }
+    ],
+    "totalPcs": 20,
+    "totalLembar": 0,
+    "keterangan": "",
+    "fotos": [],
+    "id": 1777331082091,
+    "createdAt": "2026-04-28T07:04:42.091166"
+  },
+  {
+    "type": "gunting",
+    "tanggal": "2026-04-27",
+    "orang": "Aswar",
+    "order": "",
+    "kain": "",
+    "items": [
+      {
+        "nama": "Kemeja Korpri",
+        "ukuran": "S",
+        "pcs": 10,
+        "lembar": 0
+      }
+    ],
+    "totalPcs": 10,
+    "totalLembar": 0,
+    "keterangan": "",
+    "fotos": [],
+    "id": 1777331339953,
+    "createdAt": "2026-04-28T07:08:59.953108"
+  },
+  {
+    "type": "gunting",
+    "tanggal": "2026-04-27",
+    "orang": "Aswar",
+    "order": "",
+    "kain": "",
+    "items": [
+      {
+        "nama": "Kemeja Korpri",
+        "ukuran": "S",
+        "pcs": 10,
+        "lembar": 0
+      }
+    ],
+    "totalPcs": 10,
+    "totalLembar": 0,
+    "keterangan": "",
+    "fotos": [],
+    "id": 1777331343292,
+    "createdAt": "2026-04-28T07:09:03.292683"
+  },
+  {
+    "type": "gunting",
+    "tanggal": "2026-04-27",
+    "orang": "Aswar",
+    "order": "",
+    "kain": "",
+    "items": [
+      {
+        "nama": "Kemeja Korpri",
+        "ukuran": "S",
+        "pcs": 10,
+        "lembar": 0
+      }
+    ],
+    "totalPcs": 10,
+    "totalLembar": 0,
+    "keterangan": "",
+    "fotos": [],
+    "id": 1777331519911,
+    "createdAt": "2026-04-28T07:11:59.911897"
+  },
+  {
+    "type": "gunting",
+    "tanggal": "2026-04-27",
+    "orang": "Aswar",
+    "order": "",
+    "kain": "",
+    "items": [
+      {
+        "nama": "Kemeja Korpri",
+        "ukuran": "S",
+        "pcs": 10,
+        "lembar": 0
+      }
+    ],
+    "totalPcs": 10,
+    "totalLembar": 0,
+    "keterangan": "",
+    "fotos": [],
+    "id": 1777331522100,
+    "createdAt": "2026-04-28T07:12:02.100605"
+  },
+  {
+    "type": "gunting",
+    "tanggal": "2026-04-27",
+    "orang": "Aswar",
+    "order": "",
+    "kain": "",
+    "items": [
+      {
+        "nama": "Kemeja Korpri",
+        "ukuran": "S",
+        "pcs": 10,
+        "lembar": 0
+      }
+    ],
+    "totalPcs": 10,
+    "totalLembar": 0,
+    "keterangan": "",
+    "fotos": [],
+    "id": 1777331592436,
+    "createdAt": "2026-04-28T07:13:12.436283"
+  },
+  {
+    "type": "gunting",
+    "tanggal": "2026-04-27",
+    "orang": "Aswar",
+    "order": "",
+    "kain": "",
+    "items": [
+      {
+        "nama": "Kemeja Korpri",
+        "ukuran": "S",
+        "pcs": 10,
+        "lembar": 0
+      }
+    ],
+    "totalPcs": 10,
+    "totalLembar": 0,
+    "keterangan": "",
+    "fotos": [],
+    "id": 1777331801602,
+    "createdAt": "2026-04-28T07:16:41.602299"
+  },
+  {
+    "type": "gunting",
+    "tanggal": "2026-04-27",
+    "orang": "Aswar",
+    "order": "",
+    "kain": "",
+    "items": [
+      {
+        "nama": "Kemeja Korpri",
+        "ukuran": "S",
+        "pcs": 10,
+        "lembar": 0
+      }
+    ],
+    "totalPcs": 10,
+    "totalLembar": 0,
+    "keterangan": "",
+    "fotos": [],
+    "id": 1777331803596,
+    "createdAt": "2026-04-28T07:16:43.596848"
+  },
+  {
+    "type": "gunting",
+    "tanggal": "2026-04-29",
+    "orang": "Aswar",
+    "order": "",
+    "kain": "",
+    "items": [
+      {
+        "nama": "Kemeja Korpri",
+        "ukuran": "S",
+        "pcs": 10,
+        "lembar": 0
+      }
+    ],
+    "totalPcs": 10,
+    "totalLembar": 0,
+    "keterangan": "",
+    "fotos": [],
+    "id": 1777426652142,
+    "createdAt": "2026-04-29T09:37:32.142094"
+  }
+]

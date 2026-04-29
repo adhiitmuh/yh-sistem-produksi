@@ -1,0 +1,19 @@
+[
+  {
+    "id": 1777444449447,
+    "tanggal": "2026-04-29",
+    "nama_kain": "Kain Korpri",
+    "operator": "Aswar",
+    "total_meter": 100.5,
+    "item": "Korpri Pria",
+    "detail_ukuran": [
+      {
+        "ukuran": "S",
+        "pcs": 50,
+        "meter": 100.5
+      }
+    ],
+    "keterangan": "",
+    "createdAt": "2026-04-29T14:34:09.447787"
+  }
+]
