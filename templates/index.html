@@ -567,7 +567,7 @@ tr:hover td{background:rgba(255,255,255,.012)}
   <div class="card">
     <div class="ct">💾 Backup & Restore Data</div>
     <div style="font-size:12px;color:var(--t2);margin-bottom:12px">Download semua data sebagai file backup ZIP. Simpan di tempat aman sebagai cadangan.</div>
-    <button onclick="window.open('/api/backup')" style="padding:9px 20px;background:var(--bl);color:#fff;border:none;border-radius:var(--rads);font-family:var(--f);font-size:13px;font-weight:700;cursor:pointer">⬇ Download Backup Data</button>
+    <button onclick="localStorage.setItem('yhk_last_backup',new Date().toISOString());window.open('/api/backup')" style="padding:9px 20px;background:var(--bl);color:#fff;border:none;border-radius:var(--rads);font-family:var(--f);font-size:13px;font-weight:700;cursor:pointer">⬇ Download Backup Data</button>
   </div>
   <div class="card"><div class="ct">🏭 Informasi Konveksi</div>
     <div class="fg" style="margin-bottom:10px"><label>Nama Konveksi</label><input type="text" id="s-nama"></div>
@@ -687,6 +687,7 @@ const fmt=n=>(+n||0).toLocaleString("id-ID");
 const fmtD=s=>s?new Date(s+"T00:00:00").toLocaleDateString("id-ID",{day:"numeric",month:"short",year:"numeric"}):"";
 async function api(url,m="GET",b=null){const o={method:m,headers:{"Content-Type":"application/json"}};if(b)o.body=JSON.stringify(b);try{const r=await fetch(url,o);return r.json();}catch{return{};}}
 async function init(){loadTheme();document.getElementById("hdrDate").textContent=new Date().toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"});const d=td();["j-tgl","g-tgl","a-tgl","kb-tgl","by-tgl","qc-tgl","ke-tgl","f-tgl","exp-dari","exp-ke"].forEach(id=>{const el=document.getElementById(id);if(el)el.value=d;});await loadSettings();await checkAuth();addJahitBlock();addGuntingBlock();addAmbilBlock();addQCRow();addKeluarBlock();renderItemTable();loadKainList();
+  setTimeout(checkBackupReminder, 3000);
   document.getElementById("loader").style.display="none";}
 async function loadSettings(){settings=await api("/api/settings");document.getElementById("namaK").textContent=settings.nama_konveksi||"YHK";document.getElementById("s-nama").value=settings.nama_konveksi||"";renderPjtTags();fillSelects();}
 function renderPjtTags(){document.getElementById("pjt-tags").innerHTML=settings.penjahit.map((p,i)=>`<div class="tg">${p}<span class="tgd" onclick="delPjt(${i})">&#215;</span></div>`).join("");}
@@ -1506,6 +1507,48 @@ async function toggleRataRata() {
     });
   });
   el.innerHTML = h;
+}
+
+
+// ── BACKUP REMINDER ───────────────────────────────────────────────────────────
+function checkBackupReminder() {
+  const lastBackup = localStorage.getItem('yhk_last_backup');
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 1 = Senin
+  
+  if (dayOfWeek === 1) { // Hari Senin
+    if (!lastBackup) {
+      showBackupReminder();
+      return;
+    }
+    const last = new Date(lastBackup);
+    const diffDays = Math.floor((now - last) / (1000 * 60 * 60 * 24));
+    if (diffDays >= 7) showBackupReminder();
+  }
+}
+
+function showBackupReminder() {
+  const div = document.createElement('div');
+  div.id = 'backup-reminder';
+  div.style.cssText = 'position:fixed;bottom:70px;right:18px;background:var(--bl);color:#fff;border-radius:var(--radl);padding:14px 18px;z-index:998;box-shadow:0 8px 28px rgba(0,0,0,.4);max-width:280px;animation:fu .3s ease';
+  div.innerHTML = `<div style="font-size:13px;font-weight:700;margin-bottom:6px">💾 Sudah backup data minggu ini?</div>
+    <div style="font-size:11px;opacity:.85;margin-bottom:10px">Rutin backup untuk jaga keamanan data produksi kamu.</div>
+    <div style="display:flex;gap:7px">
+      <button onclick="doBackupNow()" style="flex:1;padding:6px;background:#fff;color:var(--bl);border:none;border-radius:6px;font-family:var(--f);font-size:12px;font-weight:700;cursor:pointer">⬇ Backup Sekarang</button>
+      <button onclick="dismissReminder()" style="padding:6px 10px;background:rgba(255,255,255,.2);border:none;border-radius:6px;color:#fff;font-family:var(--f);font-size:12px;cursor:pointer">Nanti</button>
+    </div>`;
+  document.body.appendChild(div);
+}
+
+function doBackupNow() {
+  localStorage.setItem('yhk_last_backup', new Date().toISOString());
+  dismissReminder();
+  window.open('/api/backup');
+}
+
+function dismissReminder() {
+  const el = document.getElementById('backup-reminder');
+  if (el) el.remove();
 }
 
 window.addEventListener("DOMContentLoaded",()=>init().catch(err=>{const l=document.getElementById("loader");if(l)l.innerHTML=`<div style="color:var(--r);text-align:center;padding:40px"><div style="font-size:28px;margin-bottom:10px">&#9888;&#65039;</div><div style="font-size:13px;font-weight:700">Gagal memuat</div><div style="font-size:11px;color:var(--t2);margin-top:7px">${err.message}</div></div>`;}));
