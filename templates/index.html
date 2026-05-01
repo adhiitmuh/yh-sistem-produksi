@@ -564,6 +564,11 @@ tr:hover td{background:rgba(255,255,255,.012)}
       <button class="btsm" onclick="addKainMaster()">+ Tambah</button>
     </div>
   </div>
+  <div class="card">
+    <div class="ct">💾 Backup & Restore Data</div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:12px">Download semua data sebagai file backup ZIP. Simpan di tempat aman sebagai cadangan.</div>
+    <button onclick="window.open('/api/backup')" style="padding:9px 20px;background:var(--bl);color:#fff;border:none;border-radius:var(--rads);font-family:var(--f);font-size:13px;font-weight:700;cursor:pointer">⬇ Download Backup Data</button>
+  </div>
   <div class="card"><div class="ct">🏭 Informasi Konveksi</div>
     <div class="fg" style="margin-bottom:10px"><label>Nama Konveksi</label><input type="text" id="s-nama"></div>
     <button class="btsm" onclick="saveNama()">Simpan</button>

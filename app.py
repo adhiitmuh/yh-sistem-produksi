@@ -939,6 +939,39 @@ def kain_ambil_pending(operator):
     result.sort(key=lambda x: (x['status']=='selesai', x['item'], x['ukuran']))
     return jsonify(result)
 
+
+# ── BACKUP DATA ───────────────────────────────────────────────────────────────
+@app.route('/api/backup')
+@require_admin
+def backup_data():
+    import zipfile, io
+    backup = {}
+    files = ['transaksi.json','kasbon.json','pembayaran.json','qc.json',
+             'keluar.json','stok.json','stok_guntingan.json','stok_jahitan.json',
+             'kain.json','kain_masuk.json','kain_ambil.json','alih_tugas.json',
+             'settings.json','users.json']
+    for fname in files:
+        fpath = os.path.join(DATA_DIR, fname)
+        if os.path.exists(fpath):
+            with open(fpath, 'r') as f:
+                backup[fname] = json.load(f)
+    
+    # Buat ZIP berisi semua JSON
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for fname, data in backup.items():
+            zf.writestr(fname, json.dumps(data, indent=2, ensure_ascii=False))
+    
+    zip_buffer.seek(0)
+    from flask import send_file
+    tanggal = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    return send_file(
+        zip_buffer,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=f'backup_yhk_{tanggal}.zip'
+    )
+
 if __name__ == '__main__':
     print('\n' + '='*50)
     print('  Young Harmonis Konveksi — Sistem Produksi')
