@@ -156,6 +156,14 @@ def auth_change_pw():
     return jsonify({'ok': True})
 
 # ── USER MANAGEMENT (admin only) ──────────────────────────────────────────────
+@app.route('/api/users', methods=['GET'])
+@require_admin
+def users_list():
+    users = get_users()
+    result = [{'username': u, 'nama': d.get('nama', u), 'role': d.get('role', 'staff')} 
+              for u, d in users.items()]
+    return jsonify(result)
+
 @app.route('/api/users', methods=['POST'])
 @require_admin
 def users_add():
