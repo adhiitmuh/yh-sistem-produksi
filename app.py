@@ -1011,11 +1011,12 @@ def backup_data():
     )
 
 if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5001))
     print('\n' + '='*50)
     print('  Young Harmonis Konveksi — Sistem Produksi')
-    print('  Buka browser: http://localhost:5000')
+    print(f'  Buka browser: http://localhost:{port}')
     print('='*50 + '\n')
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=port)
 
 # ── STOK GUNTINGAN (per operator) ────────────────────────────────────────────
 STOK_GUNTING_FILE = os.path.join(DATA_DIR, 'stok_guntingan.json')
