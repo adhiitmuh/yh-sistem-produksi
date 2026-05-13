@@ -674,9 +674,9 @@ tr:hover td{background:rgba(255,255,255,.012)}
 </div>
 <script>
 const UKURAN={umum:["S","M","L","XL","XXL","XXXL","XXXXL","XXXXXL"],sekolah_baju:[3,4,5,6,7,13,14,15,16,17,18,19,20,21,22,23,24],sekolah_celana:[24,25,26,27,28,29,30,31,32,33,34,35,36,37,38]};
-let itemMaster=JSON.parse(localStorage.getItem("yhk_items3")||"[]");
-if(!itemMaster.length){itemMaster=[{nama:"Kemeja PDH",upah:15000,type:"umum"},{nama:"Kemeja PNS",upah:15000,type:"umum"},{nama:"Kemeja Korpri",upah:15000,type:"umum"},{nama:"Celana PDH",upah:18000,type:"umum"},{nama:"Celana PNS",upah:18000,type:"umum"},{nama:"Celana Korpri",upah:18000,type:"umum"},{nama:"Baju Sekolah",upah:12000,type:"sekolah_baju"},{nama:"Celana Sekolah",upah:14000,type:"sekolah_celana"},{nama:"Rok Sekolah",upah:14000,type:"sekolah_celana"},{nama:"Baju Olahraga",upah:12000,type:"umum"},{nama:"Seragam Security",upah:22000,type:"umum"}];saveIM();}
-function saveIM(){localStorage.setItem("yhk_items3",JSON.stringify(itemMaster));}
+let itemMaster=[];
+async function loadIM(){itemMaster=await api("/api/items");renderItemTable();}
+function saveIM(){api("/api/items","POST",itemMaster);}
 function getIM(n){return itemMaster.find(i=>i.nama.toLowerCase()===n.toLowerCase());}
 let settings={penjahit:[],nama_konveksi:"Young Harmonis Konveksi"};
 let role="guest",uname=null,unama=null;
@@ -686,7 +686,7 @@ const td=()=>new Date().toISOString().split("T")[0];
 const fmt=n=>(+n||0).toLocaleString("id-ID");
 const fmtD=s=>s?new Date(s+"T00:00:00").toLocaleDateString("id-ID",{day:"numeric",month:"short",year:"numeric"}):"";
 async function api(url,m="GET",b=null){const o={method:m,headers:{"Content-Type":"application/json"}};if(b)o.body=JSON.stringify(b);try{const r=await fetch(url,o);return r.json();}catch{return{};}}
-async function init(){loadTheme();document.getElementById("hdrDate").textContent=new Date().toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"});const d=td();["j-tgl","g-tgl","a-tgl","kb-tgl","by-tgl","qc-tgl","ke-tgl","f-tgl","exp-dari","exp-ke"].forEach(id=>{const el=document.getElementById(id);if(el)el.value=d;});await loadSettings();await checkAuth();addJahitBlock();addGuntingBlock();addAmbilBlock();addQCRow();addKeluarBlock();renderItemTable();loadKainList();
+async function init(){loadTheme();document.getElementById("hdrDate").textContent=new Date().toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"});const d=td();["j-tgl","g-tgl","a-tgl","kb-tgl","by-tgl","qc-tgl","ke-tgl","f-tgl","exp-dari","exp-ke"].forEach(id=>{const el=document.getElementById(id);if(el)el.value=d;});await loadSettings();await loadIM();await checkAuth();addJahitBlock();addGuntingBlock();addAmbilBlock();addQCRow();addKeluarBlock();loadKainList();
   setTimeout(checkBackupReminder, 3000);
   document.getElementById("loader").style.display="none";}
 async function loadSettings(){settings=await api("/api/settings");document.getElementById("namaK").textContent=settings.nama_konveksi||"YHK";document.getElementById("s-nama").value=settings.nama_konveksi||"";renderPjtTags();fillSelects();}

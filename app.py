@@ -208,6 +208,36 @@ def settings():
     save_json(SETTING_FILE, data)
     return jsonify({'ok': True})
 
+DEFAULT_ITEMS = [
+    {"nama": "Kemeja PDH",       "upah": 15000, "type": "umum"},
+    {"nama": "Kemeja PNS",       "upah": 15000, "type": "umum"},
+    {"nama": "Kemeja Korpri",    "upah": 15000, "type": "umum"},
+    {"nama": "Celana PDH",       "upah": 18000, "type": "umum"},
+    {"nama": "Celana PNS",       "upah": 18000, "type": "umum"},
+    {"nama": "Celana Korpri",    "upah": 18000, "type": "umum"},
+    {"nama": "Baju Sekolah",     "upah": 12000, "type": "sekolah_baju"},
+    {"nama": "Celana Sekolah",   "upah": 14000, "type": "sekolah_celana"},
+    {"nama": "Rok Sekolah",      "upah": 14000, "type": "sekolah_celana"},
+    {"nama": "Baju Olahraga",    "upah": 12000, "type": "umum"},
+    {"nama": "Seragam Security", "upah": 22000, "type": "umum"},
+]
+
+@app.route('/api/items', methods=['GET'])
+def items_get():
+    s = get_settings()
+    return jsonify(s.get('items', DEFAULT_ITEMS))
+
+@app.route('/api/items', methods=['POST'])
+@require_admin
+def items_save():
+    items = request.json
+    if not isinstance(items, list):
+        return jsonify({'ok': False, 'error': 'Data tidak valid'}), 400
+    s = get_settings()
+    s['items'] = items
+    save_json(SETTING_FILE, s)
+    return jsonify({'ok': True})
+
 @app.route('/api/transaksi', methods=['POST'])
 @require_staff
 def transaksi_add():
