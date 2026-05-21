@@ -1012,6 +1012,8 @@ def backup_data():
 
 # ── DASHBOARD MODAL (admin only) ─────────────────────────────────────────────
 MODAL_FILE = os.path.join(DATA_DIR, 'modal.json')
+BAHAN_LAIN_FIELDS = ['kancing', 'puring', 'kain_keras', 'lobang_kancing',
+                     'setrika', 'bordiran', 'upah_gunting']
 
 def get_modal_data():
     return load_json(MODAL_FILE, {})
@@ -1025,19 +1027,31 @@ def modal_items_get():
     result = []
     for item in items:
         m = modal.get(item['nama'], {})
-        modal_bahan = m.get('modal_bahan', 0)
-        modal_lain  = m.get('modal_lain', 0)
-        harga_jual  = m.get('harga_jual', 0)
-        upah        = item.get('upah', 0)
-        total_modal = modal_bahan + modal_lain + upah
-        margin      = harga_jual - total_modal
-        margin_persen = round(margin / harga_jual * 100, 1) if harga_jual > 0 else 0
+        kain            = m.get('kain', {})
+        kain_satuan     = kain.get('satuan', 'meter')
+        kain_penggunaan = float(kain.get('penggunaan', 0))
+        kain_harga      = float(kain.get('harga_per_satuan', 0))
+        kain_total      = round(kain_penggunaan * kain_harga)
+        bahan_lain      = m.get('bahan_lain', {})
+        total_bl        = sum(int(bahan_lain.get(f, 0)) for f in BAHAN_LAIN_FIELDS)
+        upah            = item.get('upah', 0)
+        harga_jual      = int(m.get('harga_jual', 0))
+        total_modal     = kain_total + total_bl + upah
+        margin          = harga_jual - total_modal
+        margin_persen   = round(margin / harga_jual * 100, 1) if harga_jual > 0 else 0
         result.append({
             'nama': item['nama'],
             'type': item.get('type', 'umum'),
             'upah': upah,
-            'modal_bahan': modal_bahan,
-            'modal_lain': modal_lain,
+            'kain': {
+                'satuan': kain_satuan,
+                'penggunaan': kain_penggunaan,
+                'harga_per_satuan': kain_harga,
+                'total': kain_total
+            },
+            'bahan_lain': {f: int(bahan_lain.get(f, 0)) for f in BAHAN_LAIN_FIELDS},
+            'total_modal_kain': kain_total,
+            'total_bahan_lain': total_bl,
             'total_modal': total_modal,
             'harga_jual': harga_jual,
             'margin': margin,
@@ -1053,10 +1067,15 @@ def modal_items_save():
         return jsonify({'ok': False, 'error': 'Data tidak valid'}), 400
     modal = get_modal_data()
     for item in data:
+        kain = item.get('kain', {})
         modal[item['nama']] = {
-            'modal_bahan': item.get('modal_bahan', 0),
-            'modal_lain':  item.get('modal_lain', 0),
-            'harga_jual':  item.get('harga_jual', 0)
+            'kain': {
+                'satuan':          kain.get('satuan', 'meter'),
+                'penggunaan':      float(kain.get('penggunaan', 0)),
+                'harga_per_satuan': float(kain.get('harga_per_satuan', 0))
+            },
+            'bahan_lain': {f: int(item.get('bahan_lain', {}).get(f, 0)) for f in BAHAN_LAIN_FIELDS},
+            'harga_jual': int(item.get('harga_jual', 0))
         }
     save_json(MODAL_FILE, modal)
     return jsonify({'ok': True})

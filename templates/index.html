@@ -700,25 +700,85 @@ tr:hover td{background:rgba(20,184,166,.03)}
         <thead>
           <tr>
             <th>Nama Item</th>
-            <th style="text-align:right">Modal Bahan (Rp)</th>
-            <th style="text-align:right">Modal Lain (Rp)</th>
+            <th style="text-align:right">Penggunaan Kain</th>
+            <th style="text-align:right">Modal Kain (Rp)</th>
+            <th style="text-align:right">Bahan Lain (Rp)</th>
             <th style="text-align:right">Upah Jahit (Rp)</th>
             <th style="text-align:right">Total Modal (Rp)</th>
             <th style="text-align:right">Harga Jual (Rp)</th>
             <th style="text-align:right">Margin (Rp)</th>
             <th style="text-align:center">Margin (%)</th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="modal-tbody"></tbody>
       </table>
     </div>
-    <div style="margin-top:12px;text-align:right">
-      <button class="btsm" onclick="saveModalData()">💾 Simpan Perubahan</button>
-    </div>
   </div>
 </div>
 
 </div></main>
+<div class="mo" id="mdet-mo" style="display:none">
+  <div class="mbox" style="max-width:500px;max-height:92vh;overflow-y:auto;padding:22px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-size:16px;font-weight:800" id="mdet-nama"></div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px" id="mdet-upah"></div>
+      </div>
+      <button onclick="closeMdetail()" style="background:transparent;border:none;color:var(--t2);font-size:20px;cursor:pointer;line-height:1;padding:0 4px">×</button>
+    </div>
+
+    <div style="background:var(--s2);border:1px solid var(--b);border-left:3px solid var(--a);border-radius:var(--rads);padding:13px;margin-bottom:10px">
+      <div style="font-size:10px;font-weight:800;color:var(--a);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">🧵 Modal Kain</div>
+      <div class="g3" style="margin-bottom:10px">
+        <div class="fg">
+          <label>Satuan</label>
+          <select id="mdet-kain-satuan" onchange="recalcMdet()">
+            <option value="meter">Meter</option>
+            <option value="yard">Yard</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>Penggunaan</label>
+          <input type="number" id="mdet-kain-peng" step="0.01" min="0" placeholder="0.00" oninput="recalcMdet()">
+        </div>
+        <div class="fg">
+          <label>Harga / Satuan (Rp)</label>
+          <input type="number" id="mdet-kain-harga" min="0" placeholder="0" oninput="recalcMdet()">
+        </div>
+      </div>
+      <div style="padding:8px 11px;background:var(--bg);border-radius:var(--rads);font-size:12px;display:flex;justify-content:space-between;align-items:center">
+        <span style="color:var(--t2)">Total Modal Kain</span>
+        <span id="mdet-kain-total" style="font-family:var(--m);font-weight:700">Rp 0</span>
+      </div>
+    </div>
+
+    <div style="background:var(--s2);border:1px solid var(--b);border-left:3px solid var(--p);border-radius:var(--rads);padding:13px;margin-bottom:10px">
+      <div style="font-size:10px;font-weight:800;color:var(--p);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">🧩 Rincian Bahan Lain</div>
+      <div class="g2" id="mdet-bahan-grid"></div>
+      <div style="padding:8px 11px;background:var(--bg);border-radius:var(--rads);font-size:12px;display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+        <span style="color:var(--t2)">Total Bahan Lain</span>
+        <span id="mdet-bl-total" style="font-family:var(--m);font-weight:700">Rp 0</span>
+      </div>
+    </div>
+
+    <div style="background:var(--s2);border:1px solid var(--b);border-left:3px solid var(--gold);border-radius:var(--rads);padding:13px;margin-bottom:14px">
+      <div style="font-size:10px;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">📊 Ringkasan & Harga Jual</div>
+      <div id="mdet-summary" style="margin-bottom:12px"></div>
+      <div class="fg" style="margin-bottom:10px">
+        <label>Harga Jual (Rp)</label>
+        <input type="number" id="mdet-hj" min="0" placeholder="0" oninput="recalcMdet()" style="font-size:15px;font-weight:700;font-family:var(--m)">
+      </div>
+      <div style="padding:10px 12px;background:var(--bg);border-radius:var(--rads)" id="mdet-margin-box"></div>
+    </div>
+
+    <div style="display:flex;gap:8px">
+      <button onclick="closeMdetail()" style="flex:1;padding:9px;background:transparent;border:1px solid var(--b);color:var(--t2);border-radius:var(--rads);font-family:var(--f);font-size:12px;cursor:pointer">Batal</button>
+      <button onclick="saveMdetail()" style="flex:2;padding:9px;background:linear-gradient(135deg,#0d9488,#06b6d4);color:#fff;border:none;border-radius:var(--rads);font-family:var(--f);font-size:13px;font-weight:700;cursor:pointer">💾 Simpan Item Ini</button>
+    </div>
+  </div>
+</div>
+
 <div class="mo" id="login-mo" style="display:none">
   <div class="mbox">
     <div style="font-size:24px;margin-bottom:8px">🔐</div>
@@ -1660,68 +1720,121 @@ function dismissReminder() {
 }
 
 // ── DASHBOARD MODAL ───────────────────────────────────────────────────────────
-let modalData=[];
+let modalData=[], mdetIdx=-1;
+const BL_LABELS={kancing:'Kancing',puring:'Puring',kain_keras:'Kain Keras',lobang_kancing:'Lobang Kancing',setrika:'Setrika',bordiran:'Bordiran',upah_gunting:'Upah Gunting'};
+
 async function loadModalDashboard(){
   if(role!=="admin")return;
   modalData=await api("/api/modal-items");
   renderModalStats();
   renderModalTable();
 }
+
 function renderModalStats(){
-  const el=document.getElementById("modal-stats");
-  if(!el)return;
+  const el=document.getElementById("modal-stats");if(!el)return;
   if(!modalData.length){el.innerHTML="";return;}
-  const withPrice=modalData.filter(d=>d.harga_jual>0);
-  const avgMargin=withPrice.length?Math.round(withPrice.reduce((s,d)=>s+d.margin_persen,0)/withPrice.length):0;
-  const sorted=[...withPrice].sort((a,b)=>b.margin_persen-a.margin_persen);
-  const best=sorted[0],worst=sorted[sorted.length-1];
-  const mgColor=avgMargin>=20?"var(--g)":avgMargin>=0?"var(--gold)":"var(--r)";
+  const wp=modalData.filter(d=>d.harga_jual>0);
+  const avg=wp.length?Math.round(wp.reduce((s,d)=>s+d.margin_persen,0)/wp.length):0;
+  const srt=[...wp].sort((a,b)=>b.margin_persen-a.margin_persen);
+  const best=srt[0];
+  const mgC=avg>=20?"var(--g)":avg>=0?"var(--gold)":"var(--r)";
   el.innerHTML=`
     <div class="sc"><div class="scl">Total Item</div><div class="scv">${modalData.length}</div><div style="font-size:10px;color:var(--t2);margin-top:4px">jenis produk</div></div>
-    <div class="sc"><div class="scl">Harga Sudah Diisi</div><div class="scv">${withPrice.length}/${modalData.length}</div><div style="font-size:10px;color:var(--t2);margin-top:4px">item aktif</div></div>
-    <div class="sc"><div class="scl">Rata-rata Margin</div><div class="scv" style="background:linear-gradient(135deg,var(--t),${mgColor});-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">${avgMargin}%</div><div style="font-size:10px;color:var(--t2);margin-top:4px">dari item aktif</div></div>
-    <div class="sc"><div class="scl">Margin Terbaik</div><div class="scv" style="font-size:14px;background:linear-gradient(135deg,var(--t),var(--g));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">${best?best.nama:"-"}</div><div style="font-size:10px;color:var(--g);margin-top:4px;font-family:var(--m)">${best?best.margin_persen+"%":""}</div></div>`;
+    <div class="sc"><div class="scl">Harga Sudah Diisi</div><div class="scv">${wp.length}/${modalData.length}</div><div style="font-size:10px;color:var(--t2);margin-top:4px">item aktif</div></div>
+    <div class="sc"><div class="scl">Rata-rata Margin</div><div class="scv" style="background:linear-gradient(135deg,var(--t),${mgC});-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">${avg}%</div><div style="font-size:10px;color:var(--t2);margin-top:4px">dari item aktif</div></div>
+    <div class="sc"><div class="scl">Margin Terbaik</div><div class="scv" style="font-size:13px;background:linear-gradient(135deg,var(--t),var(--g));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">${best?best.nama:"-"}</div><div style="font-size:10px;color:var(--g);margin-top:4px;font-family:var(--m)">${best?best.margin_persen+"%":""}</div></div>`;
 }
+
 function renderModalTable(){
-  const el=document.getElementById("modal-tbody");
-  if(!el)return;
+  const el=document.getElementById("modal-tbody");if(!el)return;
   if(!modalData.length){el.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--t2);padding:20px">Belum ada item</td></tr>';return;}
-  const inS="padding:4px 7px;font-size:12px;text-align:right;background:var(--s2);border:1px solid var(--b);border-radius:5px;color:var(--t);font-family:var(--m);width:100px";
   el.innerHTML=modalData.map((d,i)=>{
-    const mgColor=d.margin>=0?"var(--g)":"var(--r)";
-    const mpColor=d.margin_persen>=20?"var(--g)":d.margin_persen>=0?"var(--gold)":"var(--r)";
+    const mgC=d.margin>=0?"var(--g)":"var(--r)";
+    const mpC=d.margin_persen>=20?"var(--g)":d.margin_persen>=0?"var(--gold)":"var(--r)";
     const mpBg=d.margin_persen>=20?"var(--gdim)":d.margin_persen>=0?"var(--golddim)":"var(--rdim)";
+    const hasData=d.kain.harga_per_satuan>0||d.total_bahan_lain>0||d.harga_jual>0;
     return`<tr>
       <td style="font-weight:700;white-space:nowrap">${d.nama}</td>
-      <td><input type="number" value="${d.modal_bahan}" min="0" style="${inS}" oninput="modalData[${i}].modal_bahan=+this.value;recalcModal(${i})"></td>
-      <td><input type="number" value="${d.modal_lain}" min="0" style="${inS}" oninput="modalData[${i}].modal_lain=+this.value;recalcModal(${i})"></td>
+      <td class="mono" style="text-align:right">${d.kain.penggunaan>0?d.kain.penggunaan+" "+d.kain.satuan:'-'}</td>
+      <td class="mono" style="text-align:right">${d.total_modal_kain>0?fmt(d.total_modal_kain):'-'}</td>
+      <td class="mono" style="text-align:right">${d.total_bahan_lain>0?fmt(d.total_bahan_lain):'-'}</td>
       <td class="mono" style="text-align:right;color:var(--t2)">${fmt(d.upah)}</td>
-      <td class="mono" style="text-align:right;font-weight:700" id="md-tm-${i}">${fmt(d.total_modal)}</td>
-      <td><input type="number" value="${d.harga_jual}" min="0" style="${inS}" oninput="modalData[${i}].harga_jual=+this.value;recalcModal(${i})"></td>
-      <td class="mono" style="text-align:right;font-weight:700;color:${mgColor}" id="md-mg-${i}">${d.margin<0?"-":""}${fmt(Math.abs(d.margin))}</td>
-      <td style="text-align:center"><span style="font-family:var(--m);font-weight:700;font-size:12px;padding:2px 9px;border-radius:20px;color:${mpColor};background:${mpBg}" id="md-mp-${i}">${d.margin_persen}%</span></td>
+      <td class="mono" style="text-align:right;font-weight:700">${d.total_modal>0?fmt(d.total_modal):'-'}</td>
+      <td class="mono" style="text-align:right">${d.harga_jual>0?fmt(d.harga_jual):'-'}</td>
+      <td class="mono" style="text-align:right;font-weight:700;color:${mgC}">${d.harga_jual>0?(d.margin<0?"-":"")+fmt(Math.abs(d.margin)):'-'}</td>
+      <td style="text-align:center">${d.harga_jual>0?`<span style="font-family:var(--m);font-weight:700;font-size:11px;padding:2px 8px;border-radius:20px;color:${mpC};background:${mpBg}">${d.margin_persen}%</span>`:'-'}</td>
+      <td><button onclick="openMdetail(${i})" class="btsm gh" style="padding:4px 10px;font-size:10px;white-space:nowrap">${hasData?"✏️ Edit":"+ Isi"}</button></td>
     </tr>`;
   }).join("");
 }
-function recalcModal(i){
-  const d=modalData[i];
-  d.total_modal=d.modal_bahan+d.modal_lain+d.upah;
+
+// ── POPUP DETAIL MODAL ────────────────────────────────────────────────────────
+function openMdetail(i){
+  mdetIdx=i;const d=modalData[i];
+  document.getElementById("mdet-nama").textContent=d.nama;
+  document.getElementById("mdet-upah").textContent="Upah Jahit: Rp "+fmt(d.upah);
+  document.getElementById("mdet-kain-satuan").value=d.kain.satuan||"meter";
+  document.getElementById("mdet-kain-peng").value=d.kain.penggunaan||"";
+  document.getElementById("mdet-kain-harga").value=d.kain.harga_per_satuan||"";
+  const grid=document.getElementById("mdet-bahan-grid");
+  grid.innerHTML=Object.entries(BL_LABELS).map(([k,lbl])=>`<div class="fg"><label>${lbl}</label><input type="number" id="mdet-bl-${k}" value="${d.bahan_lain[k]||0}" min="0" oninput="recalcMdet()"></div>`).join("");
+  document.getElementById("mdet-hj").value=d.harga_jual||"";
+  recalcMdet();
+  document.getElementById("mdet-mo").style.display="flex";
+}
+function closeMdetail(){document.getElementById("mdet-mo").style.display="none";mdetIdx=-1;}
+
+function recalcMdet(){
+  if(mdetIdx<0)return;
+  const d=modalData[mdetIdx];
+  const peng=parseFloat(document.getElementById("mdet-kain-peng").value)||0;
+  const hK=parseFloat(document.getElementById("mdet-kain-harga").value)||0;
+  const kainTot=Math.round(peng*hK);
+  const satuan=document.getElementById("mdet-kain-satuan").value;
+  const blTot=Object.keys(BL_LABELS).reduce((s,k)=>s+(+document.getElementById("mdet-bl-"+k)?.value||0),0);
+  const totalModal=kainTot+blTot+d.upah;
+  const hj=parseFloat(document.getElementById("mdet-hj").value)||0;
+  const margin=hj-totalModal;
+  const mp=hj>0?Math.round(margin/hj*100*10)/10:0;
+  const mgC=margin>=0?"var(--g)":"var(--r)";
+  const mpC=mp>=20?"var(--g)":mp>=0?"var(--gold)":"var(--r)";
+  const mpBg=mp>=20?"var(--gdim)":mp>=0?"var(--golddim)":"var(--rdim)";
+  document.getElementById("mdet-kain-total").innerHTML=`<span style="font-family:var(--m);font-weight:700">${peng>0&&hK>0?peng+" "+satuan+" × Rp "+fmt(hK)+" = ":""}<span style="color:var(--a)">Rp ${fmt(kainTot)}</span></span>`;
+  document.getElementById("mdet-bl-total").innerHTML=`<span style="font-family:var(--m);font-weight:700;color:var(--p)">Rp ${fmt(blTot)}</span>`;
+  document.getElementById("mdet-summary").innerHTML=`
+    <div style="display:grid;gap:6px">
+      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--t2)">🧵 Modal Kain</span><span class="mono">Rp ${fmt(kainTot)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--t2)">🧩 Bahan Lain</span><span class="mono">Rp ${fmt(blTot)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--t2)">✂️ Upah Jahit</span><span class="mono">Rp ${fmt(d.upah)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:800;border-top:1px solid var(--b);padding-top:7px;margin-top:2px"><span>Total Modal</span><span class="mono">Rp ${fmt(totalModal)}</span></div>
+    </div>`;
+  document.getElementById("mdet-margin-box").innerHTML=hj>0?`
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:12px;color:var(--t2)">Margin</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-family:var(--m);font-weight:700;font-size:15px;color:${mgC}">${margin<0?"-":""}Rp ${fmt(Math.abs(margin))}</span>
+        <span style="font-family:var(--m);font-weight:700;font-size:12px;padding:3px 10px;border-radius:20px;color:${mpC};background:${mpBg}">${mp}%</span>
+      </div>
+    </div>`:`<div style="font-size:11px;color:var(--t2);text-align:center">Isi harga jual untuk lihat margin</div>`;
+}
+
+async function saveMdetail(){
+  if(mdetIdx<0)return;
+  const d=modalData[mdetIdx];
+  const peng=parseFloat(document.getElementById("mdet-kain-peng").value)||0;
+  const hK=parseFloat(document.getElementById("mdet-kain-harga").value)||0;
+  d.kain={satuan:document.getElementById("mdet-kain-satuan").value,penggunaan:peng,harga_per_satuan:hK,total:Math.round(peng*hK)};
+  const blObj={};Object.keys(BL_LABELS).forEach(k=>{blObj[k]=+document.getElementById("mdet-bl-"+k)?.value||0;});
+  d.bahan_lain=blObj;
+  d.harga_jual=parseFloat(document.getElementById("mdet-hj").value)||0;
+  d.total_modal_kain=d.kain.total;
+  d.total_bahan_lain=Object.values(blObj).reduce((s,v)=>s+v,0);
+  d.total_modal=d.total_modal_kain+d.total_bahan_lain+d.upah;
   d.margin=d.harga_jual-d.total_modal;
   d.margin_persen=d.harga_jual>0?Math.round(d.margin/d.harga_jual*100*10)/10:0;
-  const mgColor=d.margin>=0?"var(--g)":"var(--r)";
-  const mpColor=d.margin_persen>=20?"var(--g)":d.margin_persen>=0?"var(--gold)":"var(--r)";
-  const mpBg=d.margin_persen>=20?"var(--gdim)":d.margin_persen>=0?"var(--golddim)":"var(--rdim)";
-  const tm=document.getElementById(`md-tm-${i}`);
-  const mg=document.getElementById(`md-mg-${i}`);
-  const mp=document.getElementById(`md-mp-${i}`);
-  if(tm)tm.textContent=fmt(d.total_modal);
-  if(mg){mg.textContent=(d.margin<0?"-":"")+fmt(Math.abs(d.margin));mg.style.color=mgColor;}
-  if(mp){mp.textContent=d.margin_persen+"%";mp.style.color=mpColor;mp.style.background=mpBg;}
-}
-async function saveModalData(){
-  const payload=modalData.map(d=>({nama:d.nama,modal_bahan:d.modal_bahan,modal_lain:d.modal_lain,harga_jual:d.harga_jual}));
+  const payload=modalData.map(item=>({nama:item.nama,kain:item.kain,bahan_lain:item.bahan_lain,harga_jual:item.harga_jual}));
   const res=await api("/api/modal-items","POST",payload);
-  if(res.ok){toast("✓ Data modal disimpan!");renderModalStats();}
+  if(res.ok){toast("✓ Data modal disimpan!");closeMdetail();renderModalStats();renderModalTable();}
   else toast(res.error||"Gagal simpan");
 }
 
