@@ -1010,6 +1010,57 @@ def backup_data():
         download_name=f'backup_yhk_{tanggal}.zip'
     )
 
+# ── DASHBOARD MODAL (admin only) ─────────────────────────────────────────────
+MODAL_FILE = os.path.join(DATA_DIR, 'modal.json')
+
+def get_modal_data():
+    return load_json(MODAL_FILE, {})
+
+@app.route('/api/modal-items', methods=['GET'])
+@require_admin
+def modal_items_get():
+    s = get_settings()
+    items = s.get('items', DEFAULT_ITEMS)
+    modal = get_modal_data()
+    result = []
+    for item in items:
+        m = modal.get(item['nama'], {})
+        modal_bahan = m.get('modal_bahan', 0)
+        modal_lain  = m.get('modal_lain', 0)
+        harga_jual  = m.get('harga_jual', 0)
+        upah        = item.get('upah', 0)
+        total_modal = modal_bahan + modal_lain + upah
+        margin      = harga_jual - total_modal
+        margin_persen = round(margin / harga_jual * 100, 1) if harga_jual > 0 else 0
+        result.append({
+            'nama': item['nama'],
+            'type': item.get('type', 'umum'),
+            'upah': upah,
+            'modal_bahan': modal_bahan,
+            'modal_lain': modal_lain,
+            'total_modal': total_modal,
+            'harga_jual': harga_jual,
+            'margin': margin,
+            'margin_persen': margin_persen
+        })
+    return jsonify(result)
+
+@app.route('/api/modal-items', methods=['POST'])
+@require_admin
+def modal_items_save():
+    data = request.json
+    if not isinstance(data, list):
+        return jsonify({'ok': False, 'error': 'Data tidak valid'}), 400
+    modal = get_modal_data()
+    for item in data:
+        modal[item['nama']] = {
+            'modal_bahan': item.get('modal_bahan', 0),
+            'modal_lain':  item.get('modal_lain', 0),
+            'harga_jual':  item.get('harga_jual', 0)
+        }
+    save_json(MODAL_FILE, modal)
+    return jsonify({'ok': True})
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     print('\n' + '='*50)

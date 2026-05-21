@@ -282,6 +282,7 @@ tr:hover td{background:rgba(20,184,166,.03)}
   <div class="nt" onclick="go('kasbon')" id="t-kasbon">💰 Kasbon</div>
   <div class="nt" onclick="go('bayar')" id="t-bayar">💸 Pembayaran</div>
   <div class="nt" onclick="go('setting')" id="t-setting">⚙️ Pengaturan</div>
+  <div class="nt" onclick="go('modal')" id="t-modal" style="display:none">💰 Dashboard Modal</div>
 </nav>
 <main><div class="wrap">
 
@@ -682,6 +683,41 @@ tr:hover td{background:rgba(20,184,166,.03)}
     <div style="margin-top:8px"><button class="btsm gh" onclick="showCPW()">🔑 Ganti Password Saya</button></div>
   </div>
 </div>
+
+<div class="sec" id="s-modal">
+  <div class="ph"><div class="pt">💰 Dashboard Modal</div><div class="ps">Analisis modal, harga jual & margin per item — Admin only</div></div>
+  <div class="sgrid" id="modal-stats"></div>
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div class="ct" style="margin-bottom:0">🏷️ Rincian Modal Per Item</div>
+      <button class="btsm" onclick="saveModalData()">💾 Simpan Perubahan</button>
+    </div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:12px;padding:8px 11px;background:var(--s2);border-radius:var(--rads);border-left:3px solid var(--a)">
+      Isi <strong>Modal Bahan</strong> (biaya kain/meter per pcs), <strong>Modal Lain</strong> (benang, kancing, dll), dan <strong>Harga Jual</strong>. Upah jahit diambil otomatis dari daftar item.
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Nama Item</th>
+            <th style="text-align:right">Modal Bahan (Rp)</th>
+            <th style="text-align:right">Modal Lain (Rp)</th>
+            <th style="text-align:right">Upah Jahit (Rp)</th>
+            <th style="text-align:right">Total Modal (Rp)</th>
+            <th style="text-align:right">Harga Jual (Rp)</th>
+            <th style="text-align:right">Margin (Rp)</th>
+            <th style="text-align:center">Margin (%)</th>
+          </tr>
+        </thead>
+        <tbody id="modal-tbody"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:12px;text-align:right">
+      <button class="btsm" onclick="saveModalData()">💾 Simpan Perubahan</button>
+    </div>
+  </div>
+</div>
+
 </div></main>
 <div class="mo" id="login-mo" style="display:none">
   <div class="mbox">
@@ -767,7 +803,7 @@ function saveNama(){settings.nama_konveksi=document.getElementById("s-nama").val
 function addPjt(){const n=document.getElementById("s-newpjt").value.trim();if(!n)return;if(settings.penjahit.includes(n))return toast("&#9888; Sudah ada!");settings.penjahit.push(n);api("/api/settings","POST",settings).then(()=>{renderPjtTags();fillSelects();document.getElementById("s-newpjt").value="";});}
 function delPjt(i){if(!confirm("Hapus penjahit ini?"))return;settings.penjahit.splice(i,1);api("/api/settings","POST",settings).then(()=>{renderPjtTags();fillSelects();});}
 async function checkAuth(){const d=await api("/api/auth/status");role=d.role||"guest";uname=d.user;unama=d.nama;applyRole();}
-function applyRole(){const pill=document.getElementById("rolePill"),btn=document.getElementById("authBtn");if(role==="admin"){pill.textContent="⚡ Admin";pill.className="rp rpa";btn.textContent="🚪 Logout";btn.onclick=doLogout;}else if(role==="staff"){pill.textContent="👷 "+(unama||"Staff");pill.className="rp rps";btn.textContent="🚪 Logout";btn.onclick=doLogout;}else{pill.textContent="👤 Tamu";pill.className="rp rpg";btn.textContent="🔐 Login";btn.onclick=showLogin;}const ci=role==="admin"||role==="staff",ia=role==="admin";document.querySelectorAll(".btp,.btg,.btr,.btp2").forEach(b=>b.classList.toggle("locked",!ci));document.querySelectorAll(".farea").forEach(el=>{el.style.pointerEvents=ci?"all":"none";el.style.opacity=ci?"1":"0.4";});document.querySelectorAll(".lkn").forEach(el=>el.remove());if(!ci){document.querySelectorAll(".card").forEach(card=>{const n=document.createElement("div");n.className="lkn";n.textContent="&#128274; Login untuk input data";card.insertBefore(n,card.firstChild);});}const imc=document.getElementById("item-mc");if(imc)imc.querySelectorAll("input,select,.btsm:not(.gh)").forEach(el=>el.disabled=!ia);const aur=document.getElementById("add-user-row");if(aur)aur.style.display=ia?"grid":"none";if(ia)loadUserList();}
+function applyRole(){const pill=document.getElementById("rolePill"),btn=document.getElementById("authBtn");if(role==="admin"){pill.textContent="⚡ Admin";pill.className="rp rpa";btn.textContent="🚪 Logout";btn.onclick=doLogout;}else if(role==="staff"){pill.textContent="👷 "+(unama||"Staff");pill.className="rp rps";btn.textContent="🚪 Logout";btn.onclick=doLogout;}else{pill.textContent="👤 Tamu";pill.className="rp rpg";btn.textContent="🔐 Login";btn.onclick=showLogin;}const ci=role==="admin"||role==="staff",ia=role==="admin";document.querySelectorAll(".btp,.btg,.btr,.btp2").forEach(b=>b.classList.toggle("locked",!ci));document.querySelectorAll(".farea").forEach(el=>{el.style.pointerEvents=ci?"all":"none";el.style.opacity=ci?"1":"0.4";});document.querySelectorAll(".lkn").forEach(el=>el.remove());if(!ci){document.querySelectorAll(".card").forEach(card=>{const n=document.createElement("div");n.className="lkn";n.textContent="&#128274; Login untuk input data";card.insertBefore(n,card.firstChild);});}const tmt=document.getElementById("t-modal");if(tmt)tmt.style.display=ia?"block":"none";const imc=document.getElementById("item-mc");if(imc)imc.querySelectorAll("input,select,.btsm:not(.gh)").forEach(el=>el.disabled=!ia);const aur=document.getElementById("add-user-row");if(aur)aur.style.display=ia?"grid":"none";if(ia)loadUserList();}
 function showLogin(){document.getElementById("login-mo").style.display="flex";setTimeout(()=>document.getElementById("l-u").focus(),50);}
 function closeLogin(){document.getElementById("login-mo").style.display="none";}
 async function doLogin(){const u=document.getElementById("l-u").value.trim(),p=document.getElementById("l-pw").value,err=document.getElementById("l-err");if(!u||!p){err.textContent="Wajib diisi!";err.style.display="block";return;}const res=await api("/api/auth/login","POST",{username:u,password:p});if(res.ok){role=res.role;uname=u;unama=res.nama;closeLogin();applyRole();toast("&#10003; Selamat datang, "+res.nama+"!");document.getElementById("l-u").value="";document.getElementById("l-pw").value="";}else{err.textContent=res.error||"Login gagal!";err.style.display="block";}}
@@ -878,7 +914,7 @@ function lbNav(d){lbIdx=(lbIdx+d+lbImgs.length)%lbImgs.length;showLb();}
 document.addEventListener("keydown",e=>{if(!document.getElementById("lb").classList.contains("open"))return;if(e.key==="ArrowRight")lbNav(1);if(e.key==="ArrowLeft")lbNav(-1);if(e.key==="Escape")closeLbBtn();});
 function toggleTheme(){const l=document.body.classList.toggle("light");document.getElementById("themeBtn").textContent=l?"☀️":"🌙";localStorage.setItem("yhk_theme",l?"light":"dark");}
 function loadTheme(){if(localStorage.getItem("yhk_theme")==="light"){document.body.classList.add("light");document.getElementById("themeBtn").textContent="☀️";}}
-function go(name){document.querySelectorAll(".sec").forEach(s=>s.classList.remove("active"));document.querySelectorAll(".nt").forEach(t=>t.classList.remove("active"));document.getElementById("s-"+name).classList.add("active");document.getElementById("t-"+name).classList.add("active");if(name==="riwayat"){loadRiwayat();loadStats();}if(name==="kasbon")loadKasbon();if(name==="bayar")loadBayar();if(name==="qc")loadQCHist();if(name==="stok"){switchStokTab("gunting");}if(name==="keluar")loadKeluarHist();if(name==="ringkasan")loadRingkasan();if(name==="setting"){renderItemTable();if(role==="admin")loadUserList();renderKainTags();}
+function go(name){document.querySelectorAll(".sec").forEach(s=>s.classList.remove("active"));document.querySelectorAll(".nt").forEach(t=>t.classList.remove("active"));document.getElementById("s-"+name).classList.add("active");document.getElementById("t-"+name).classList.add("active");if(name==="riwayat"){loadRiwayat();loadStats();}if(name==="kasbon")loadKasbon();if(name==="bayar")loadBayar();if(name==="qc")loadQCHist();if(name==="stok"){switchStokTab("gunting");}if(name==="keluar")loadKeluarHist();if(name==="ringkasan")loadRingkasan();if(name==="setting"){renderItemTable();if(role==="admin")loadUserList();renderKainTags();}if(name==="modal")loadModalDashboard();
   if(name==="kain-masuk"){loadKainList();loadKainMasukHist();loadStokKain();}
   if(name==="kain-ambil"){loadKainList();loadKainAmbilHist();loadStokKain();}
   if(name==="alihtgas")loadAlihTugasHist();
@@ -1621,6 +1657,72 @@ function doBackupNow() {
 function dismissReminder() {
   const el = document.getElementById('backup-reminder');
   if (el) el.remove();
+}
+
+// ── DASHBOARD MODAL ───────────────────────────────────────────────────────────
+let modalData=[];
+async function loadModalDashboard(){
+  if(role!=="admin")return;
+  modalData=await api("/api/modal-items");
+  renderModalStats();
+  renderModalTable();
+}
+function renderModalStats(){
+  const el=document.getElementById("modal-stats");
+  if(!el)return;
+  if(!modalData.length){el.innerHTML="";return;}
+  const withPrice=modalData.filter(d=>d.harga_jual>0);
+  const avgMargin=withPrice.length?Math.round(withPrice.reduce((s,d)=>s+d.margin_persen,0)/withPrice.length):0;
+  const sorted=[...withPrice].sort((a,b)=>b.margin_persen-a.margin_persen);
+  const best=sorted[0],worst=sorted[sorted.length-1];
+  const mgColor=avgMargin>=20?"var(--g)":avgMargin>=0?"var(--gold)":"var(--r)";
+  el.innerHTML=`
+    <div class="sc"><div class="scl">Total Item</div><div class="scv">${modalData.length}</div><div style="font-size:10px;color:var(--t2);margin-top:4px">jenis produk</div></div>
+    <div class="sc"><div class="scl">Harga Sudah Diisi</div><div class="scv">${withPrice.length}/${modalData.length}</div><div style="font-size:10px;color:var(--t2);margin-top:4px">item aktif</div></div>
+    <div class="sc"><div class="scl">Rata-rata Margin</div><div class="scv" style="background:linear-gradient(135deg,var(--t),${mgColor});-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">${avgMargin}%</div><div style="font-size:10px;color:var(--t2);margin-top:4px">dari item aktif</div></div>
+    <div class="sc"><div class="scl">Margin Terbaik</div><div class="scv" style="font-size:14px;background:linear-gradient(135deg,var(--t),var(--g));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">${best?best.nama:"-"}</div><div style="font-size:10px;color:var(--g);margin-top:4px;font-family:var(--m)">${best?best.margin_persen+"%":""}</div></div>`;
+}
+function renderModalTable(){
+  const el=document.getElementById("modal-tbody");
+  if(!el)return;
+  if(!modalData.length){el.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--t2);padding:20px">Belum ada item</td></tr>';return;}
+  const inS="padding:4px 7px;font-size:12px;text-align:right;background:var(--s2);border:1px solid var(--b);border-radius:5px;color:var(--t);font-family:var(--m);width:100px";
+  el.innerHTML=modalData.map((d,i)=>{
+    const mgColor=d.margin>=0?"var(--g)":"var(--r)";
+    const mpColor=d.margin_persen>=20?"var(--g)":d.margin_persen>=0?"var(--gold)":"var(--r)";
+    const mpBg=d.margin_persen>=20?"var(--gdim)":d.margin_persen>=0?"var(--golddim)":"var(--rdim)";
+    return`<tr>
+      <td style="font-weight:700;white-space:nowrap">${d.nama}</td>
+      <td><input type="number" value="${d.modal_bahan}" min="0" style="${inS}" oninput="modalData[${i}].modal_bahan=+this.value;recalcModal(${i})"></td>
+      <td><input type="number" value="${d.modal_lain}" min="0" style="${inS}" oninput="modalData[${i}].modal_lain=+this.value;recalcModal(${i})"></td>
+      <td class="mono" style="text-align:right;color:var(--t2)">${fmt(d.upah)}</td>
+      <td class="mono" style="text-align:right;font-weight:700" id="md-tm-${i}">${fmt(d.total_modal)}</td>
+      <td><input type="number" value="${d.harga_jual}" min="0" style="${inS}" oninput="modalData[${i}].harga_jual=+this.value;recalcModal(${i})"></td>
+      <td class="mono" style="text-align:right;font-weight:700;color:${mgColor}" id="md-mg-${i}">${d.margin<0?"-":""}${fmt(Math.abs(d.margin))}</td>
+      <td style="text-align:center"><span style="font-family:var(--m);font-weight:700;font-size:12px;padding:2px 9px;border-radius:20px;color:${mpColor};background:${mpBg}" id="md-mp-${i}">${d.margin_persen}%</span></td>
+    </tr>`;
+  }).join("");
+}
+function recalcModal(i){
+  const d=modalData[i];
+  d.total_modal=d.modal_bahan+d.modal_lain+d.upah;
+  d.margin=d.harga_jual-d.total_modal;
+  d.margin_persen=d.harga_jual>0?Math.round(d.margin/d.harga_jual*100*10)/10:0;
+  const mgColor=d.margin>=0?"var(--g)":"var(--r)";
+  const mpColor=d.margin_persen>=20?"var(--g)":d.margin_persen>=0?"var(--gold)":"var(--r)";
+  const mpBg=d.margin_persen>=20?"var(--gdim)":d.margin_persen>=0?"var(--golddim)":"var(--rdim)";
+  const tm=document.getElementById(`md-tm-${i}`);
+  const mg=document.getElementById(`md-mg-${i}`);
+  const mp=document.getElementById(`md-mp-${i}`);
+  if(tm)tm.textContent=fmt(d.total_modal);
+  if(mg){mg.textContent=(d.margin<0?"-":"")+fmt(Math.abs(d.margin));mg.style.color=mgColor;}
+  if(mp){mp.textContent=d.margin_persen+"%";mp.style.color=mpColor;mp.style.background=mpBg;}
+}
+async function saveModalData(){
+  const payload=modalData.map(d=>({nama:d.nama,modal_bahan:d.modal_bahan,modal_lain:d.modal_lain,harga_jual:d.harga_jual}));
+  const res=await api("/api/modal-items","POST",payload);
+  if(res.ok){toast("✓ Data modal disimpan!");renderModalStats();}
+  else toast(res.error||"Gagal simpan");
 }
 
 window.addEventListener("DOMContentLoaded",()=>init().catch(err=>{const l=document.getElementById("loader");if(l)l.innerHTML=`<div style="color:var(--r);text-align:center;padding:40px"><div style="font-size:28px;margin-bottom:10px">&#9888;&#65039;</div><div style="font-size:13px;font-weight:700">Gagal memuat</div><div style="font-size:11px;color:var(--t2);margin-top:7px">${err.message}</div></div>`;}));
