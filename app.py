@@ -36,6 +36,7 @@ AUTH_FILE    = os.path.join(DATA_DIR, 'users.json')
 BAYAR_FILE   = os.path.join(DATA_DIR, 'pembayaran.json')
 QC_FILE      = os.path.join(DATA_DIR, 'qc.json')
 STOK_FILE    = os.path.join(DATA_DIR, 'stok.json')
+BAHAN_AMBIL_FILE = os.path.join(DATA_DIR, 'bahan_ambil.json')
 
 def hash_pw(pw): return hashlib.sha256(pw.encode()).hexdigest()
 
@@ -222,6 +223,17 @@ DEFAULT_ITEMS = [
     {"nama": "Seragam Security", "upah": 22000, "type": "umum"},
 ]
 
+DEFAULT_BAHAN_AMBIL = [
+    "Kain",
+    "Kain Keras",
+    "Merk / Label",
+    "Badge OSIS",
+    "Lambang / Emblem",
+    "Benang",
+    "Kancing",
+    "Resleting",
+]
+
 @app.route('/api/items', methods=['GET'])
 def items_get():
     s = get_settings()
@@ -236,6 +248,33 @@ def items_save():
     s = get_settings()
     s['items'] = items
     save_json(SETTING_FILE, s)
+    return jsonify({'ok': True})
+
+# ── MASTERBASE BAHAN PENGAMBILAN PENJAHIT ─────────────────────────────────────
+@app.route('/api/bahan-ambil', methods=['GET'])
+def bahan_ambil_get():
+    return jsonify(load_json(BAHAN_AMBIL_FILE, DEFAULT_BAHAN_AMBIL))
+
+@app.route('/api/bahan-ambil', methods=['POST'])
+@require_admin
+def bahan_ambil_add():
+    d = request.json
+    nama = (d.get('nama') or '').strip()
+    if not nama:
+        return jsonify({'ok': False, 'error': 'Nama bahan wajib!'}), 400
+    data = load_json(BAHAN_AMBIL_FILE, DEFAULT_BAHAN_AMBIL)
+    if any(b.lower() == nama.lower() for b in data):
+        return jsonify({'ok': False, 'error': 'Bahan sudah ada!'}), 400
+    data.append(nama)
+    save_json(BAHAN_AMBIL_FILE, data)
+    return jsonify({'ok': True})
+
+@app.route('/api/bahan-ambil/<string:nama>', methods=['DELETE'])
+@require_admin
+def bahan_ambil_del(nama):
+    data = load_json(BAHAN_AMBIL_FILE, DEFAULT_BAHAN_AMBIL)
+    data = [b for b in data if b != nama]
+    save_json(BAHAN_AMBIL_FILE, data)
     return jsonify({'ok': True})
 
 @app.route('/api/transaksi', methods=['POST'])
@@ -987,7 +1026,7 @@ def backup_data():
     files = ['transaksi.json','kasbon.json','pembayaran.json','qc.json',
              'keluar.json','stok.json','stok_guntingan.json','stok_jahitan.json',
              'kain.json','kain_masuk.json','kain_ambil.json','alih_tugas.json',
-             'settings.json','users.json']
+             'bahan_ambil.json','settings.json','users.json']
     for fname in files:
         fpath = os.path.join(DATA_DIR, fname)
         if os.path.exists(fpath):

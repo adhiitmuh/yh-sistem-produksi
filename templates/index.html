@@ -270,7 +270,7 @@ tr:hover td{background:rgba(22,163,74,.04)}
   <div class="nt active" onclick="go('kain-masuk')" id="t-kain-masuk">🧵 Kain Masuk</div>
   <div class="nt" onclick="go('kain-ambil')" id="t-kain-ambil">📋 Pengambilan Kain</div>
   <div class="nt" onclick="go('gunting')" id="t-gunting">✂️ Setor Guntingan</div>
-  <div class="nt" onclick="go('ambil')" id="t-ambil">📦 Ambil Jahitan</div>
+  <div class="nt" onclick="go('ambil')" id="t-ambil">📦 Ambil Bahan</div>
   <div class="nt" onclick="go('jahit')" id="t-jahit">🪡 Setor Jahitan</div>
   <div class="nt" onclick="go('qc')" id="t-qc">✅ QC & Finishing</div>
   <div class="nt" onclick="go('stok')" id="t-stok">📊 Stok</div>
@@ -419,7 +419,7 @@ tr:hover td{background:rgba(22,163,74,.04)}
   </div>
 </div>
 <div class="sec" id="s-ambil">
-  <div class="ph"><div class="pt">📦 Ambil Jahitan</div><div class="ps">Penjahit mengambil bahan untuk dikerjakan</div></div>
+  <div class="ph"><div class="pt">📦 Ambil Bahan</div><div class="ps">Penjahit mengambil bahan dari konveksi (kain, kain keras, merk, osis, lambang, dll)</div></div>
   <div class="card">
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="a-tgl"></div>
@@ -427,6 +427,16 @@ tr:hover td{background:rgba(22,163,74,.04)}
       <div class="fg"><label>No. Order</label><input type="text" id="a-ord" placeholder="ORD-001"></div>
       <div class="fg"><label>Target Selesai</label><input type="date" id="a-ddl"></div>
     </div>
+
+    <!-- MASTERBASE BAHAN -->
+    <div id="a-bahan-wrap" style="margin-bottom:12px">
+      <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center">
+        <span>📦 Pilih Bahan (Masterbase)</span>
+        <button onclick="loadBahanMaster()" style="padding:3px 9px;background:var(--s2);border:1px solid var(--b);color:var(--t2);border-radius:var(--rads);cursor:pointer;font-size:10px;font-family:var(--f)">🔄</button>
+      </div>
+      <div id="a-bahan-chips" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px;background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);min-height:40px"></div>
+    </div>
+
     <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Item Diambil</div>
     <div id="a-blocks"></div>
     <button class="btn btgh" onclick="addAmbilBlock()">+ Tambah Item</button>
@@ -634,6 +644,15 @@ tr:hover td{background:rgba(22,163,74,.04)}
     <div style="display:flex;gap:7px">
       <input type="text" id="s-newkain" placeholder="Nama kain baru..." onkeydown="if(event.key==='Enter')addKainMaster()" style="flex:1">
       <button class="btsm" onclick="addKainMaster()">+ Tambah</button>
+    </div>
+  </div>
+  <div class="card" id="bahan-master-card">
+    <div class="ct">📦 Masterbase Bahan Pengambilan Penjahit</div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:10px">Daftar bahan yang bisa diambil penjahit dari konveksi — misal kain, kain keras, merk, osis, lambang, dll.</div>
+    <div class="tglist" id="bahan-tags"></div>
+    <div style="display:flex;gap:7px">
+      <input type="text" id="s-newbahan" placeholder="Nama bahan baru (Kain, Merk, OSIS...)" onkeydown="if(event.key==='Enter')addBahanMaster()" style="flex:1">
+      <button class="btsm" onclick="addBahanMaster()">+ Tambah</button>
     </div>
   </div>
   <div class="card">
@@ -853,7 +872,7 @@ const td=()=>new Date().toISOString().split("T")[0];
 const fmt=n=>(+n||0).toLocaleString("id-ID");
 const fmtD=s=>s?new Date(s+"T00:00:00").toLocaleDateString("id-ID",{day:"numeric",month:"short",year:"numeric"}):"";
 async function api(url,m="GET",b=null){const o={method:m,headers:{"Content-Type":"application/json"}};if(b)o.body=JSON.stringify(b);try{const r=await fetch(url,o);return r.json();}catch{return{};}}
-async function init(){loadTheme();document.getElementById("hdrDate").textContent=new Date().toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"});const d=td();["j-tgl","g-tgl","a-tgl","kb-tgl","by-tgl","qc-tgl","ke-tgl","f-tgl","exp-dari","exp-ke"].forEach(id=>{const el=document.getElementById(id);if(el)el.value=d;});await loadSettings();await loadIM();await checkAuth();addJahitBlock();addGuntingBlock();addAmbilBlock();addQCRow();addKeluarBlock();loadKainList();
+async function init(){loadTheme();document.getElementById("hdrDate").textContent=new Date().toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"});const d=td();["j-tgl","g-tgl","a-tgl","kb-tgl","by-tgl","qc-tgl","ke-tgl","f-tgl","exp-dari","exp-ke"].forEach(id=>{const el=document.getElementById(id);if(el)el.value=d;});await loadSettings();await loadIM();await checkAuth();addJahitBlock();addGuntingBlock();addAmbilBlock();addQCRow();addKeluarBlock();loadKainList();loadBahanMaster();
   setTimeout(checkBackupReminder, 3000);
   document.getElementById("loader").style.display="none";}
 async function loadSettings(){settings=await api("/api/settings");document.getElementById("namaK").textContent=settings.nama_konveksi||"YHK";document.getElementById("s-nama").value=settings.nama_konveksi||"";renderPjtTags();fillSelects();}
@@ -974,9 +993,10 @@ function lbNav(d){lbIdx=(lbIdx+d+lbImgs.length)%lbImgs.length;showLb();}
 document.addEventListener("keydown",e=>{if(!document.getElementById("lb").classList.contains("open"))return;if(e.key==="ArrowRight")lbNav(1);if(e.key==="ArrowLeft")lbNav(-1);if(e.key==="Escape")closeLbBtn();});
 function toggleTheme(){const l=document.body.classList.toggle("light");document.getElementById("themeBtn").textContent=l?"☀️":"🌙";localStorage.setItem("yhk_theme",l?"light":"dark");}
 function loadTheme(){if(localStorage.getItem("yhk_theme")==="light"){document.body.classList.add("light");document.getElementById("themeBtn").textContent="☀️";}}
-function go(name){document.querySelectorAll(".sec").forEach(s=>s.classList.remove("active"));document.querySelectorAll(".nt").forEach(t=>t.classList.remove("active"));document.getElementById("s-"+name).classList.add("active");document.getElementById("t-"+name).classList.add("active");if(name==="riwayat"){loadRiwayat();loadStats();}if(name==="kasbon")loadKasbon();if(name==="bayar")loadBayar();if(name==="qc")loadQCHist();if(name==="stok"){switchStokTab("gunting");}if(name==="keluar")loadKeluarHist();if(name==="ringkasan")loadRingkasan();if(name==="setting"){renderItemTable();if(role==="admin")loadUserList();renderKainTags();}if(name==="modal")loadModalDashboard();
+function go(name){document.querySelectorAll(".sec").forEach(s=>s.classList.remove("active"));document.querySelectorAll(".nt").forEach(t=>t.classList.remove("active"));document.getElementById("s-"+name).classList.add("active");document.getElementById("t-"+name).classList.add("active");if(name==="riwayat"){loadRiwayat();loadStats();}if(name==="kasbon")loadKasbon();if(name==="bayar")loadBayar();if(name==="qc")loadQCHist();if(name==="stok"){switchStokTab("gunting");}if(name==="keluar")loadKeluarHist();if(name==="ringkasan")loadRingkasan();if(name==="setting"){renderItemTable();if(role==="admin")loadUserList();renderKainTags();renderBahanTags();}if(name==="modal")loadModalDashboard();
   if(name==="kain-masuk"){loadKainList();loadKainMasukHist();loadStokKain();}
   if(name==="kain-ambil"){loadKainList();loadKainAmbilHist();loadStokKain();}
+  if(name==="ambil")loadBahanMaster();
   if(name==="alihtgas")loadAlihTugasHist();
   if(name==="progress")loadProgress();}
 function toast(msg){const t=document.getElementById("toast");document.getElementById("toast-txt").textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),3000);}
@@ -1001,6 +1021,67 @@ async function delKainMaster(nama) {
   if (!confirm('Hapus kain "' + nama + '"?')) return;
   await api('/api/kain/' + encodeURIComponent(nama), 'DELETE');
   toast('🗑️ Kain dihapus'); renderKainTags(); loadKainList();
+}
+
+// ── MASTERBASE BAHAN PENGAMBILAN PENJAHIT ─────────────────────────────────────
+async function renderBahanTags() {
+  const data = await api('/api/bahan-ambil');
+  const el = document.getElementById('bahan-tags');
+  if (!el) return;
+  el.innerHTML = data.map(b => `<div class="tg">${b}<span class="tgd" onclick="delBahanMaster('${b.replace(/'/g,'\\\'')}')">&times;</span></div>`).join('');
+}
+
+async function addBahanMaster() {
+  const n = document.getElementById('s-newbahan').value.trim();
+  if (!n) return;
+  const res = await api('/api/bahan-ambil', 'POST', {nama: n});
+  if (res.ok) { toast('✅ Bahan ditambahkan!'); document.getElementById('s-newbahan').value = ''; renderBahanTags(); loadBahanMaster(); }
+  else toast('⚠️ ' + (res.error || 'Gagal'));
+}
+
+async function delBahanMaster(nama) {
+  if (!confirm('Hapus bahan "' + nama + '"?')) return;
+  await api('/api/bahan-ambil/' + encodeURIComponent(nama), 'DELETE');
+  toast('🗑️ Bahan dihapus'); renderBahanTags(); loadBahanMaster();
+}
+
+async function loadBahanMaster() {
+  const data = await api('/api/bahan-ambil');
+  const el = document.getElementById('a-bahan-chips');
+  if (!el) return;
+  if (!data || !data.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--t2)">Belum ada bahan — tambahkan di Pengaturan</div>';
+    return;
+  }
+  el.innerHTML = data.map(b => `<button onclick="addAmbilFromBahan('${b.replace(/'/g,'\\\'')}')" style="padding:5px 13px;background:var(--s2);border:1px solid var(--b);border-radius:20px;font-size:12px;font-family:var(--f);font-weight:600;color:var(--t);cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor='var(--p)';this.style.background='var(--pdim)'" onmouseout="this.style.borderColor='var(--b)';this.style.background='var(--s2)'">+ ${b}</button>`).join('');
+}
+
+function addAmbilFromBahan(nama) {
+  const blocks = document.querySelectorAll('#a-blocks .iblock');
+  for (const b of blocks) {
+    const inp = b.querySelector('.ibn');
+    if (inp && inp.value.trim().toLowerCase() === nama.toLowerCase()) {
+      inp.focus();
+      toast(nama + ' sudah ada di form');
+      return;
+    }
+  }
+  addAmbilBlock();
+  const all = document.querySelectorAll('#a-blocks .iblock');
+  const last = all[all.length - 1];
+  if (last) {
+    const inp = last.querySelector('.ibn');
+    if (inp) {
+      inp.value = nama;
+      const im = getIM(nama);
+      const uiInp = last.querySelector('.ibu');
+      if (uiInp && im) uiInp.value = im.upah || '';
+      const ukw = last.querySelector('.ukw');
+      if (ukw) ukw.innerHTML = buildUK(last.id.replace('ib-',''), im ? im.type : 'umum', 'calcA');
+      calcA();
+    }
+  }
+  toast(nama + ' ditambahkan ke form');
 }
 
 
