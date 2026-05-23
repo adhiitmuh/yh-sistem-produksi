@@ -432,10 +432,10 @@ tr:hover td{background:rgba(22,163,74,.04)}
       <span class="tt">🗄️ Master Database Bahan</span>
       <div style="display:flex;align-items:center;gap:8px">
         <span class="bdg" id="bahan-cnt-badge">0</span>
-        <span id="bahan-toggle-icon" style="font-size:11px;color:var(--t2)">▼ Lihat & Kelola</span>
+        <span id="bahan-toggle-icon" style="font-size:11px;color:var(--t2)">▲ Sembunyikan</span>
       </div>
     </div>
-    <div id="bahan-master-panel" style="display:none;padding:14px">
+    <div id="bahan-master-panel" style="display:block;padding:14px">
       <div style="font-size:12px;color:var(--t2);margin-bottom:11px">Daftar bahan yang bisa dicatat saat pengambilan. Admin & staff bisa tambah/hapus.</div>
       <div class="tglist" id="bahan-tags-inline"></div>
       <div style="display:flex;gap:7px;margin-top:4px">
@@ -1156,14 +1156,19 @@ function toggleMasterBahan() {
 async function addBahanInline() {
   const inp = document.getElementById('s-newbahan-inline');
   const n = inp ? inp.value.trim() : '';
-  if (!n) return;
+  if (!n) { toast('⚠️ Tulis nama bahan dulu!'); return; }
+  if (role !== 'admin' && role !== 'staff') { toast('⚠️ Harus login sebagai staff/admin'); return; }
   const res = await api('/api/bahan-ambil', 'POST', {nama: n});
   if (res.ok) {
-    toast('✅ ' + n + ' ditambahkan!');
+    toast('✅ ' + n + ' ditambahkan ke masterbase!');
     if (inp) inp.value = '';
     loadBahanMaster();
-    renderBahanTags(); // sync settings page juga
-  } else toast('⚠️ ' + (res.error || 'Gagal'));
+    renderBahanTags();
+  } else if (res.error === 'unauthorized') {
+    toast('⚠️ Sesi habis — silakan login ulang');
+  } else {
+    toast('⚠️ ' + (res.error || 'Gagal menyimpan'));
+  }
 }
 
 async function delBahanInline(nama) {
