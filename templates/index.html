@@ -270,7 +270,8 @@ tr:hover td{background:rgba(22,163,74,.04)}
   <div class="nt active" onclick="go('kain-masuk')" id="t-kain-masuk">🧵 Kain Masuk</div>
   <div class="nt" onclick="go('kain-ambil')" id="t-kain-ambil">📋 Pengambilan Kain</div>
   <div class="nt" onclick="go('gunting')" id="t-gunting">✂️ Setor Guntingan</div>
-  <div class="nt" onclick="go('ambil')" id="t-ambil">📦 Ambil Bahan</div>
+  <div class="nt" onclick="go('ambil')" id="t-ambil">📦 Pengambilan Bahan</div>
+  <div class="nt" onclick="go('orderan')" id="t-orderan">📋 Orderan Penjahit</div>
   <div class="nt" onclick="go('jahit')" id="t-jahit">🪡 Setor Jahitan</div>
   <div class="nt" onclick="go('qc')" id="t-qc">✅ QC & Finishing</div>
   <div class="nt" onclick="go('stok')" id="t-stok">📊 Stok</div>
@@ -360,7 +361,11 @@ tr:hover td{background:rgba(22,163,74,.04)}
   <div class="card">
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="j-tgl"></div>
-      <div class="fg"><label>Penjahit</label><select id="j-pjt"><option value="">— Pilih —</option></select></div>
+      <div class="fg"><label>Penjahit</label><select id="j-pjt" onchange="loadOrderanForPenjahit(this.value)"><option value="">— Pilih —</option></select></div>
+    </div>
+    <div class="fg" style="margin-bottom:10px;display:none" id="j-orderan-wrap">
+      <label>Referensi Orderan (opsional)</label>
+      <select id="j-orderan" onchange="prefillFromOrderan()" style="font-size:12px"><option value="">— Tanpa Orderan —</option></select>
     </div>
     <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Item Jahitan</div>
     <div id="j-blocks"></div>
@@ -419,7 +424,7 @@ tr:hover td{background:rgba(22,163,74,.04)}
   </div>
 </div>
 <div class="sec" id="s-ambil">
-  <div class="ph"><div class="pt">📦 Ambil Bahan</div><div class="ps">Penjahit mengambil bahan dari konveksi (kain, kain keras, merk, osis, lambang, dll)</div></div>
+  <div class="ph"><div class="pt">📦 Pengambilan Bahan</div><div class="ps">Staff mencatat bahan yang diberikan ke penjahit (kain, kain keras, merk, osis, lambang, dll)</div></div>
   <div class="card">
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="a-tgl"></div>
@@ -455,6 +460,32 @@ tr:hover td{background:rgba(22,163,74,.04)}
     </div>
     <button class="btn btp2" onclick="submitAmbil()">✓ Simpan Pengambilan</button>
   </div>
+</div>
+<div class="sec" id="s-orderan">
+  <div class="ph"><div class="pt">📋 Orderan ke Penjahit</div><div class="ps">Buat dan pantau orderan jahitan per penjahit — lihat progress tiap setoran</div></div>
+
+  <!-- Form buat orderan -->
+  <div class="card">
+    <div class="ct">➕ Buat Orderan Baru</div>
+    <div class="g2" style="margin-bottom:10px">
+      <div class="fg"><label>Tanggal</label><input type="date" id="or-tgl"></div>
+      <div class="fg"><label>Penjahit</label><select id="or-pjt"><option value="">— Pilih —</option></select></div>
+      <div class="fg"><label>No. Order</label><input type="text" id="or-no" placeholder="ORD-001"></div>
+      <div class="fg"><label>Deadline</label><input type="date" id="or-ddl"></div>
+    </div>
+    <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Item yang Dipesan</div>
+    <div id="or-items"></div>
+    <button class="btn btgh" onclick="addOrItemRow()">+ Tambah Item</button>
+    <div class="sb" id="or-summary" style="display:none">
+      <div><div class="sil">Total Item</div><div class="siv" style="color:var(--p)" id="or-tot-item">0</div></div>
+      <div><div class="sil">Total Qty Order</div><div class="siv" style="color:var(--p)" id="or-tot-qty">0</div></div>
+    </div>
+    <div class="fg" style="margin-bottom:10px"><label>Keterangan</label><textarea id="or-ket" placeholder="Opsional..."></textarea></div>
+    <button class="btn btp2" onclick="submitOrderan()">📋 Simpan Orderan</button>
+  </div>
+
+  <!-- List orderan -->
+  <div class="tw"><div class="th2"><span class="tt">Daftar Orderan</span><span class="bdg" id="or-cnt">0</span></div><div id="or-list"></div></div>
 </div>
 <div class="sec" id="s-kasbon">
   <div class="ph"><div class="pt">💰 Kasbon</div><div class="ps">Catat & kelola kasbon penjahit</div></div>
@@ -883,7 +914,24 @@ function saveNama(){settings.nama_konveksi=document.getElementById("s-nama").val
 function addPjt(){const n=document.getElementById("s-newpjt").value.trim();if(!n)return;if(settings.penjahit.includes(n))return toast("&#9888; Sudah ada!");settings.penjahit.push(n);api("/api/settings","POST",settings).then(()=>{renderPjtTags();fillSelects();document.getElementById("s-newpjt").value="";});}
 function delPjt(i){if(!confirm("Hapus penjahit ini?"))return;settings.penjahit.splice(i,1);api("/api/settings","POST",settings).then(()=>{renderPjtTags();fillSelects();});}
 async function checkAuth(){const d=await api("/api/auth/status");role=d.role||"guest";uname=d.user;unama=d.nama;applyRole();}
-function applyRole(){const pill=document.getElementById("rolePill"),btn=document.getElementById("authBtn");if(role==="admin"){pill.textContent="⚡ Admin";pill.className="rp rpa";btn.textContent="🚪 Logout";btn.onclick=doLogout;}else if(role==="staff"){pill.textContent="👷 "+(unama||"Staff");pill.className="rp rps";btn.textContent="🚪 Logout";btn.onclick=doLogout;}else{pill.textContent="👤 Tamu";pill.className="rp rpg";btn.textContent="🔐 Login";btn.onclick=showLogin;}const ci=role==="admin"||role==="staff",ia=role==="admin";document.querySelectorAll(".btp,.btg,.btr,.btp2").forEach(b=>b.classList.toggle("locked",!ci));document.querySelectorAll(".farea").forEach(el=>{el.style.pointerEvents=ci?"all":"none";el.style.opacity=ci?"1":"0.4";});document.querySelectorAll(".lkn").forEach(el=>el.remove());if(!ci){document.querySelectorAll(".card").forEach(card=>{const n=document.createElement("div");n.className="lkn";n.textContent="&#128274; Login untuk input data";card.insertBefore(n,card.firstChild);});}const tmt=document.getElementById("t-modal");if(tmt)tmt.style.display=ia?"block":"none";const imc=document.getElementById("item-mc");if(imc)imc.querySelectorAll("input,select,.btsm:not(.gh)").forEach(el=>el.disabled=!ia);const aur=document.getElementById("add-user-row");if(aur)aur.style.display=ia?"grid":"none";if(ia)loadUserList();}
+function applyRole(){const pill=document.getElementById("rolePill"),btn=document.getElementById("authBtn");if(role==="admin"){pill.textContent="⚡ Admin";pill.className="rp rpa";btn.textContent="🚪 Logout";btn.onclick=doLogout;}else if(role==="staff"){pill.textContent="👷 "+(unama||"Staff");pill.className="rp rps";btn.textContent="🚪 Logout";btn.onclick=doLogout;}else{pill.textContent="👤 Tamu";pill.className="rp rpg";btn.textContent="🔐 Login";btn.onclick=showLogin;}const ci=role==="admin"||role==="staff",ia=role==="admin";
+// Tab visibility by role
+const STAFF_ONLY = ['ambil','orderan'];
+document.querySelectorAll('.nt').forEach(tab => {
+  if (!tab.id) return;
+  const id = tab.id.replace('t-','');
+  if (role === 'staff') {
+    tab.style.display = STAFF_ONLY.includes(id) ? '' : 'none';
+  } else if (role === 'admin') {
+    if (id !== 'modal') tab.style.display = '';
+  }
+});
+if (role === 'staff') {
+  const active = document.querySelector('.sec.active');
+  const activeId = active ? active.id.replace('s-','') : '';
+  if (!STAFF_ONLY.includes(activeId)) go('ambil');
+}
+document.querySelectorAll(".btp,.btg,.btr,.btp2").forEach(b=>b.classList.toggle("locked",!ci));document.querySelectorAll(".farea").forEach(el=>{el.style.pointerEvents=ci?"all":"none";el.style.opacity=ci?"1":"0.4";});document.querySelectorAll(".lkn").forEach(el=>el.remove());if(!ci){document.querySelectorAll(".card").forEach(card=>{const n=document.createElement("div");n.className="lkn";n.textContent="&#128274; Login untuk input data";card.insertBefore(n,card.firstChild);});}const tmt=document.getElementById("t-modal");if(tmt)tmt.style.display=ia?"block":"none";const imc=document.getElementById("item-mc");if(imc)imc.querySelectorAll("input,select,.btsm:not(.gh)").forEach(el=>el.disabled=!ia);const aur=document.getElementById("add-user-row");if(aur)aur.style.display=ia?"grid":"none";if(ia)loadUserList();}
 function showLogin(){document.getElementById("login-mo").style.display="flex";setTimeout(()=>document.getElementById("l-u").focus(),50);}
 function closeLogin(){document.getElementById("login-mo").style.display="none";}
 async function doLogin(){const u=document.getElementById("l-u").value.trim(),p=document.getElementById("l-pw").value,err=document.getElementById("l-err");if(!u||!p){err.textContent="Wajib diisi!";err.style.display="block";return;}const res=await api("/api/auth/login","POST",{username:u,password:p});if(res.ok){role=res.role;uname=u;unama=res.nama;closeLogin();applyRole();toast("&#10003; Selamat datang, "+res.nama+"!");document.getElementById("l-u").value="";document.getElementById("l-pw").value="";}else{err.textContent=res.error||"Login gagal!";err.style.display="block";}}

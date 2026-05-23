@@ -37,6 +37,7 @@ BAYAR_FILE   = os.path.join(DATA_DIR, 'pembayaran.json')
 QC_FILE      = os.path.join(DATA_DIR, 'qc.json')
 STOK_FILE    = os.path.join(DATA_DIR, 'stok.json')
 BAHAN_AMBIL_FILE = os.path.join(DATA_DIR, 'bahan_ambil.json')
+ORDERAN_FILE = os.path.join(DATA_DIR, 'orderan.json')
 
 def hash_pw(pw): return hashlib.sha256(pw.encode()).hexdigest()
 
@@ -105,6 +106,9 @@ def get_qc():
 
 def get_stok():
     return load_json(STOK_FILE, {})
+
+def get_orderan():
+    return load_json(ORDERAN_FILE, [])
 
 def update_stok(nama_item, ukuran, delta):
     stok = get_stok()
@@ -276,6 +280,101 @@ def bahan_ambil_del(nama):
     data = [b for b in data if b != nama]
     save_json(BAHAN_AMBIL_FILE, data)
     return jsonify({'ok': True})
+
+# ── ORDERAN KE PENJAHIT ───────────────────────────────────────────────────────
+@app.route('/api/orderan', methods=['GET'])
+def orderan_list():
+    data = get_orderan()
+    penjahit = request.args.get('penjahit', '')
+    if penjahit:
+        data = [o for o in data if o.get('penjahit') == penjahit]
+    return jsonify(list(reversed(data)))
+
+@app.route('/api/orderan', methods=['POST'])
+@require_staff
+def orderan_add():
+    d = request.json
+    if not d.get('penjahit') or not d.get('items'):
+        return jsonify({'ok': False, 'error': 'Data tidak lengkap'}), 400
+    rec = {
+        'id': int(datetime.datetime.now().timestamp() * 1000),
+        'tanggal': d.get('tanggal', ''),
+        'penjahit': d['penjahit'],
+        'no_order': d.get('no_order', ''),
+        'deadline': d.get('deadline', ''),
+        'items': d['items'],  # [{nama, ukuran, qty_order}]
+        'keterangan': d.get('keterangan', ''),
+        'createdAt': datetime.datetime.now().isoformat()
+    }
+    data = get_orderan()
+    data.append(rec)
+    save_json(ORDERAN_FILE, data)
+    return jsonify({'ok': True, 'id': rec['id']})
+
+@app.route('/api/orderan/<int:oid>', methods=['DELETE'])
+@require_admin
+def orderan_del(oid):
+    data = [o for o in get_orderan() if o.get('id') != oid]
+    save_json(ORDERAN_FILE, data)
+    return jsonify({'ok': True})
+
+@app.route('/api/orderan/<int:oid>/progress')
+def orderan_progress(oid):
+    orders = get_orderan()
+    order = next((o for o in orders if o.get('id') == oid), None)
+    if not order:
+        return jsonify({'error': 'not found'}), 404
+
+    db = get_transaksi()
+    setoran_all = [tx for tx in db
+                   if tx.get('type') == 'jahit'
+                   and tx.get('orang') == order['penjahit']
+                   and tx.get('orderan_id') == oid]
+
+    ordered = {}
+    for i in order.get('items', []):
+        key = f"{i['nama']}||{i['ukuran']}"
+        ordered[key] = i['qty_order']
+
+    setor_total = {}
+    setoran_detail = []
+    for tx in sorted(setoran_all, key=lambda x: x.get('tanggal', '')):
+        tx_items = []
+        for item in tx.get('items', []):
+            key = f"{item['nama']}||{item['ukuran']}"
+            setor_total[key] = setor_total.get(key, 0) + item.get('pcs', 0)
+            tx_items.append({'nama': item['nama'], 'ukuran': item['ukuran'], 'pcs': item.get('pcs', 0)})
+        setoran_detail.append({
+            'id': tx.get('id'),
+            'tanggal': tx.get('tanggal', ''),
+            'items': tx_items,
+            'totalPcs': sum(i['pcs'] for i in tx_items),
+            'totalUpah': tx.get('totalUpah', 0)
+        })
+
+    progress = []
+    for key, qty_order in ordered.items():
+        nama, ukuran = key.split('||', 1)
+        qty_setor = setor_total.get(key, 0)
+        delta = qty_setor - qty_order
+        status = 'sesuai' if delta == 0 else ('lebih' if delta > 0 else 'kurang')
+        progress.append({
+            'nama': nama, 'ukuran': ukuran,
+            'qty_order': qty_order, 'qty_setor': qty_setor,
+            'delta': delta, 'status': status,
+            'persen': round(qty_setor / qty_order * 100) if qty_order > 0 else 0
+        })
+
+    total_order = sum(i['qty_order'] for i in order.get('items', []))
+    total_setor = sum(setor_total.get(f"{i['nama']}||{i['ukuran']}", 0) for i in order.get('items', []))
+    return jsonify({
+        'order': order,
+        'progress': progress,
+        'setoran': setoran_detail,
+        'total_order': total_order,
+        'total_setor': total_setor,
+        'persen_total': round(total_setor / total_order * 100) if total_order > 0 else 0
+    })
 
 @app.route('/api/transaksi', methods=['POST'])
 @require_staff
@@ -1026,7 +1125,7 @@ def backup_data():
     files = ['transaksi.json','kasbon.json','pembayaran.json','qc.json',
              'keluar.json','stok.json','stok_guntingan.json','stok_jahitan.json',
              'kain.json','kain_masuk.json','kain_ambil.json','alih_tugas.json',
-             'bahan_ambil.json','settings.json','users.json']
+             'bahan_ambil.json','orderan.json','settings.json','users.json']
     for fname in files:
         fpath = os.path.join(DATA_DIR, fname)
         if os.path.exists(fpath):
