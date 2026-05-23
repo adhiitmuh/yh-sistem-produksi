@@ -141,13 +141,6 @@ def auth_logout():
     session.clear()
     return jsonify({'ok': True})
 
-@app.route('/tmp-reset-admin-xk92')
-def tmp_reset_admin():
-    users = get_users()
-    users['admin']['password'] = hash_pw('yhk2025')
-    save_json(AUTH_FILE, users)
-    return 'Admin password reset ke: yhk2025'
-
 @app.route('/api/auth/change-password', methods=['POST'])
 def auth_change_pw():
     if not is_staff(): return jsonify({'error': 'unauthorized'}), 401
