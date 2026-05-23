@@ -904,12 +904,12 @@ const td=()=>new Date().toISOString().split("T")[0];
 const fmt=n=>(+n||0).toLocaleString("id-ID");
 const fmtD=s=>s?new Date(s+"T00:00:00").toLocaleDateString("id-ID",{day:"numeric",month:"short",year:"numeric"}):"";
 async function api(url,m="GET",b=null){const o={method:m,headers:{"Content-Type":"application/json"}};if(b)o.body=JSON.stringify(b);try{const r=await fetch(url,o);return r.json();}catch{return{};}}
-async function init(){loadTheme();document.getElementById("hdrDate").textContent=new Date().toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"});const d=td();["j-tgl","g-tgl","a-tgl","kb-tgl","by-tgl","qc-tgl","ke-tgl","f-tgl","exp-dari","exp-ke"].forEach(id=>{const el=document.getElementById(id);if(el)el.value=d;});await loadSettings();await loadIM();await checkAuth();addJahitBlock();addGuntingBlock();addAmbilBlock();addQCRow();addKeluarBlock();loadKainList();loadBahanMaster();
+async function init(){loadTheme();document.getElementById("hdrDate").textContent=new Date().toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"});const d=td();["j-tgl","g-tgl","a-tgl","kb-tgl","by-tgl","qc-tgl","ke-tgl","f-tgl","exp-dari","exp-ke","or-tgl"].forEach(id=>{const el=document.getElementById(id);if(el)el.value=d;});await loadSettings();await loadIM();await checkAuth();addJahitBlock();addGuntingBlock();addAmbilBlock();addQCRow();addKeluarBlock();loadKainList();loadBahanMaster();
   setTimeout(checkBackupReminder, 3000);
   document.getElementById("loader").style.display="none";}
 async function loadSettings(){settings=await api("/api/settings");document.getElementById("namaK").textContent=settings.nama_konveksi||"YHK";document.getElementById("s-nama").value=settings.nama_konveksi||"";renderPjtTags();fillSelects();}
 function renderPjtTags(){document.getElementById("pjt-tags").innerHTML=settings.penjahit.map((p,i)=>`<div class="tg">${p}<span class="tgd" onclick="delPjt(${i})">&#215;</span></div>`).join("");}
-function fillSelects(){const o="<option value=''>&#8212; Pilih &#8212;</option>"+settings.penjahit.map(p=>`<option>${p}</option>`).join("");["j-pjt","g-op","a-pjt","kb-pjt","by-pjt","qc-pjt","at-dari","at-ke","ka-op"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=o;});const fo=document.getElementById("f-orang");if(fo)fo.innerHTML="<option value=''>Semua Orang</option>"+settings.penjahit.map(p=>`<option>${p}</option>`).join("");}
+function fillSelects(){const o="<option value=''>&#8212; Pilih &#8212;</option>"+settings.penjahit.map(p=>`<option>${p}</option>`).join("");["j-pjt","g-op","a-pjt","kb-pjt","by-pjt","qc-pjt","at-dari","at-ke","ka-op","or-pjt"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=o;});const fo=document.getElementById("f-orang");if(fo)fo.innerHTML="<option value=''>Semua Orang</option>"+settings.penjahit.map(p=>`<option>${p}</option>`).join("");}
 function saveNama(){settings.nama_konveksi=document.getElementById("s-nama").value.trim()||"YHK";api("/api/settings","POST",settings).then(()=>{document.getElementById("namaK").textContent=settings.nama_konveksi;toast("&#10003; Disimpan!");});}
 function addPjt(){const n=document.getElementById("s-newpjt").value.trim();if(!n)return;if(settings.penjahit.includes(n))return toast("&#9888; Sudah ada!");settings.penjahit.push(n);api("/api/settings","POST",settings).then(()=>{renderPjtTags();fillSelects();document.getElementById("s-newpjt").value="";});}
 function delPjt(i){if(!confirm("Hapus penjahit ini?"))return;settings.penjahit.splice(i,1);api("/api/settings","POST",settings).then(()=>{renderPjtTags();fillSelects();});}
@@ -967,7 +967,7 @@ function colJ(){const it=[];document.querySelectorAll("#j-blocks .iblock").forEa
 function colG(){const it=[];document.querySelectorAll("#g-blocks .iblock").forEach(b=>{const n=b.querySelector(".ibn")?.value?.trim(),l=+b.querySelector(".ibl")?.value||0,u=+b.querySelector(".ibu")?.value||0,uk=getUKVals(b);if(n&&uk.length)uk.forEach(x=>it.push({nama:n,ukuran:x.ukuran,pcs:x.qty,lembar:l,upah:u}));});return it;}
 function colA(){const it=[];document.querySelectorAll("#a-blocks .iblock").forEach(b=>{const n=b.querySelector(".ibn")?.value?.trim(),u=+b.querySelector(".ibu")?.value||0,uk=getUKVals(b);if(n&&uk.length)uk.forEach(x=>it.push({nama:n,ukuran:x.ukuran,pcs:x.qty,upah:u}));});return it;}
 function colK(){const it=[];document.querySelectorAll("#ke-blocks .iblock").forEach(b=>{const n=b.querySelector(".ibn")?.value?.trim(),uk=getUKVals(b);if(n&&uk.length)uk.forEach(x=>it.push({nama:n,ukuran:x.ukuran,pcs:x.qty}));});return it;}
-async function submitJahit(){const tgl=document.getElementById("j-tgl").value,pj=document.getElementById("j-pjt").value;if(!tgl||!pj)return toast("Tanggal & penjahit wajib!");const it=colJ();if(!it.length)return toast("Minimal 1 item dengan qty!");const tp=it.reduce((s,i)=>s+i.pcs,0),tu=it.reduce((s,i)=>s+i.subtotal,0);await swFoto("j",{type:"jahit",tanggal:tgl,orang:pj,items:it,totalPcs:tp,totalUpah:tu,keterangan:document.getElementById("j-ket").value});// Warning kalau setor > diambil
+async function submitJahit(){const tgl=document.getElementById("j-tgl").value,pj=document.getElementById("j-pjt").value;if(!tgl||!pj)return toast("Tanggal & penjahit wajib!");const it=colJ();if(!it.length)return toast("Minimal 1 item dengan qty!");const tp=it.reduce((s,i)=>s+i.pcs,0),tu=it.reduce((s,i)=>s+i.subtotal,0);const orderanId=+document.getElementById("j-orderan")?.value||null;await swFoto("j",{type:"jahit",tanggal:tgl,orang:pj,items:it,totalPcs:tp,totalUpah:tu,keterangan:document.getElementById("j-ket").value,...(orderanId?{orderan_id:orderanId}:{})});// Warning kalau setor > diambil
   // Konfirmasi dulu
   const pjCfm=document.getElementById("j-pjt").value;
   const itCfm=colJ();
@@ -983,7 +983,7 @@ async function submitJahit(){const tgl=document.getElementById("j-tgl").value,pj
   const jChk=await api("/api/transaksi/setor-check","POST",{penjahit:pj,items:it.map(i=>({nama:i.nama,ukuran:i.ukuran,pcs:i.pcs}))});
   if(jChk.warnings&&jChk.warnings.length){const lanjut=confirm("Perhatian:\n"+jChk.warnings.join("\n")+"\n\nLanjutkan simpan?");if(!lanjut)return;}
   await api("/api/stok-jahitan/kurangi","POST",{penjahit:pj,items:it.map(i=>({nama:i.nama,ukuran:i.ukuran,pcs:i.pcs}))});
-  toast("Setoran "+pj+" disimpan!");document.getElementById("j-pjt").value="";document.getElementById("j-ket").value="";document.getElementById("j-blocks").innerHTML="";addJahitBlock();calcJ();clearF("j");}
+  toast("Setoran "+pj+" disimpan!");document.getElementById("j-pjt").value="";document.getElementById("j-ket").value="";document.getElementById("j-blocks").innerHTML="";addJahitBlock();calcJ();clearF("j");const jow=document.getElementById("j-orderan-wrap");if(jow)jow.style.display="none";const jos=document.getElementById("j-orderan");if(jos)jos.value="";}
 async function submitGunting(){const tgl=document.getElementById("g-tgl").value,op=document.getElementById("g-op").value;if(!tgl||!op)return toast("Tanggal & operator wajib!");const it=colG();if(!it.length)return toast("Minimal 1 item!");const tp=it.reduce((s,i)=>s+i.pcs,0),tl=it.reduce((s,i)=>s+i.lembar,0);await swFoto("g",{type:"gunting",tanggal:tgl,orang:op,order:document.getElementById("g-ord").value,kain:document.getElementById("g-kain").value,items:it,totalPcs:tp,totalLembar:tl,keterangan:document.getElementById("g-ket").value});// Konfirmasi dulu
   const opCfm=document.getElementById("g-op").value;
   const itGCfm=colG();
@@ -1046,6 +1046,7 @@ function go(name){document.querySelectorAll(".sec").forEach(s=>s.classList.remov
   if(name==="kain-masuk"){loadKainList();loadKainMasukHist();loadStokKain();}
   if(name==="kain-ambil"){loadKainList();loadKainAmbilHist();loadStokKain();}
   if(name==="ambil")loadBahanMaster();
+  if(name==="orderan"){loadOrderan();}
   if(name==="alihtgas")loadAlihTugasHist();
   if(name==="progress")loadProgress();}
 function toast(msg){const t=document.getElementById("toast");document.getElementById("toast-txt").textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),3000);}
@@ -1134,6 +1135,220 @@ function addAmbilFromBahan(nama) {
   toast(nama + ' ditambahkan ke form');
 }
 
+// ── ORDERAN KE PENJAHIT ───────────────────────────────────────────────────────
+function addOrItemRow() {
+  const c = document.getElementById('or-items');
+  const id = 'orr' + Date.now();
+  const div = document.createElement('div');
+  div.id = id;
+  div.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:7px;align-items:end;margin-bottom:8px';
+  div.innerHTML = `
+    <div class="fg"><input type="text" class="or-nama" placeholder="Nama Item (Kemeja PDH...)" oninput="calcOrSummary()" style="font-size:12px"></div>
+    <div class="fg"><input type="text" class="or-uk" placeholder="Ukuran (M, L...)" style="font-size:12px"></div>
+    <div class="fg"><input type="number" class="or-qty" placeholder="Qty" min="1" oninput="calcOrSummary()" style="font-family:var(--m);font-weight:700"></div>
+    <div><button onclick="document.getElementById('${id}').remove();calcOrSummary()" class="btnrm">&#215;</button></div>`;
+  c.appendChild(div);
+  calcOrSummary();
+}
+
+function calcOrSummary() {
+  const rows = document.querySelectorAll('#or-items .or-qty');
+  let totalQty = 0, totalItem = 0;
+  rows.forEach(inp => { const q = +inp.value || 0; if(q > 0){ totalQty += q; totalItem++; }});
+  document.getElementById('or-tot-item').textContent = totalItem;
+  document.getElementById('or-tot-qty').textContent = totalQty;
+  document.getElementById('or-summary').style.display = totalItem > 0 ? 'flex' : 'none';
+}
+
+async function submitOrderan() {
+  const tgl = document.getElementById('or-tgl').value;
+  const pj = document.getElementById('or-pjt').value;
+  const no = document.getElementById('or-no').value.trim();
+  if (!tgl || !pj || !no) return toast('Tanggal, penjahit & no.order wajib!');
+  const items = [];
+  document.querySelectorAll('#or-items > div').forEach(row => {
+    const nama = row.querySelector('.or-nama')?.value.trim();
+    const uk = row.querySelector('.or-uk')?.value.trim();
+    const qty = +row.querySelector('.or-qty')?.value || 0;
+    if (nama && qty > 0) items.push({ nama, ukuran: uk || '-', qty_order: qty });
+  });
+  if (!items.length) return toast('Minimal 1 item dengan qty!');
+  const res = await api('/api/orderan', 'POST', {
+    tanggal: tgl, penjahit: pj, no_order: no,
+    deadline: document.getElementById('or-ddl').value,
+    items,
+    keterangan: document.getElementById('or-ket').value
+  });
+  if (res.ok) {
+    toast('✅ Orderan disimpan!');
+    ['or-pjt','or-no','or-ddl','or-ket'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('or-items').innerHTML = '';
+    calcOrSummary();
+    loadOrderan();
+  } else toast('⚠️ ' + (res.error || 'Gagal'));
+}
+
+async function loadOrderan() {
+  const data = await api('/api/orderan');
+  const el = document.getElementById('or-list');
+  const cnt = document.getElementById('or-cnt');
+  if (cnt) cnt.textContent = data.length;
+  if (!el) return;
+  if (!data.length) {
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--t2);font-size:12px">Belum ada orderan</div>';
+    return;
+  }
+  el.innerHTML = data.map(o => {
+    const totQty = o.items.reduce((s, i) => s + i.qty_order, 0);
+    const daysLeft = o.deadline ? Math.ceil((new Date(o.deadline) - new Date()) / 86400000) : null;
+    const dlColor = daysLeft === null ? 'var(--t2)' : daysLeft < 0 ? 'var(--r)' : daysLeft <= 3 ? 'var(--gold)' : 'var(--g)';
+    return `<div style="border-bottom:1px solid var(--b)">
+      <div style="padding:11px 15px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer" onclick="toggleOrderanDetail(${o.id})">
+        <div style="flex:1;min-width:120px">
+          <div style="font-weight:700;font-size:13px">${o.penjahit}</div>
+          <div style="font-size:11px;color:var(--t2);font-family:var(--m)">${o.no_order} · ${fmtD(o.tanggal)}</div>
+        </div>
+        <div style="font-size:12px;font-family:var(--m);color:var(--p);font-weight:700">${totQty} pcs order</div>
+        ${o.deadline ? `<div style="font-size:11px;color:${dlColor};font-weight:700">📅 ${fmtD(o.deadline)}</div>` : ''}
+        <span id="or-progress-pill-${o.id}" style="font-size:10px;padding:2px 9px;border-radius:20px;background:var(--s2);border:1px solid var(--b);color:var(--t2)">⏳ Loading...</span>
+        ${role==='admin' ? `<button onclick="event.stopPropagation();delOrderan(${o.id})" style="background:transparent;border:none;color:var(--r);cursor:pointer;font-size:14px">&#215;</button>` : ''}
+      </div>
+      <div id="or-detail-${o.id}" style="display:none;padding:0 15px 14px"></div>
+    </div>`;
+  }).join('');
+  // Load progress pills for all orders
+  data.forEach(o => loadOrderanPill(o.id));
+}
+
+async function loadOrderanPill(oid) {
+  const d = await api('/api/orderan/' + oid + '/progress');
+  const pill = document.getElementById('or-progress-pill-' + oid);
+  if (!pill || !d.progress) return;
+  const pct = d.persen_total || 0;
+  let color = pct >= 100 ? 'var(--g)' : pct > 0 ? 'var(--gold)' : 'var(--t2)';
+  let label = pct >= 100 ? '✅ Selesai' : pct > 0 ? `${pct}% disetor` : 'Belum disetor';
+  pill.style.background = pct >= 100 ? 'var(--gdim)' : pct > 0 ? 'var(--golddim)' : 'var(--s2)';
+  pill.style.color = color;
+  pill.style.borderColor = pct >= 100 ? 'rgba(22,163,74,.3)' : pct > 0 ? 'rgba(217,119,6,.3)' : 'var(--b)';
+  pill.textContent = label;
+}
+
+async function toggleOrderanDetail(oid) {
+  const el = document.getElementById('or-detail-' + oid);
+  if (!el) return;
+  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.innerHTML = '<div style="color:var(--t2);font-size:12px;padding:8px 0">Memuat...</div>';
+  const d = await api('/api/orderan/' + oid + '/progress');
+  if (!d.progress) { el.innerHTML = '<div style="color:var(--r);font-size:12px">Gagal memuat</div>'; return; }
+
+  const statusStyle = s => s==='sesuai' ? 'color:var(--g)' : s==='lebih' ? 'color:var(--bl)' : 'color:var(--r)';
+  const statusLabel = s => s==='sesuai' ? '✅ Sesuai' : s==='lebih' ? `⬆ Lebih` : `⬇ Kurang`;
+
+  let h = `<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--p);margin-bottom:8px">📊 Progress per Item</div>`;
+  h += `<div style="overflow-x:auto;margin-bottom:12px"><table><thead><tr>
+    <th>Item</th><th>Ukuran</th><th style="text-align:right">Order</th>
+    <th style="text-align:right">Disetor</th><th style="text-align:right">Selisih</th>
+    <th style="text-align:center">%</th><th style="text-align:center">Status</th>
+  </tr></thead><tbody>`;
+  d.progress.forEach(p => {
+    const barW = Math.min(p.persen, 100);
+    h += `<tr>
+      <td style="font-weight:600">${p.nama}</td>
+      <td style="color:var(--t2)">${p.ukuran}</td>
+      <td class="mono" style="text-align:right">${p.qty_order}</td>
+      <td class="mono" style="text-align:right;font-weight:700">${p.qty_setor}</td>
+      <td class="mono" style="text-align:right;${statusStyle(p.status)};font-weight:700">${p.delta > 0 ? '+' : ''}${p.delta}</td>
+      <td style="text-align:center">
+        <div style="display:flex;align-items:center;gap:5px;justify-content:flex-end">
+          <div style="width:50px;height:6px;background:var(--b);border-radius:3px;overflow:hidden">
+            <div style="width:${barW}%;height:100%;background:${p.persen>=100?'var(--g)':p.persen>0?'var(--gold)':'var(--b)'};transition:width .3s"></div>
+          </div>
+          <span class="mono" style="font-size:10px">${p.persen}%</span>
+        </div>
+      </td>
+      <td style="text-align:center;font-size:11px;font-weight:700;${statusStyle(p.status)}">${statusLabel(p.status)}</td>
+    </tr>`;
+  });
+  h += `</tbody><tfoot><tr style="font-weight:800;background:var(--s2)">
+    <td colspan="2" style="padding:7px 13px">TOTAL</td>
+    <td class="mono" style="text-align:right;padding:7px 13px">${d.total_order}</td>
+    <td class="mono" style="text-align:right;padding:7px 13px;color:var(--a)">${d.total_setor}</td>
+    <td class="mono" style="text-align:right;padding:7px 13px;${d.total_setor>=d.total_order?'color:var(--g)':'color:var(--r)'}">${d.total_setor>=d.total_order?'+':''}${d.total_setor-d.total_order}</td>
+    <td colspan="2" style="text-align:center;padding:7px 13px;font-weight:800;${d.persen_total>=100?'color:var(--g)':d.persen_total>0?'color:var(--gold)':'color:var(--t2)'}">${d.persen_total}%</td>
+  </tr></tfoot></table></div>`;
+
+  if (d.setoran.length) {
+    h += `<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--t2);margin-bottom:7px">🪡 Riwayat Setoran (${d.setoran.length} tahap)</div>`;
+    d.setoran.forEach((s, idx) => {
+      const its = s.items.map(i => `${i.nama} ${i.ukuran} <strong>${i.pcs}pcs</strong>`).join(', ');
+      h += `<div style="background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);padding:9px 12px;margin-bottom:6px;font-size:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-weight:700;font-size:11px;color:var(--p)">Tahap ${idx+1}</span>
+          <span class="mono" style="font-size:11px;color:var(--t2)">${fmtD(s.tanggal)}</span>
+        </div>
+        <div style="color:var(--t2)">${its}</div>
+        <div style="margin-top:4px;font-size:11px;display:flex;gap:12px">
+          <span>Total: <strong>${s.totalPcs} pcs</strong></span>
+          <span style="color:var(--a)">Upah: <strong>Rp ${fmt(s.totalUpah)}</strong></span>
+        </div>
+      </div>`;
+    });
+  } else {
+    h += `<div style="padding:12px;text-align:center;color:var(--t2);font-size:12px;background:var(--s2);border-radius:var(--rads)">Belum ada setoran untuk orderan ini</div>`;
+  }
+  el.innerHTML = h;
+}
+
+async function delOrderan(oid) {
+  if (!confirm('Hapus orderan ini?')) return;
+  await api('/api/orderan/' + oid, 'DELETE');
+  toast('Orderan dihapus');
+  loadOrderan();
+}
+
+async function loadOrderanForPenjahit(penjahit) {
+  const wrap = document.getElementById('j-orderan-wrap');
+  const sel = document.getElementById('j-orderan');
+  if (!wrap || !sel) return;
+  if (!penjahit) { wrap.style.display = 'none'; return; }
+  const data = await api('/api/orderan?penjahit=' + encodeURIComponent(penjahit));
+  sel.innerHTML = '<option value="">— Tanpa Orderan —</option>' +
+    data.map(o => `<option value="${o.id}">${o.no_order} (${fmtD(o.tanggal)}) — ${o.items.reduce((s,i)=>s+i.qty_order,0)} pcs</option>`).join('');
+  wrap.style.display = 'block';
+}
+
+async function prefillFromOrderan() {
+  const sel = document.getElementById('j-orderan');
+  if (!sel || !sel.value) return;
+  const oid = +sel.value;
+  const orders = await api('/api/orderan');
+  const order = orders.find(o => o.id === oid);
+  if (!order) return;
+  // Pre-fill item blocks from order
+  document.getElementById('j-blocks').innerHTML = '';
+  for (const item of order.items) {
+    addJahitBlock();
+    const all = document.querySelectorAll('#j-blocks .iblock');
+    const last = all[all.length - 1];
+    if (!last) continue;
+    const namaInp = last.querySelector('.ibn');
+    if (namaInp) namaInp.value = item.nama;
+    const im = getIM(item.nama);
+    const uiInp = last.querySelector('.ibu');
+    if (uiInp && im) uiInp.value = im.upah || '';
+    const ukw = last.querySelector('.ukw');
+    if (ukw) {
+      const bid = last.id.replace('ib-','');
+      ukw.innerHTML = buildUK(bid, im ? im.type : 'umum', 'calcJ');
+      // Set qty for specific ukuran
+      const ukInp = last.querySelector(`.ukin[data-ukuran="${item.ukuran}"]`);
+      if (ukInp) ukInp.value = item.qty_order;
+    }
+  }
+  calcJ();
+  toast('Form diisi dari orderan ' + order.no_order);
+}
 
 // ── CONFIRM MODAL SYSTEM ──────────────────────────────────────────────────────
 let cfmCallback = null;
