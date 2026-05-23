@@ -211,6 +211,15 @@ tr:hover td{background:rgba(22,163,74,.04)}
 /* ── ITEM TABLE ── */
 .itbl th{padding:7px 11px;font-size:10px}.itbl td{padding:7px 11px;font-size:12px}
 
+/* ── LOGIN GATE ── */
+#login-gate{position:fixed;inset:0;background:linear-gradient(135deg,#0a2e15,#134e2a,#1a6b3a);display:flex;align-items:center;justify-content:center;z-index:8000}
+.lg-box{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:40px 36px;text-align:center;width:320px;backdrop-filter:blur(12px)}
+.lg-icon{width:64px;height:64px;background:linear-gradient(135deg,#22c55e,#fbbf24);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 20px;box-shadow:0 8px 28px rgba(22,163,74,.5)}
+.lg-title{font-size:20px;font-weight:800;color:#fff;margin-bottom:4px}
+.lg-sub{font-size:12px;color:rgba(255,255,255,.5);margin-bottom:28px}
+.lg-btn{width:100%;padding:13px;border-radius:10px;background:linear-gradient(135deg,#15803d,#22c55e);border:none;color:#fff;font-family:var(--f);font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 6px 20px rgba(22,163,74,.4);transition:all .18s}
+.lg-btn:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(22,163,74,.5)}
+
 /* ── RESPONSIVE ── */
 @media(max-width:768px){ #sidebar{width:52px;min-width:52px}.sb-top .ln,.sb-top .lt{display:none}.lm{width:30px;height:30px;font-size:14px}.sb-top{padding:10px 10px}.nt{font-size:0;padding:10px 14px;border-radius:6px;margin:0 2px}.nt::first-letter{font-size:13px}.hd,.rp,.ab span{display:none}.ab{padding:5px;font-size:0}.ab::first-letter{font-size:12px}.sb-btns{flex-direction:column}.sb-foot{padding:8px 8px;gap:5px}}
 @media(max-width:600px){.g2,.g3,.g4{grid-template-columns:1fr}.sgrid{grid-template-columns:1fr 1fr}main{padding:10px}th,td{padding:7px 9px}}
@@ -257,6 +266,14 @@ tr:hover td{background:rgba(22,163,74,.04)}
 </style>
 </head>
 <body>
+<div id="login-gate">
+  <div class="lg-box">
+    <div class="lg-icon">🧵</div>
+    <div class="lg-title" id="lg-nama">Young Harmonis Konveksi</div>
+    <div class="lg-sub">Sistem Produksi — Masuk untuk melanjutkan</div>
+    <button class="lg-btn" onclick="showLogin()">🔐 Login</button>
+  </div>
+</div>
 <div id="sidebar">
   <div class="sb-top">
     <div class="logo">
@@ -865,14 +882,14 @@ async function api(url,m="GET",b=null){const o={method:m,headers:{"Content-Type"
 async function init(){loadTheme();document.getElementById("hdrDate").textContent=new Date().toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"});const d=td();["j-tgl","g-tgl","a-tgl","kb-tgl","by-tgl","qc-tgl","ke-tgl","f-tgl","exp-dari","exp-ke"].forEach(id=>{const el=document.getElementById(id);if(el)el.value=d;});await loadSettings();await loadIM();await checkAuth();addJahitBlock();addGuntingBlock();addAmbilBlock();addQCRow();addKeluarBlock();loadKainList();
   setTimeout(checkBackupReminder, 3000);
   document.getElementById("loader").style.display="none";}
-async function loadSettings(){settings=await api("/api/settings");document.getElementById("namaK").textContent=settings.nama_konveksi||"YHK";document.getElementById("s-nama").value=settings.nama_konveksi||"";renderPjtTags();fillSelects();}
+async function loadSettings(){settings=await api("/api/settings");const nm=settings.nama_konveksi||"YHK";document.getElementById("namaK").textContent=nm;const lgn=document.getElementById("lg-nama");if(lgn)lgn.textContent=nm;document.getElementById("s-nama").value=settings.nama_konveksi||"";renderPjtTags();fillSelects();}
 function renderPjtTags(){document.getElementById("pjt-tags").innerHTML=settings.penjahit.map((p,i)=>`<div class="tg">${p}<span class="tgd" onclick="delPjt(${i})">&#215;</span></div>`).join("");}
 function fillSelects(){const o="<option value=''>&#8212; Pilih &#8212;</option>"+settings.penjahit.map(p=>`<option>${p}</option>`).join("");["j-pjt","g-op","a-pjt","kb-pjt","by-pjt","qc-pjt","at-dari","at-ke","ka-op"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=o;});const fo=document.getElementById("f-orang");if(fo)fo.innerHTML="<option value=''>Semua Orang</option>"+settings.penjahit.map(p=>`<option>${p}</option>`).join("");}
 function saveNama(){settings.nama_konveksi=document.getElementById("s-nama").value.trim()||"YHK";api("/api/settings","POST",settings).then(()=>{document.getElementById("namaK").textContent=settings.nama_konveksi;toast("&#10003; Disimpan!");});}
 function addPjt(){const n=document.getElementById("s-newpjt").value.trim();if(!n)return;if(settings.penjahit.includes(n))return toast("&#9888; Sudah ada!");settings.penjahit.push(n);api("/api/settings","POST",settings).then(()=>{renderPjtTags();fillSelects();document.getElementById("s-newpjt").value="";});}
 function delPjt(i){if(!confirm("Hapus penjahit ini?"))return;settings.penjahit.splice(i,1);api("/api/settings","POST",settings).then(()=>{renderPjtTags();fillSelects();});}
 async function checkAuth(){const d=await api("/api/auth/status");role=d.role||"guest";uname=d.user;unama=d.nama;applyRole();}
-function applyRole(){const pill=document.getElementById("rolePill"),btn=document.getElementById("authBtn");if(role==="admin"){pill.textContent="⚡ Admin";pill.className="rp rpa";btn.textContent="🚪 Logout";btn.onclick=doLogout;}else if(role==="staff"){pill.textContent="👷 "+(unama||"Staff");pill.className="rp rps";btn.textContent="🚪 Logout";btn.onclick=doLogout;}else{pill.textContent="👤 Tamu";pill.className="rp rpg";btn.textContent="🔐 Login";btn.onclick=showLogin;}const ci=role==="admin"||role==="staff",ia=role==="admin";document.querySelectorAll(".btp,.btg,.btr,.btp2").forEach(b=>b.classList.toggle("locked",!ci));document.querySelectorAll(".farea").forEach(el=>{el.style.pointerEvents=ci?"all":"none";el.style.opacity=ci?"1":"0.4";});document.querySelectorAll(".lkn").forEach(el=>el.remove());if(!ci){document.querySelectorAll(".card").forEach(card=>{const n=document.createElement("div");n.className="lkn";n.textContent="&#128274; Login untuk input data";card.insertBefore(n,card.firstChild);});}const tmt=document.getElementById("t-modal");if(tmt)tmt.style.display=ia?"block":"none";const imc=document.getElementById("item-mc");if(imc)imc.querySelectorAll("input,select,.btsm:not(.gh)").forEach(el=>el.disabled=!ia);const aur=document.getElementById("add-user-row");if(aur)aur.style.display=ia?"grid":"none";if(ia)loadUserList();}
+function applyRole(){const pill=document.getElementById("rolePill"),btn=document.getElementById("authBtn"),gate=document.getElementById("login-gate"),sidebar=document.getElementById("sidebar"),mc=document.querySelector(".main-col");if(role==="admin"){pill.textContent="⚡ Admin";pill.className="rp rpa";btn.textContent="🚪 Logout";btn.onclick=doLogout;}else if(role==="staff"){pill.textContent="👷 "+(unama||"Staff");pill.className="rp rps";btn.textContent="🚪 Logout";btn.onclick=doLogout;}else{pill.textContent="👤 Tamu";pill.className="rp rpg";btn.textContent="🔐 Login";btn.onclick=showLogin;}const loggedIn=role==="admin"||role==="staff";if(gate)gate.style.display=loggedIn?"none":"flex";if(sidebar)sidebar.style.display=loggedIn?"flex":"none";if(mc)mc.style.display=loggedIn?"flex":"none";const ci=role==="admin"||role==="staff",ia=role==="admin";document.querySelectorAll(".btp,.btg,.btr,.btp2").forEach(b=>b.classList.toggle("locked",!ci));document.querySelectorAll(".farea").forEach(el=>{el.style.pointerEvents=ci?"all":"none";el.style.opacity=ci?"1":"0.4";});document.querySelectorAll(".lkn").forEach(el=>el.remove());if(!ci){document.querySelectorAll(".card").forEach(card=>{const n=document.createElement("div");n.className="lkn";n.textContent="&#128274; Login untuk input data";card.insertBefore(n,card.firstChild);});}const tmt=document.getElementById("t-modal");if(tmt)tmt.style.display=ia?"block":"none";const imc=document.getElementById("item-mc");if(imc)imc.querySelectorAll("input,select,.btsm:not(.gh)").forEach(el=>el.disabled=!ia);const aur=document.getElementById("add-user-row");if(aur)aur.style.display=ia?"grid":"none";if(ia)loadUserList();}
 function showLogin(){document.getElementById("login-mo").style.display="flex";setTimeout(()=>document.getElementById("l-u").focus(),50);}
 function closeLogin(){document.getElementById("login-mo").style.display="none";}
 async function doLogin(){const u=document.getElementById("l-u").value.trim(),p=document.getElementById("l-pw").value,err=document.getElementById("l-err");if(!u||!p){err.textContent="Wajib diisi!";err.style.display="block";return;}const res=await api("/api/auth/login","POST",{username:u,password:p});if(res.ok){role=res.role;uname=u;unama=res.nama;closeLogin();applyRole();toast("&#10003; Selamat datang, "+res.nama+"!");document.getElementById("l-u").value="";document.getElementById("l-pw").value="";}else{err.textContent=res.error||"Login gagal!";err.style.display="block";}}
