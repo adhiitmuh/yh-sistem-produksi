@@ -256,7 +256,7 @@ def bahan_ambil_get():
     return jsonify(load_json(BAHAN_AMBIL_FILE, DEFAULT_BAHAN_AMBIL))
 
 @app.route('/api/bahan-ambil', methods=['POST'])
-@require_admin
+@require_staff
 def bahan_ambil_add():
     d = request.json
     nama = (d.get('nama') or '').strip()
@@ -270,7 +270,7 @@ def bahan_ambil_add():
     return jsonify({'ok': True})
 
 @app.route('/api/bahan-ambil/<string:nama>', methods=['DELETE'])
-@require_admin
+@require_staff
 def bahan_ambil_del(nama):
     data = load_json(BAHAN_AMBIL_FILE, DEFAULT_BAHAN_AMBIL)
     data = [b for b in data if b != nama]

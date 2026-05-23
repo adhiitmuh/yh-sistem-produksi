@@ -423,7 +423,8 @@ tr:hover td{background:rgba(22,163,74,.04)}
   <div class="card">
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="a-tgl"></div>
-      <div class="fg"><label>Penjahit</label><select id="a-pjt"><option value="">— Pilih —</option></select></div>
+      <div class="fg"><label>Penjahit (Penerima)</label><select id="a-pjt"><option value="">— Pilih —</option></select></div>
+      <div class="fg"><label>Dicatat Oleh</label><input type="text" id="a-oleh" placeholder="Nama staff..."></div>
       <div class="fg"><label>No. Order</label><input type="text" id="a-ord" placeholder="ORD-001"></div>
       <div class="fg"><label>Target Selesai</label><input type="date" id="a-ddl"></div>
     </div>
@@ -946,7 +947,7 @@ async function submitGunting(){const tgl=document.getElementById("g-tgl").value,
     ],resolve,"✂️");
   });
   await api("/api/stok-guntingan/tambah","POST",{operator:op,items:it.map(i=>({nama:i.nama,ukuran:i.ukuran,pcs:i.pcs}))});toast("Setoran "+op+" disimpan! Stok guntingan diupdate.");["g-op","g-ord","g-kain","g-ket"].forEach(id=>document.getElementById(id).value="");document.getElementById("g-blocks").innerHTML="";addGuntingBlock();calcG();clearF("g");}
-async function submitAmbil(){const tgl=document.getElementById("a-tgl").value,pj=document.getElementById("a-pjt").value;if(!tgl||!pj)return toast("Tanggal & penjahit wajib!");const it=colA();if(!it.length)return toast("Minimal 1 item!");const tp=it.reduce((s,i)=>s+i.pcs,0),tu=it.reduce((s,i)=>s+i.pcs*i.upah,0);await swFoto("a",{type:"ambil",tanggal:tgl,orang:pj,order:document.getElementById("a-ord").value,deadline:document.getElementById("a-ddl").value,items:it,totalPcs:tp,totalUpah:tu,keterangan:document.getElementById("a-ket").value});await api("/api/stok-guntingan/kurangi","POST",{items:it.map(i=>({nama:i.nama,ukuran:i.ukuran,pcs:i.pcs}))});await api("/api/stok-jahitan/tambah","POST",{penjahit:pj,items:it.map(i=>({nama:i.nama,ukuran:i.ukuran,pcs:i.pcs}))});toast("Pengambilan "+pj+" disimpan!");["a-pjt","a-ord","a-ddl","a-ket"].forEach(id=>document.getElementById(id).value="");document.getElementById("a-blocks").innerHTML="";addAmbilBlock();calcA();clearF("a");}
+async function submitAmbil(){const tgl=document.getElementById("a-tgl").value,pj=document.getElementById("a-pjt").value,oleh=document.getElementById("a-oleh").value.trim();if(!tgl||!pj)return toast("Tanggal & penjahit wajib!");if(!oleh)return toast("Dicatat oleh wajib diisi!");const it=colA();if(!it.length)return toast("Minimal 1 item!");const tp=it.reduce((s,i)=>s+i.pcs,0),tu=it.reduce((s,i)=>s+i.pcs*i.upah,0);await swFoto("a",{type:"ambil",tanggal:tgl,orang:pj,dicatatOleh:oleh,order:document.getElementById("a-ord").value,deadline:document.getElementById("a-ddl").value,items:it,totalPcs:tp,totalUpah:tu,keterangan:document.getElementById("a-ket").value});await api("/api/stok-guntingan/kurangi","POST",{items:it.map(i=>({nama:i.nama,ukuran:i.ukuran,pcs:i.pcs}))});await api("/api/stok-jahitan/tambah","POST",{penjahit:pj,items:it.map(i=>({nama:i.nama,ukuran:i.ukuran,pcs:i.pcs}))});toast("Pengambilan "+pj+" disimpan!");["a-pjt","a-ord","a-ddl","a-ket"].forEach(id=>document.getElementById(id).value="");document.getElementById("a-blocks").innerHTML="";addAmbilBlock();calcA();clearF("a");}
 async function submitKeluar(){const tgl=document.getElementById("ke-tgl").value,tj=document.getElementById("ke-tujuan").value.trim();if(!tgl||!tj)return toast("Tanggal & tujuan wajib!");const it=colK();if(!it.length)return toast("Minimal 1 item!");const tjCfm=document.getElementById("ke-tujuan").value.trim();
   const totKe=it.reduce((s,i)=>s+i.pcs,0);
   await new Promise(resolve=>{
@@ -1028,7 +1029,8 @@ async function renderBahanTags() {
   const data = await api('/api/bahan-ambil');
   const el = document.getElementById('bahan-tags');
   if (!el) return;
-  el.innerHTML = data.map(b => `<div class="tg">${b}<span class="tgd" onclick="delBahanMaster('${b.replace(/'/g,'\\\'')}')">&times;</span></div>`).join('');
+  const canEdit = role === 'admin' || role === 'staff';
+  el.innerHTML = data.map(b => `<div class="tg">${b}${canEdit ? `<span class="tgd" onclick="delBahanMaster('${b.replace(/'/g,'\\\'')}')">&times;</span>` : ''}</div>`).join('');
 }
 
 async function addBahanMaster() {
