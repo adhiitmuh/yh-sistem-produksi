@@ -425,6 +425,26 @@ tr:hover td{background:rgba(22,163,74,.04)}
 </div>
 <div class="sec" id="s-ambil">
   <div class="ph"><div class="pt">📦 Pengambilan Bahan</div><div class="ps">Staff mencatat bahan yang diberikan ke penjahit (kain, kain keras, merk, osis, lambang, dll)</div></div>
+
+  <!-- MASTER DATABASE BAHAN -->
+  <div class="tw" style="margin-bottom:14px">
+    <div class="th2" style="cursor:pointer" onclick="toggleMasterBahan()">
+      <span class="tt">🗄️ Master Database Bahan</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="bdg" id="bahan-cnt-badge">0</span>
+        <span id="bahan-toggle-icon" style="font-size:11px;color:var(--t2)">▼ Lihat & Kelola</span>
+      </div>
+    </div>
+    <div id="bahan-master-panel" style="display:none;padding:14px">
+      <div style="font-size:12px;color:var(--t2);margin-bottom:11px">Daftar bahan yang bisa dicatat saat pengambilan. Admin & staff bisa tambah/hapus.</div>
+      <div class="tglist" id="bahan-tags-inline"></div>
+      <div style="display:flex;gap:7px;margin-top:4px">
+        <input type="text" id="s-newbahan-inline" placeholder="Nama bahan baru (Kain, Merk, Badge OSIS...)" onkeydown="if(event.key==='Enter')addBahanInline()" style="flex:1;font-size:12px">
+        <button class="btsm" onclick="addBahanInline()">+ Tambah</button>
+      </div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="a-tgl"></div>
@@ -1098,13 +1118,60 @@ async function delBahanMaster(nama) {
 
 async function loadBahanMaster() {
   const data = await api('/api/bahan-ambil');
+  // Update badge
+  const badge = document.getElementById('bahan-cnt-badge');
+  if (badge) badge.textContent = data ? data.length : 0;
+  // Update inline tags panel
+  renderBahanTagsInline(data);
+  // Update chips di form
   const el = document.getElementById('a-bahan-chips');
   if (!el) return;
   if (!data || !data.length) {
-    el.innerHTML = '<div style="font-size:12px;color:var(--t2)">Belum ada bahan — tambahkan di Pengaturan</div>';
+    el.innerHTML = '<div style="font-size:12px;color:var(--t2)">Belum ada bahan — buka Master Database Bahan di atas untuk menambahkan</div>';
     return;
   }
   el.innerHTML = data.map(b => `<button onclick="addAmbilFromBahan('${b.replace(/'/g,'\\\'')}')" style="padding:5px 13px;background:var(--s2);border:1px solid var(--b);border-radius:20px;font-size:12px;font-family:var(--f);font-weight:600;color:var(--t);cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor='var(--p)';this.style.background='var(--pdim)'" onmouseout="this.style.borderColor='var(--b)';this.style.background='var(--s2)'">+ ${b}</button>`).join('');
+}
+
+function renderBahanTagsInline(data) {
+  const el = document.getElementById('bahan-tags-inline');
+  if (!el) return;
+  const canEdit = role === 'admin' || role === 'staff';
+  if (!data || !data.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--t2);padding:4px 0">Belum ada bahan. Tambahkan di bawah.</div>';
+    return;
+  }
+  el.innerHTML = data.map(b => `<div class="tg">${b}${canEdit ? `<span class="tgd" onclick="delBahanInline('${b.replace(/'/g,'\\\'')}')">&times;</span>` : ''}</div>`).join('');
+}
+
+function toggleMasterBahan() {
+  const panel = document.getElementById('bahan-master-panel');
+  const icon = document.getElementById('bahan-toggle-icon');
+  if (!panel) return;
+  const open = panel.style.display === 'none';
+  panel.style.display = open ? 'block' : 'none';
+  if (icon) icon.textContent = open ? '▲ Sembunyikan' : '▼ Lihat & Kelola';
+}
+
+async function addBahanInline() {
+  const inp = document.getElementById('s-newbahan-inline');
+  const n = inp ? inp.value.trim() : '';
+  if (!n) return;
+  const res = await api('/api/bahan-ambil', 'POST', {nama: n});
+  if (res.ok) {
+    toast('✅ ' + n + ' ditambahkan!');
+    if (inp) inp.value = '';
+    loadBahanMaster();
+    renderBahanTags(); // sync settings page juga
+  } else toast('⚠️ ' + (res.error || 'Gagal'));
+}
+
+async function delBahanInline(nama) {
+  if (!confirm('Hapus bahan "' + nama + '"?')) return;
+  await api('/api/bahan-ambil/' + encodeURIComponent(nama), 'DELETE');
+  toast('🗑️ Dihapus');
+  loadBahanMaster();
+  renderBahanTags();
 }
 
 function addAmbilFromBahan(nama) {
