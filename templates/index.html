@@ -7,7 +7,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#022b2a;--s:#034543;--s2:#022b2a;--s3:#02312f;--b:rgba(255,251,213,.13);--b2:rgba(255,251,213,.22);--a:#FFFBD5;--adim:rgba(255,251,213,.12);--g:#4db6ac;--gdim:rgba(77,182,172,.12);--bl:#60a5fa;--p:#c084fc;--pdim:rgba(192,132,252,.12);--r:#f87171;--rdim:rgba(248,113,113,.12);--gold:#FFFBD5;--golddim:rgba(255,251,213,.12);--t:#FAFAFA;--t2:rgba(250,250,250,.52);--f:"Raleway",system-ui,sans-serif;--m:"JetBrains Mono","Courier New",monospace;--rad:12px;--rads:8px;--radl:16px}
-body.light{--bg:#FFFBD5;--s:#FAFAFA;--s2:#FFFBD5;--s3:#fff8c5;--b:rgba(3,69,67,.15);--b2:rgba(3,69,67,.28);--t:#282828;--t2:#034543;--a:#034543;--adim:rgba(3,69,67,.1);--g:#034543;--gdim:rgba(3,69,67,.1)}
+body.light{--bg:#FFFBD5;--s:#FAFAFA;--s2:#FFFBD5;--s3:#fff8c5;--b:rgba(3,69,67,.15);--b2:rgba(3,69,67,.28);--t:#282828;--t2:#034543;--a:#034543;--adim:rgba(3,69,67,.1);--g:#034543;--gdim:rgba(3,69,67,.1);background:linear-gradient(135deg,#FFFBD5 0%,#EEF9F6 45%,#FFFEF0 100%)}
+body.light .card{background:linear-gradient(145deg,#FFFFFF 0%,#F3FDFB 100%)}
+body.light .sc{background:linear-gradient(145deg,#FFFFFF 0%,#EDF9F6 100%)}
+body.light .sc::before{background:linear-gradient(90deg,#034543,#0f9d8d,#4db6ac)}
+body.light .sb{background:linear-gradient(135deg,rgba(3,69,67,.07) 0%,rgba(77,182,172,.05) 100%)}
+body.light .tw{background:linear-gradient(145deg,#FFFFFF 0%,#F3FDFB 100%)}
+body.light .th2{background:linear-gradient(135deg,rgba(3,69,67,.07),rgba(77,182,172,.04))}
+body.light th{background:linear-gradient(135deg,rgba(3,69,67,.06),rgba(77,182,172,.03))}
+body.light .iblock{background:linear-gradient(145deg,#FFFFFF 0%,#F3FDFB 100%)}
+body.light .qcb{background:linear-gradient(145deg,#FFFBD5 0%,#E8F8F4 100%)}
+body.light .uksec{background:linear-gradient(145deg,#FFFDE8 0%,#EDF9F5 100%)}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--t);font-family:var(--f);display:flex;flex-direction:row;transition:background .2s,color .2s}
