@@ -18,6 +18,17 @@ body.light th{background:linear-gradient(135deg,rgba(3,69,67,.06),rgba(77,182,17
 body.light .iblock{background:linear-gradient(145deg,#FFFFFF 0%,#F3FDFB 100%)}
 body.light .qcb{background:linear-gradient(145deg,#FFFBD5 0%,#E8F8F4 100%)}
 body.light .uksec{background:linear-gradient(145deg,#FFFDE8 0%,#EDF9F5 100%)}
+body:not(.light){background:linear-gradient(160deg,#011a19 0%,#022b2a 50%,#01201f 100%)}
+body:not(.light) .card{background:linear-gradient(145deg,#034543 0%,#022e2d 100%)}
+body:not(.light) .sc{background:linear-gradient(145deg,#034543 0%,#022e2d 100%)}
+body:not(.light) .sc::before{background:linear-gradient(90deg,#FFFBD5 0%,#4db6ac 60%,#034543 100%)}
+body:not(.light) .tw{background:linear-gradient(145deg,#034543 0%,#022e2d 100%)}
+body:not(.light) .th2{background:linear-gradient(135deg,#022b2a,#011e1d)}
+body:not(.light) th{background:linear-gradient(135deg,#022b2a,#01201f)}
+body:not(.light) .iblock{background:linear-gradient(145deg,#034543 0%,#022e2d 100%)}
+body:not(.light) .sb{background:linear-gradient(135deg,#022e2d,#011e1d)}
+body:not(.light) .qcb{background:linear-gradient(145deg,#022b2a 0%,#011a19 100%)}
+body:not(.light) .uksec{background:linear-gradient(145deg,#022e2d 0%,#021f1e 100%)}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--t);font-family:var(--f);display:flex;flex-direction:row;transition:background .2s,color .2s}
