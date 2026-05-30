@@ -639,7 +639,7 @@ tr:hover td{background:rgba(255,251,213,.04)}
     <div class="ct">👥 Manajemen Pengguna <span style="font-size:10px;color:var(--t2);font-weight:400">(Admin only)</span></div>
     <div id="user-list" style="margin-bottom:10px"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:7px;align-items:end" id="add-user-row">
-      <div class="fg"><label>Email</label><input type="email" id="u-em" placeholder="staff@email.com"></div>
+      <div class="fg"><label>Username</label><input type="text" id="u-em" placeholder="contoh: budi123"></div>
       <div class="fg"><label>Nama Lengkap</label><input type="text" id="u-nm" placeholder="Budi S."></div>
       <div class="fg"><label>Password</label><input type="password" id="u-pw" placeholder="Min 6 karakter"></div>
       <div><div style="height:20px"></div><button class="btsm" onclick="addUser()">+ Staff</button></div>
@@ -708,8 +708,8 @@ tr:hover td{background:rgba(255,251,213,.04)}
   <div class="mbox">
     <div style="font-size:24px;margin-bottom:8px">🔐</div>
     <div style="font-size:15px;font-weight:800;margin-bottom:3px">Login</div>
-    <div style="font-size:12px;color:var(--t2);margin-bottom:16px">Masukkan email & password</div>
-    <div class="fg" style="margin-bottom:8px"><label>Email</label><input type="email" id="l-u" placeholder="admin@gmail.com" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:16px">Admin: email · Staff: username</div>
+    <div class="fg" style="margin-bottom:8px"><label>Email / Username</label><input type="text" id="l-u" placeholder="admin@gmail.com atau budi123" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <div class="fg" style="margin-bottom:10px"><label>Password</label><input type="password" id="l-pw" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <div class="merr" id="l-err"></div>
     <button onclick="doLogin()" style="width:100%;padding:9px;background:var(--a);color:#0a0a0a;border:none;border-radius:var(--rads);font-family:var(--f);font-size:13px;font-weight:700;cursor:pointer;margin-bottom:6px">Masuk</button>
@@ -940,18 +940,19 @@ function showLogin()  { document.getElementById("login-mo").style.display = "fle
 function closeLogin() { document.getElementById("login-mo").style.display = "none"; }
 
 async function doLogin() {
-  const email = document.getElementById("l-u").value.trim();
-  const pw    = document.getElementById("l-pw").value;
-  const err   = document.getElementById("l-err");
+  const raw = document.getElementById("l-u").value.trim().toLowerCase();
+  const pw  = document.getElementById("l-pw").value;
+  const err = document.getElementById("l-err");
   err.style.display = "none";
-  if (!email || !pw) { err.textContent = "Wajib diisi!"; err.style.display = "block"; return; }
+  if (!raw || !pw) { err.textContent = "Wajib diisi!"; err.style.display = "block"; return; }
+  const email = raw.includes("@") ? raw : raw + "@yhk.app";
   try {
     await auth.signInWithEmailAndPassword(email, pw);
     closeLogin();
     document.getElementById("l-u").value = "";
     document.getElementById("l-pw").value = "";
   } catch(e) {
-    err.textContent = "Email atau password salah!";
+    err.textContent = "Email/username atau password salah!";
     err.style.display = "block";
   }
 }
@@ -1018,9 +1019,9 @@ async function loadUserList() {
   const users = await fsAll("users");
   const el = document.getElementById("user-list");
   if (!el || !users.length) return;
-  el.innerHTML = `<table><thead><tr><th>Email</th><th>Nama</th><th>Role</th><th></th></tr></thead><tbody>
+  el.innerHTML = `<table><thead><tr><th>Email / Username</th><th>Nama</th><th>Role</th><th></th></tr></thead><tbody>
     ${users.map(u => `<tr>
-      <td class="mono" style="font-size:11px">${u.email}</td>
+      <td class="mono" style="font-size:11px">${u.username || u.email}</td>
       <td>${u.nama}</td>
       <td><span class="rp ${u.role==="admin"?"rpa":"rps"}">${u.role==="admin"?"Admin":"Staff"}</span></td>
       <td>${u._id !== uid ? `<button onclick="delUser('${u._id}')" style="background:transparent;border:none;color:var(--r);cursor:pointer;font-size:14px">×</button>` : ""}</td>
@@ -1029,14 +1030,15 @@ async function loadUserList() {
 }
 
 async function addUser() {
-  const email = document.getElementById("u-em").value.trim();
+  const raw   = document.getElementById("u-em").value.trim().toLowerCase().replace(/\s+/g,"");
   const nama  = document.getElementById("u-nm").value.trim();
   const pw    = document.getElementById("u-pw").value;
-  if (!email || !nama || !pw) return toast("Semua field wajib!");
+  if (!raw || !nama || !pw) return toast("Semua field wajib!");
+  const email = raw.includes("@") ? raw : raw + "@yhk.app";
   try {
     const cred = await secondaryApp.auth().createUserWithEmailAndPassword(email, pw);
     await secondaryApp.auth().signOut();
-    await fsSet("users", cred.user.uid, {email, nama, role:"staff"});
+    await fsSet("users", cred.user.uid, {email, username:raw, nama, role:"staff"});
     toast("Staff " + nama + " ditambahkan!");
     ["u-em","u-nm","u-pw"].forEach(id => document.getElementById(id).value = "");
     loadUserList();
@@ -1627,7 +1629,7 @@ function fotoThumb(fotos) {
   return `<div class="fotostrip">${fotos.map((u,i)=>`<img src="${u}" onclick="openLb(${JSON.stringify(fotos)},${i})" style="height:40px;border-radius:4px;cursor:pointer;margin-right:4px">`).join("")}</div>`;
 }
 function mkDelBtn(col, docId, cb) {
-  if(state.role!=="admin") return "";
+  if(role!=="admin") return "";
   return `<button class="btn-del" onclick="delRecord('${col}','${docId}',this,${cb?cb.toString().replace(/"/g,"'"):null})">Hapus</button>`;
 }
 async function delRecord(col, docId, btn, cb) {
@@ -1710,7 +1712,7 @@ async function loadRiwayat() {
       ${d.upah!=null?`<div class="ket">Upah: ${fmtRp(d.upah)}</div>`:""}
       ${fotoThumb(d.fotos)}
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
-      <div style="margin-top:6px">${state.role==="admin"?`<button class="btn-del" onclick="delTx('${d.id}',this)">Hapus</button>`:""}</div>
+      <div style="margin-top:6px">${role==="admin"?`<button class="btn-del" onclick="delTx('${d.id}',this)">Hapus</button>`:""}</div>
     </div>`;
   }).join("");
 }
@@ -1924,7 +1926,7 @@ async function loadProgress() {
   const txDocs = await fsAll("transaksi");
   const kbDocs = await fsAll("kasbon");
   const byDocs = await fsAll("pembayaran");
-  const penjahit = state.settings.penjahit||[];
+  const penjahit = settings.penjahit||[];
   const el = document.getElementById("progress-content");
   if(!penjahit.length){el.innerHTML='<div class="empty">Belum ada penjahit di pengaturan.</div>';return;}
   el.innerHTML = penjahit.map(pj=>{
@@ -1990,7 +1992,7 @@ async function updateKainInfo() {
 }
 function buildKainUkuranRows() {
   const item = document.getElementById("ka-item").value;
-  const sett = state.settings;
+  const sett = settings;
   const found = (sett.items||[]).find(i=>i.nama===item);
   const uks = found ? (found.ukuran||[]) : [];
   const el = document.getElementById("ka-ukuran-rows");
@@ -2111,7 +2113,7 @@ function addGuntingFromKain(item, ukuran, qty, btn) {
   const blocks = document.getElementById("g-blocks");
   const div = document.createElement("div");
   div.className="blk"; div.id=bid;
-  const sett = state.settings;
+  const sett = settings;
   const found = (sett.items||[]).find(i=>i.nama===item);
   const uks = found?(found.ukuran||[]):[];
   div.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -2130,9 +2132,10 @@ function addGuntingFromKain(item, ukuran, qty, btn) {
 // ── MODAL DASHBOARD ───────────────────────────────────────────────────────────
 const BAHAN_LAIN = ["kancing","puring","kain_keras","lobang_kancing","setrika","bordiran","upah_gunting"];
 async function loadModalDashboard() {
+  await loadSettings();
   const snap = await db.collection("config").doc("modal_data").get();
   modalData = snap.exists ? snap.data() : {};
-  const items = state.settings.items||[];
+  const items = settings.items||[];
   const tbody = document.getElementById("modal-tbody");
   const statsEl = document.getElementById("modal-stats");
   let totalModal=0, totalJual=0;
@@ -2168,7 +2171,7 @@ async function loadModalDashboard() {
 
 function openMdetail(nama) {
   mdetItem = nama;
-  const it = (state.settings.items||[]).find(i=>i.nama===nama)||{};
+  const it = (settings.items||[]).find(i=>i.nama===nama)||{};
   const m = modalData[nama]||{};
   document.getElementById("mdet-nama").textContent = nama;
   document.getElementById("mdet-upah").textContent = "Upah: "+fmtRp(it.upah||0);
@@ -2184,7 +2187,7 @@ function openMdetail(nama) {
 }
 function closeMdetail() { document.getElementById("mdet-mo").style.display="none"; mdetItem=null; }
 function recalcMdet() {
-  const upah = +(state.settings.items||[]).find(i=>i.nama===mdetItem)?.upah||0;
+  const upah = +(settings.items||[]).find(i=>i.nama===mdetItem)?.upah||0;
   const kainTotal = (+document.getElementById("mdet-kain-peng").value||0)*(+document.getElementById("mdet-kain-harga").value||0);
   const blTotal = BAHAN_LAIN.reduce((s,f)=>s+(+document.getElementById("mbl-"+f)?.value||0),0);
   const totalM = kainTotal + blTotal + upah;
