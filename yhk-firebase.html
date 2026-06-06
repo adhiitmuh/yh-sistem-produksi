@@ -905,6 +905,17 @@ auth.onAuthStateChanged(async user => {
     uname = user.email;
     const userSnap = await authDb.collection('users').doc(user.uid).get();
     const userDoc  = userSnap.exists ? userSnap.data() : null;
+
+    // Cek aktif & akses toko — YHK hanya untuk owner & Harmoni Indonesia
+    if (!userDoc || !userDoc.aktif || (userDoc.toko !== 'semua' && userDoc.toko !== 'harmoni_indonesia')) {
+      const msg = (!userDoc || !userDoc.aktif)
+        ? 'Akun belum diaktifkan. Hubungi admin.'
+        : 'Akun ini tidak memiliki akses ke Sistem Penjahit Young Harmonis.';
+      document.getElementById('loader').style.display = 'none';
+      document.body.innerHTML = `<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;background:#f9fafb;font-family:sans-serif;text-align:center;padding:24px;"><div style="font-size:44px;">🚫</div><div style="font-size:18px;font-weight:700;color:#034543;">Akses Tidak Diizinkan</div><div style="color:#6b7280;max-width:320px;">${msg}</div><a href="https://adhiitmuh.github.io/harmoni-indonesia/" style="margin-top:8px;color:#034543;font-weight:600;text-decoration:none;">← Kembali ke Portal</a></div>`;
+      return;
+    }
+
     const rawRole  = userDoc?.role || 'staff';
     role  = (rawRole === 'owner') ? 'admin' : rawRole;
     unama = userDoc?.nama || user.email;
