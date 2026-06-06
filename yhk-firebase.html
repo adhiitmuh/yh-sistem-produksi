@@ -789,11 +789,23 @@ const firebaseConfig = {
   appId: "1:819657921141:web:a5b69b5c234f68b7cb5e3c"
 };
 firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db   = firebase.firestore();
+const db      = firebase.firestore(); // data tetap di project lama
 const storage = firebase.storage();
+
+// Auth terpusat via harmoni-indonesia
+const harmoniConfig = {
+  apiKey: 'AIzaSyA9V5Lw40pDeAWeQKijYCkdvnag8AlEe74',
+  authDomain: 'harmoni-indonesia.firebaseapp.com',
+  projectId: 'harmoni-indonesia',
+  storageBucket: 'harmoni-indonesia.firebasestorage.app',
+  messagingSenderId: '825719884876',
+  appId: '1:825719884876:web:a8fd78d382e0f98cf6b8e9',
+};
+const harmoniApp = firebase.initializeApp(harmoniConfig, 'harmoni-auth');
+const auth       = harmoniApp.auth();
+const authDb     = harmoniApp.firestore();
 // Secondary app instance — buat user baru tanpa logout admin
-const secondaryApp = firebase.initializeApp(firebaseConfig, "Secondary");
+const secondaryApp = firebase.initializeApp(harmoniConfig, "Secondary");
 </script>
 
 <script>
@@ -891,9 +903,11 @@ auth.onAuthStateChanged(async user => {
   if (user) {
     uid = user.uid;
     uname = user.email;
-    const userDoc = await fsGet("users", user.uid);
-    role  = userDoc?.role  || "staff";
-    unama = userDoc?.nama  || user.email;
+    const userSnap = await authDb.collection('users').doc(user.uid).get();
+    const userDoc  = userSnap.exists ? userSnap.data() : null;
+    const rawRole  = userDoc?.role || 'staff';
+    role  = (rawRole === 'owner') ? 'admin' : rawRole;
+    unama = userDoc?.nama || user.email;
   } else {
     uid = null; uname = null; unama = null; role = "guest";
   }
