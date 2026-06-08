@@ -36,6 +36,7 @@ AUTH_FILE    = os.path.join(DATA_DIR, 'users.json')
 BAYAR_FILE   = os.path.join(DATA_DIR, 'pembayaran.json')
 QC_FILE      = os.path.join(DATA_DIR, 'qc.json')
 STOK_FILE    = os.path.join(DATA_DIR, 'stok.json')
+KELUAR_FILE  = os.path.join(DATA_DIR, 'stok_keluar.json')
 
 def hash_pw(pw): return hashlib.sha256(pw.encode()).hexdigest()
 
@@ -104,6 +105,9 @@ def get_qc():
 
 def get_stok():
     return load_json(STOK_FILE, {})
+
+def get_pengeluaran():
+    return load_json(KELUAR_FILE, [])
 
 def update_stok(nama_item, ukuran, delta):
     stok = get_stok()
@@ -258,6 +262,8 @@ def transaksi_add():
         rec['fotos'] = []
     rec['id'] = int(datetime.datetime.now().timestamp() * 1000)
     rec['createdAt'] = datetime.datetime.now().isoformat()
+    rec['createdBy'] = session.get('user', '')
+    rec['createdByNama'] = session.get('nama', '')
     db.append(rec)
     save_json(DB_FILE, db)
     return jsonify({'ok': True, 'id': rec['id']})
@@ -320,7 +326,9 @@ def kasbon_add():
         'tanggal': rec['tanggal'],
         'jumlah': rec['jumlah'],
         'keterangan': rec.get('keterangan', ''),
-        'createdAt': datetime.datetime.now().isoformat()
+        'createdAt': datetime.datetime.now().isoformat(),
+        'createdBy': session.get('user', ''),
+        'createdByNama': session.get('nama', ''),
     })
     save_json(KASBON_FILE, kb)
     return jsonify({'ok': True})
@@ -733,7 +741,9 @@ def pembayaran_add():
         'tanggal': tanggal,
         'jumlah': jumlah,
         'keterangan': ket,
-        'createdAt': datetime.datetime.now().isoformat()
+        'createdAt': datetime.datetime.now().isoformat(),
+        'createdBy': session.get('user', ''),
+        'createdByNama': session.get('nama', ''),
     }
     bayar[penjahit].append(rec)
     save_json(BAYAR_FILE, bayar)
@@ -772,7 +782,9 @@ def qc_add():
         'operator': operator,
         'keterangan': ket,
         'items': items,
-        'createdAt': datetime.datetime.now().isoformat()
+        'createdAt': datetime.datetime.now().isoformat(),
+        'createdBy': session.get('user', ''),
+        'createdByNama': session.get('nama', ''),
     }
 
     # Update stok for lolos items
@@ -911,7 +923,9 @@ def pengeluaran_add():
         'keterangan': d.get('keterangan', ''),
         'items': d['items'],
         'totalPcs': d.get('totalPcs', 0),
-        'createdAt': datetime.datetime.now().isoformat()
+        'createdAt': datetime.datetime.now().isoformat(),
+        'createdBy': session.get('user', ''),
+        'createdByNama': session.get('nama', ''),
     }
     data = get_pengeluaran()
     data.append(rec)
@@ -1343,7 +1357,9 @@ def alih_tugas_add():
         'ke': ke,
         'items': items,
         'alasan': alasan,
-        'createdAt': datetime.datetime.now().isoformat()
+        'createdAt': datetime.datetime.now().isoformat(),
+        'createdBy': session.get('user', ''),
+        'createdByNama': session.get('nama', ''),
     }
     data = get_alih_tugas()
     data.append(rec)
@@ -1456,7 +1472,9 @@ def kain_masuk_add():
         'meter': float(d.get('meter', 0)),
         'supplier': d.get('supplier', ''),
         'keterangan': d.get('keterangan', ''),
-        'createdAt': datetime.datetime.now().isoformat()
+        'createdAt': datetime.datetime.now().isoformat(),
+        'createdBy': session.get('user', ''),
+        'createdByNama': session.get('nama', ''),
     }
     data = get_kain_masuk()
     data.append(rec)
@@ -1490,7 +1508,9 @@ def kain_ambil_add():
         'item': d.get('item', ''),
         'detail_ukuran': d.get('detail_ukuran', []),
         'keterangan': d.get('keterangan', ''),
-        'createdAt': datetime.datetime.now().isoformat()
+        'createdAt': datetime.datetime.now().isoformat(),
+        'createdBy': session.get('user', ''),
+        'createdByNama': session.get('nama', ''),
     }
     data = get_kain_ambil()
     data.append(rec)

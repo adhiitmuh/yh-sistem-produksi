@@ -869,7 +869,12 @@ async function fsSet(col, docId, data) {
   await db.collection(col).doc(docId).set(data);
 }
 async function fsAdd(col, data) {
-  const ref = await db.collection(col).add({...data, createdAt: firebase.firestore.FieldValue.serverTimestamp()});
+  const ref = await db.collection(col).add({
+    ...data,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    createdBy: uid || '',
+    createdByNama: unama || '',
+  });
   return ref.id;
 }
 async function fsDel(col, docId) {
@@ -1653,7 +1658,7 @@ async function loadQCHist() {
   const docs = await fsAll("qc");
   renderHistList("qc-hist","qc-cnt",docs,d=>`
     <div class="card">
-      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.penjahit}</b>${d.operator?" — "+d.operator:""}</div>
+      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.penjahit}</b>${d.operator?" — "+d.operator:""}${d.createdByNama?` <span style="font-size:10px;color:#aaa;">👤 ${d.createdByNama}</span>`:""}</div>
       <div>${itemsBadge(d.items.map(i=>({nama:i.nama,ukuran:i.ukuran,qty:"✔"+i.ok+" ✘"+i.reject})))}</div>
       ${fotoThumb(d.fotos)}
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
@@ -1664,7 +1669,7 @@ async function loadKeluarHist() {
   const docs = await fsAll("keluar");
   renderHistList("ke-hist","ke-cnt",docs,d=>`
     <div class="card">
-      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.tujuan||"—"}</b>${d.order?" ["+d.order+"]":""}</div>
+      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.tujuan||"—"}</b>${d.order?" ["+d.order+"]":""}${d.createdByNama?` <span style="font-size:10px;color:#aaa;">👤 ${d.createdByNama}</span>`:""}</div>
       <div>${itemsBadge(d.items)}</div>
       ${fotoThumb(d.fotos)}
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
@@ -1675,7 +1680,7 @@ async function loadKasbonHist() {
   const docs = await fsAll("kasbon");
   renderHistList("kb-list","",docs,d=>`
     <div class="card">
-      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.penjahit}</b> — ${fmtRp(d.jumlah)}</div>
+      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.penjahit}</b> — ${fmtRp(d.jumlah)}${d.createdByNama?` <span style="font-size:10px;color:#aaa;">👤 ${d.createdByNama}</span>`:""}</div>
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
       <div style="margin-top:6px">${mkDelBtn("kasbon",d.id)}</div>
     </div>`);
@@ -1684,7 +1689,7 @@ async function loadBayarHist() {
   const docs = await fsAll("pembayaran");
   renderHistList("by-list","",docs,d=>`
     <div class="card">
-      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.penjahit}</b> — ${fmtRp(d.jumlah)}</div>
+      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.penjahit}</b> — ${fmtRp(d.jumlah)}${d.createdByNama?` <span style="font-size:10px;color:#aaa;">👤 ${d.createdByNama}</span>`:""}</div>
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
       <div style="margin-top:6px">${mkDelBtn("pembayaran",d.id)}</div>
     </div>`);
@@ -1707,7 +1712,7 @@ async function loadRiwayat() {
     const who = d.penjahit||d.operator||"—";
     const typeLbl = {jahit:"🧵 Setor Jahitan",gunting:"✂️ Setor Guntingan",ambil:"📦 Ambil Jahitan"}[d.type]||d.type||"—";
     return `<div class="card">
-      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> ${typeLbl} — <b>${who}</b>${d.order?" ["+d.order+"]":""}</div>
+      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> ${typeLbl} — <b>${who}</b>${d.order?" ["+d.order+"]":""}${d.createdByNama?` <span style="font-size:10px;color:#aaa;">👤 ${d.createdByNama}</span>`:""}</div>
       <div>${itemsBadge(d.items)}</div>
       ${d.upah!=null?`<div class="ket">Upah: ${fmtRp(d.upah)}</div>`:""}
       ${fotoThumb(d.fotos)}
@@ -1913,7 +1918,7 @@ async function loadAlihTugasHist() {
   const docs = await fsAll("alih_tugas");
   renderHistList("at-hist","at-cnt",docs,d=>`
     <div class="card">
-      <div class="card-h"><span class="cl">${fmtTgl(d.tgl||d.tanggal)}</span> <b>${d.dari}</b> → <b>${d.ke}</b></div>
+      <div class="card-h"><span class="cl">${fmtTgl(d.tgl||d.tanggal)}</span> <b>${d.dari}</b> → <b>${d.ke}</b>${d.createdByNama?` <span style="font-size:10px;color:#aaa;">👤 ${d.createdByNama}</span>`:""}</div>
       ${d.alasan?`<div class="ket">${d.alasan}</div>`:""}
       <div>${(d.items||[]).map(i=>`<span class="tag">${i.item}: ${i.qty}</span>`).join(" ")}</div>
       <div style="margin-top:6px">${mkDelBtn("alih_tugas",d.id)}</div>
@@ -1973,7 +1978,7 @@ async function loadKainMasukHist() {
   const docs = await fsAll("kain_masuk");
   renderHistList("km-hist","km-cnt",docs,d=>`
     <div class="card">
-      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.kain}</b> — ${d.meter}m${d.supplier?" dari "+d.supplier:""}</div>
+      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.kain}</b> — ${d.meter}m${d.supplier?" dari "+d.supplier:""}${d.createdByNama?` <span style="font-size:10px;color:#aaa;">👤 ${d.createdByNama}</span>`:""}</div>
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
       <div style="margin-top:6px">${mkDelBtn("kain_masuk",d.id)}</div>
     </div>`);
@@ -2041,7 +2046,7 @@ async function loadKainAmbilHist() {
   const docs = await fsAll("kain_ambil");
   renderHistList("ka-hist","ka-cnt",docs,d=>`
     <div class="card">
-      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.operator}</b> — ${d.kain} (${d.item})</div>
+      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.operator}</b> — ${d.kain} (${d.item})${d.createdByNama?` <span style="font-size:10px;color:#aaa;">👤 ${d.createdByNama}</span>`:""}</div>
       <div>${(d.rows||[]).map(r=>`<span class="tag">${r.ukuran}: ${r.pcs}pcs ${r.meter}m</span>`).join(" ")}</div>
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
       <div style="margin-top:6px">${mkDelBtn("kain_ambil",d.id)}</div>
