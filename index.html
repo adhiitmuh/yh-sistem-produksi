@@ -819,6 +819,7 @@ let role = "guest", uname = null, unama = null, uid = null;
 let stokData = [], keluarData = [], allRingData = [];
 let lbImgs = [], lbIdx = 0;
 let cfmCallback = null;
+let cfmRejectCallback = null;
 let mdetIdx = -1, modalData = {}, mdetItem = null;
 let rrVisible = false;
 const fF = {j:[], g:[], a:[], qc:[], ke:[]};
@@ -857,8 +858,23 @@ function showConfirm(title, items, onConfirm, icon="💾") {
   cfmCallback = onConfirm;
   document.getElementById("cfm-modal").style.display = "flex";
 }
-function cfmClose() { document.getElementById("cfm-modal").style.display = "none"; cfmCallback = null; }
-function cfmConfirm() { document.getElementById("cfm-modal").style.display = "none"; if (cfmCallback) cfmCallback(); cfmCallback = null; }
+function cfmClose() {
+  document.getElementById("cfm-modal").style.display = "none";
+  if (cfmRejectCallback) { cfmRejectCallback(); cfmRejectCallback = null; }
+  cfmCallback = null;
+}
+function cfmConfirm() {
+  document.getElementById("cfm-modal").style.display = "none";
+  if (cfmCallback) cfmCallback();
+  cfmCallback = null;
+  cfmRejectCallback = null;
+}
+function confirm2(msg) {
+  return new Promise(resolve => {
+    cfmRejectCallback = () => resolve(false);
+    showConfirm('Konfirmasi', msg, () => { cfmRejectCallback = null; resolve(true); });
+  });
+}
 
 // ── FIRESTORE HELPERS ─────────────────────────────────────────────────────────
 async function fsGet(col, docId) {
