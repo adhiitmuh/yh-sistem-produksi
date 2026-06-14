@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YHK Produksi</title>
+<title>Young Harmonis Production</title>
 <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#022b2a;--s:#034543;--s2:#022b2a;--s3:#02312f;--b:rgba(255,251,213,.13);--b2:rgba(255,251,213,.22);--a:#FFFBD5;--adim:rgba(255,251,213,.12);--g:#4db6ac;--gdim:rgba(77,182,172,.12);--bl:#2eb8b4;--p:#4db6ac;--pdim:rgba(77,182,172,.12);--r:#f87171;--rdim:rgba(248,113,113,.12);--gold:#FFFBD5;--golddim:rgba(255,251,213,.12);--t:#FAFAFA;--t2:rgba(250,250,250,.52);--f:"Raleway",system-ui,sans-serif;--m:"JetBrains Mono","Courier New",monospace;--rad:12px;--rads:8px;--radl:16px}
@@ -237,7 +237,7 @@ tr:hover td{background:rgba(255,251,213,.04)}
 <div id="login-gate">
   <div class="lg-box">
     <div class="lg-icon">🧵</div>
-    <div class="lg-title" id="lg-nama">Young Harmonis Konveksi</div>
+    <div class="lg-title" id="lg-nama">Young Harmonis Production</div>
     <div class="lg-sub">Sistem Produksi — Masuk untuk melanjutkan</div>
     <button class="lg-btn" onclick="showLogin()">🔐 Login</button>
   </div>
@@ -262,7 +262,7 @@ tr:hover td{background:rgba(255,251,213,.04)}
   <div class="sb-top">
     <div class="logo">
       <div class="lm">🧵</div>
-      <div><div class="ln" id="namaK">Young Harmonis Konveksi</div><div class="lt">Sistem Produksi</div></div>
+      <div><div class="ln" id="namaK">Young Harmonis Production</div><div class="lt">Sistem Produksi</div></div>
     </div>
   </div>
   <nav>
@@ -825,7 +825,7 @@ const DEFAULT_ITEMS = [
 const DEFAULT_KAIN = ["Kain Korpri","Kain Drill","Kain TC","Kain Lacoste"];
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
-let settings = {penjahit:[], nama_konveksi:"Young Harmonis Konveksi", kain:[], items:[]};
+let settings = {penjahit:[], nama_konveksi:"Young Harmonis Production", kain:[], items:[]};
 let itemMaster = [];
 let role = "guest", uname = null, unama = null, uid = null;
 let stokData = [], keluarData = [], allRingData = [];
@@ -954,7 +954,7 @@ async function doSetup() {
     const cred = await auth.createUserWithEmailAndPassword(email, pw);
     await fsSet("users", cred.user.uid, {email, nama, role:"admin"});
     await fsSet("config", "settings", {
-      penjahit: [], nama_konveksi: "Young Harmonis Konveksi",
+      penjahit: [], nama_konveksi: "Young Harmonis Production",
       kain: DEFAULT_KAIN.map(n => ({nama: n})),
       items: DEFAULT_ITEMS
     });
@@ -2285,7 +2285,7 @@ async function doExport(fmt) {
     if(typeof window.jspdf==="undefined") return toast("Library PDF belum dimuat.","w");
     const {jsPDF} = window.jspdf;
     const doc = new jsPDF({orientation:"landscape"});
-    doc.setFontSize(12); doc.text(`YHK Produksi — Ekspor ${dari||"semua"}${ke?" s/d "+ke:""}`, 14, 14);
+    doc.setFontSize(12); doc.text(`Young Harmonis Production — Ekspor ${dari||"semua"}${ke?" s/d "+ke:""}`, 14, 14);
     if(doc.autoTable) {
       doc.autoTable({
         startY: 22,
