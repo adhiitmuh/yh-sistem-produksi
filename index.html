@@ -789,10 +789,9 @@ const firebaseConfig = {
   appId: "1:819657921141:web:a5b69b5c234f68b7cb5e3c"
 };
 firebase.initializeApp(firebaseConfig);
-const db      = firebase.firestore(); // data tetap di project lama
 const storage = firebase.storage();
 
-// Auth terpusat via harmoni-indonesia
+// Auth & data terpusat via harmoni-indonesia (auth token match Firestore rules)
 const harmoniConfig = {
   apiKey: 'AIzaSyA9V5Lw40pDeAWeQKijYCkdvnag8AlEe74',
   authDomain: 'harmoni-indonesia.firebaseapp.com',
@@ -804,6 +803,7 @@ const harmoniConfig = {
 const harmoniApp = firebase.initializeApp(harmoniConfig, 'harmoni-auth');
 const auth       = harmoniApp.auth();
 const authDb     = harmoniApp.firestore();
+const db         = harmoniApp.firestore(); // auth & data di project yang sama agar Firestore rules bisa baca request.auth
 // Secondary app instance — buat user baru tanpa logout admin
 const secondaryApp = firebase.initializeApp(harmoniConfig, "Secondary");
 </script>
@@ -831,6 +831,7 @@ let role = "guest", uname = null, unama = null, uid = null;
 let stokData = [], keluarData = [], allRingData = [];
 let lbImgs = [], lbIdx = 0;
 let cfmCallback = null;
+let cfmRejectCallback = null;
 let mdetIdx = -1, modalData = {}, mdetItem = null;
 let rrVisible = false;
 const fF = {j:[], g:[], a:[], qc:[], ke:[]};
@@ -869,8 +870,14 @@ function showConfirm(title, items, onConfirm, icon="💾") {
   cfmCallback = onConfirm;
   document.getElementById("cfm-modal").style.display = "flex";
 }
-function cfmClose() { document.getElementById("cfm-modal").style.display = "none"; cfmCallback = null; }
-function cfmConfirm() { document.getElementById("cfm-modal").style.display = "none"; if (cfmCallback) cfmCallback(); cfmCallback = null; }
+function cfmClose() { document.getElementById("cfm-modal").style.display = "none"; if(cfmRejectCallback) cfmRejectCallback(); cfmCallback = null; cfmRejectCallback = null; }
+function cfmConfirm() { document.getElementById("cfm-modal").style.display = "none"; if (cfmCallback) cfmCallback(); cfmCallback = null; cfmRejectCallback = null; }
+function confirm2(msg) {
+  return new Promise(resolve => {
+    showConfirm("Konfirmasi", msg, () => resolve(true), "❓");
+    cfmRejectCallback = () => resolve(false);
+  });
+}
 
 // ── FIRESTORE HELPERS ─────────────────────────────────────────────────────────
 async function fsGet(col, docId) {
@@ -1650,14 +1657,14 @@ function fmtTgl(s) {
 }
 function itemsBadge(items) {
   if(!items||!items.length) return "";
-  return items.map(i=>`<span class="tag">${i.nama||i}${i.ukuran?" ("+i.ukuran+")":""} ${i.qty||i.jumlah||""}</span>`).join(" ");
+  return items.map(i=>`<span class="tag">${i.nama||i}${i.ukuran?" ("+i.ukuran+")":""} ${i.pcs||i.qty||i.jumlah||""}</span>`).join(" ");
 }
 function fotoThumb(fotos) {
   if(!fotos||!fotos.length) return "";
   return `<div class="fotostrip">${fotos.map((u,i)=>`<img src="${u}" onclick="openLb(${JSON.stringify(fotos)},${i})" style="height:40px;border-radius:4px;cursor:pointer;margin-right:4px">`).join("")}</div>`;
 }
 function mkDelBtn(col, docId, cb) {
-  if(state.role!=="admin") return "";
+  if(role!=="admin") return "";
   return `<button class="btn-del" onclick="delRecord('${col}','${docId}',this,${cb?cb.toString().replace(/"/g,"'"):null})">Hapus</button>`;
 }
 async function delRecord(col, docId, btn, cb) {
@@ -1685,7 +1692,7 @@ async function loadQCHist() {
       <div>${itemsBadge(d.items.map(i=>({nama:i.nama,ukuran:i.ukuran,qty:"✔"+i.ok+" ✘"+i.reject})))}</div>
       ${fotoThumb(d.fotos)}
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
-      <div style="margin-top:6px">${mkDelBtn("qc",d.id)}</div>
+      <div style="margin-top:6px">${mkDelBtn("qc",d._id)}</div>
     </div>`);
 }
 async function loadKeluarHist() {
@@ -1696,7 +1703,7 @@ async function loadKeluarHist() {
       <div>${itemsBadge(d.items)}</div>
       ${fotoThumb(d.fotos)}
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
-      <div style="margin-top:6px">${mkDelBtn("keluar",d.id)}</div>
+      <div style="margin-top:6px">${mkDelBtn("keluar",d._id)}</div>
     </div>`);
 }
 async function loadKasbonHist() {
@@ -1705,7 +1712,7 @@ async function loadKasbonHist() {
     <div class="card">
       <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.penjahit}</b> — ${fmtRp(d.jumlah)}</div>
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
-      <div style="margin-top:6px">${mkDelBtn("kasbon",d.id)}</div>
+      <div style="margin-top:6px">${mkDelBtn("kasbon",d._id)}</div>
     </div>`);
 }
 async function loadBayarHist() {
@@ -1714,7 +1721,7 @@ async function loadBayarHist() {
     <div class="card">
       <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.penjahit}</b> — ${fmtRp(d.jumlah)}</div>
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
-      <div style="margin-top:6px">${mkDelBtn("pembayaran",d.id)}</div>
+      <div style="margin-top:6px">${mkDelBtn("pembayaran",d._id)}</div>
     </div>`);
 }
 
@@ -1726,21 +1733,21 @@ async function loadRiwayat() {
   let docs = await fsAll("transaksi");
   if(tgl)   docs = docs.filter(d=>d.tanggal===tgl);
   if(type)  docs = docs.filter(d=>d.type===type);
-  if(orang) docs = docs.filter(d=>d.penjahit===orang||d.operator===orang);
+  if(orang) docs = docs.filter(d=>d.orang===orang);
   docs.sort((a,b)=>(b.tanggal||"").localeCompare(a.tanggal||"")||0);
   document.getElementById("rw-cnt").textContent = docs.length;
   const el = document.getElementById("rw-body");
   if(!docs.length){el.innerHTML='<div class="empty">Belum ada data untuk filter ini.</div>';return;}
   el.innerHTML = docs.map(d=>{
-    const who = d.penjahit||d.operator||"—";
+    const who = d.orang||d.penjahit||d.operator||"—";
     const typeLbl = {jahit:"🧵 Setor Jahitan",gunting:"✂️ Setor Guntingan",ambil:"📦 Ambil Jahitan"}[d.type]||d.type||"—";
     return `<div class="card">
       <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> ${typeLbl} — <b>${who}</b>${d.order?" ["+d.order+"]":""}</div>
       <div>${itemsBadge(d.items)}</div>
-      ${d.upah!=null?`<div class="ket">Upah: ${fmtRp(d.upah)}</div>`:""}
+      ${d.totalUpah!=null?`<div class="ket">Upah: ${fmtRp(d.totalUpah)}</div>`:""}
       ${fotoThumb(d.fotos)}
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
-      <div style="margin-top:6px">${state.role==="admin"?`<button class="btn-del" onclick="delTx('${d.id}',this)">Hapus</button>`:""}</div>
+      <div style="margin-top:6px">${role==="admin"?`<button class="btn-del" onclick="delTx('${d._id}',this)">Hapus</button>`:""}</div>
     </div>`;
   }).join("");
 }
@@ -1760,7 +1767,7 @@ async function loadStats() {
     if(d.type==="jahit") j++;
     if(d.type==="gunting") g++;
     if(d.type==="ambil") a++;
-    if(d.tanggal===today && d.upah) u+=d.upah;
+    if(d.tanggal===today && d.totalUpah) u+=d.totalUpah;
   });
   document.getElementById("st-j").textContent = j;
   document.getElementById("st-g").textContent = g;
@@ -1770,7 +1777,7 @@ async function loadStats() {
   const oEl = document.getElementById("f-orang");
   const cur = oEl.value;
   oEl.innerHTML = '<option value="">Semua Orang</option>';
-  [...new Set(docs.map(d=>d.penjahit||d.operator).filter(Boolean))]
+  [...new Set(docs.map(d=>d.orang||d.penjahit||d.operator).filter(Boolean))]
     .sort().forEach(n=>{ const o=document.createElement("option"); o.value=o.textContent=n; oEl.appendChild(o); });
   oEl.value = cur;
 }
@@ -1790,9 +1797,9 @@ async function loadRingkasan() {
   const [txDocs, kbDocs, byDocs] = await Promise.all([fsAll("transaksi"),fsAll("kasbon"),fsAll("pembayaran")]);
   const map = {};
   txDocs.forEach(d=>{
-    const who = d.penjahit||d.operator; if(!who) return;
+    const who = d.orang||d.penjahit||d.operator; if(!who) return;
     if(!map[who]) map[who]={name:who,upah:0,kasbon:0,bayar:0,type:"penjahit"};
-    map[who].upah += d.upah||0;
+    map[who].upah += d.totalUpah||0;
     if(d.type==="gunting") map[who].type="cutting";
   });
   kbDocs.forEach(d=>{ if(!map[d.penjahit]) map[d.penjahit]={name:d.penjahit,upah:0,kasbon:0,bayar:0,type:"penjahit"}; map[d.penjahit].kasbon+=d.jumlah||0; });
@@ -1944,7 +1951,7 @@ async function loadAlihTugasHist() {
       <div class="card-h"><span class="cl">${fmtTgl(d.tgl||d.tanggal)}</span> <b>${d.dari}</b> → <b>${d.ke}</b></div>
       ${d.alasan?`<div class="ket">${d.alasan}</div>`:""}
       <div>${(d.items||[]).map(i=>`<span class="tag">${i.item}: ${i.qty}</span>`).join(" ")}</div>
-      <div style="margin-top:6px">${mkDelBtn("alih_tugas",d.id)}</div>
+      <div style="margin-top:6px">${mkDelBtn("alih_tugas",d._id)}</div>
     </div>`);
 }
 
@@ -1954,15 +1961,15 @@ async function loadProgress() {
   const txDocs = await fsAll("transaksi");
   const kbDocs = await fsAll("kasbon");
   const byDocs = await fsAll("pembayaran");
-  const penjahit = state.settings.penjahit||[];
+  const penjahit = settings.penjahit||[];
   const el = document.getElementById("progress-content");
   if(!penjahit.length){el.innerHTML='<div class="empty">Belum ada penjahit di pengaturan.</div>';return;}
   el.innerHTML = penjahit.map(pj=>{
     const pjStok = sj[pj]||{};
     const holding = Object.keys(pjStok).filter(k=>pjStok[k]>0);
     const totalHolding = holding.reduce((s,k)=>s+pjStok[k],0);
-    const totalSetor = txDocs.filter(d=>d.penjahit===pj&&d.type==="jahit").reduce((s,d)=>s+(d.items||[]).reduce((ss,i)=>ss+(i.qty||0),0),0);
-    const totalUpah = txDocs.filter(d=>d.penjahit===pj).reduce((s,d)=>s+(d.upah||0),0);
+    const totalSetor = txDocs.filter(d=>d.orang===pj&&d.type==="jahit").reduce((s,d)=>s+(d.items||[]).reduce((ss,i)=>ss+(i.pcs||i.qty||0),0),0);
+    const totalUpah = txDocs.filter(d=>d.orang===pj).reduce((s,d)=>s+(d.totalUpah||0),0);
     const totalKasbon = kbDocs.filter(d=>d.penjahit===pj).reduce((s,d)=>s+(d.jumlah||0),0);
     const totalBayar = byDocs.filter(d=>d.penjahit===pj).reduce((s,d)=>s+(d.jumlah||0),0);
     const saldo = totalUpah - totalKasbon - totalBayar;
@@ -2003,7 +2010,7 @@ async function loadKainMasukHist() {
     <div class="card">
       <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.kain}</b> — ${d.meter}m${d.supplier?" dari "+d.supplier:""}</div>
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
-      <div style="margin-top:6px">${mkDelBtn("kain_masuk",d.id)}</div>
+      <div style="margin-top:6px">${mkDelBtn("kain_masuk",d._id)}</div>
     </div>`);
 }
 
@@ -2020,9 +2027,8 @@ async function updateKainInfo() {
 }
 function buildKainUkuranRows() {
   const item = document.getElementById("ka-item").value;
-  const sett = state.settings;
-  const found = (sett.items||[]).find(i=>i.nama===item);
-  const uks = found ? (found.ukuran||[]) : [];
+  const found = (settings.items||[]).find(i=>i.nama===item);
+  const uks = found ? (UKURAN[found.type] || UKURAN.umum) : [];
   const el = document.getElementById("ka-ukuran-rows");
   el.innerHTML = uks.map(uk=>`
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px">
@@ -2048,9 +2054,17 @@ async function submitKainAmbil() {
   if(!tgl||!op||!kain||!item) return toast("Tanggal, operator, kain, dan item wajib diisi!","w");
   const rows=[];
   document.querySelectorAll("[id^='kau-pcs-']").forEach(el=>{
-    const uk=el.id.replace("kau-pcs-","");
-    const pcs=+el.value||0; const m=+(document.getElementById("kau-m-"+uk)?.value)||0;
-    if(pcs||m) rows.push({ukuran:uk,pcs,meter:m});
+    let uk;
+    if(el.id.startsWith("kau-pcs-custom-")) {
+      const idx = el.id.replace("kau-pcs-custom-","");
+      uk = document.getElementById("kau-uk-"+idx)?.value?.trim()||"";
+    } else {
+      uk = el.id.replace("kau-pcs-","");
+    }
+    const pcs=+el.value||0;
+    const mEl = document.getElementById(el.id.replace("kau-pcs-","kau-m-"));
+    const m=+(mEl?.value)||0;
+    if((pcs||m) && uk) rows.push({ukuran:uk,pcs,meter:m});
   });
   if(!rows.length) return toast("Isi minimal 1 ukuran!","w");
   const totM = rows.reduce((s,r)=>s+r.meter,0);
@@ -2072,7 +2086,7 @@ async function loadKainAmbilHist() {
       <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.operator}</b> — ${d.kain} (${d.item})</div>
       <div>${(d.rows||[]).map(r=>`<span class="tag">${r.ukuran}: ${r.pcs}pcs ${r.meter}m</span>`).join(" ")}</div>
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
-      <div style="margin-top:6px">${mkDelBtn("kain_ambil",d.id)}</div>
+      <div style="margin-top:6px">${mkDelBtn("kain_ambil",d._id)}</div>
     </div>`);
 }
 
@@ -2141,14 +2155,13 @@ function addGuntingFromKain(item, ukuran, qty, btn) {
   const blocks = document.getElementById("g-blocks");
   const div = document.createElement("div");
   div.className="blk"; div.id=bid;
-  const sett = state.settings;
-  const found = (sett.items||[]).find(i=>i.nama===item);
-  const uks = found?(found.ukuran||[]):[];
+  const found = (settings.items||[]).find(i=>i.nama===item);
+  const itemType = found ? (found.type||"umum") : "umum";
   div.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
     <div style="font-weight:700">${item}</div>
     <button type="button" onclick="this.closest('.blk').remove();calcG()" style="background:transparent;border:none;color:var(--r);cursor:pointer;font-size:16px">×</button>
   </div>
-  ${buildUK(bid,"custom",`calcG`)}`;
+  ${buildUK(bid, itemType, `calcG`)}`;
   blocks.appendChild(div);
   // set the specific ukuran
   const ukIn = div.querySelector(`[data-ukuran="${ukuran}"]`)||div.querySelector(".ukin");
@@ -2162,7 +2175,7 @@ const BAHAN_LAIN = ["kancing","puring","kain_keras","lobang_kancing","setrika","
 async function loadModalDashboard() {
   const snap = await db.collection("config").doc("modal_data").get();
   modalData = snap.exists ? snap.data() : {};
-  const items = state.settings.items||[];
+  const items = settings.items||[];
   const tbody = document.getElementById("modal-tbody");
   const statsEl = document.getElementById("modal-stats");
   let totalModal=0, totalJual=0;
@@ -2198,7 +2211,7 @@ async function loadModalDashboard() {
 
 function openMdetail(nama) {
   mdetItem = nama;
-  const it = (state.settings.items||[]).find(i=>i.nama===nama)||{};
+  const it = (settings.items||[]).find(i=>i.nama===nama)||{};
   const m = modalData[nama]||{};
   document.getElementById("mdet-nama").textContent = nama;
   document.getElementById("mdet-upah").textContent = "Upah: "+fmtRp(it.upah||0);
@@ -2214,7 +2227,7 @@ function openMdetail(nama) {
 }
 function closeMdetail() { document.getElementById("mdet-mo").style.display="none"; mdetItem=null; }
 function recalcMdet() {
-  const upah = +(state.settings.items||[]).find(i=>i.nama===mdetItem)?.upah||0;
+  const upah = +(settings.items||[]).find(i=>i.nama===mdetItem)?.upah||0;
   const kainTotal = (+document.getElementById("mdet-kain-peng").value||0)*(+document.getElementById("mdet-kain-harga").value||0);
   const blTotal = BAHAN_LAIN.reduce((s,f)=>s+(+document.getElementById("mbl-"+f)?.value||0),0);
   const totalM = kainTotal + blTotal + upah;
@@ -2265,11 +2278,11 @@ async function doExport(fmt) {
       rows.push({
         Tanggal: d.tanggal||"—",
         Jenis: d.type||"—",
-        "Penjahit/Operator": d.penjahit||d.operator||"—",
+        "Penjahit/Operator": d.orang||d.penjahit||d.operator||"—",
         Item: it.nama||"—",
         Ukuran: it.ukuran||"—",
-        Qty: it.qty||0,
-        "Upah Total": d.upah||0,
+        Qty: it.pcs||it.qty||0,
+        "Upah Total": d.totalUpah||0,
         "No Order": d.order||"—",
         Keterangan: d.ket||""
       });
