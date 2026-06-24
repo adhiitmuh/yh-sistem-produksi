@@ -789,9 +789,10 @@ const firebaseConfig = {
   appId: "1:819657921141:web:a5b69b5c234f68b7cb5e3c"
 };
 firebase.initializeApp(firebaseConfig);
+const db      = firebase.firestore(); // data di yh-sistem-produksi (perlu rules: allow read,write: if true di Firebase Console)
 const storage = firebase.storage();
 
-// Auth & data terpusat via harmoni-indonesia (auth token match Firestore rules)
+// Auth terpusat via harmoni-indonesia
 const harmoniConfig = {
   apiKey: 'AIzaSyA9V5Lw40pDeAWeQKijYCkdvnag8AlEe74',
   authDomain: 'harmoni-indonesia.firebaseapp.com',
@@ -803,7 +804,6 @@ const harmoniConfig = {
 const harmoniApp = firebase.initializeApp(harmoniConfig, 'harmoni-auth');
 const auth       = harmoniApp.auth();
 const authDb     = harmoniApp.firestore();
-const db         = harmoniApp.firestore(); // auth & data di project yang sama agar Firestore rules bisa baca request.auth
 // Secondary app instance — buat user baru tanpa logout admin
 const secondaryApp = firebase.initializeApp(harmoniConfig, "Secondary");
 </script>
@@ -935,7 +935,7 @@ auth.onAuthStateChanged(async user => {
     uid = null; uname = null; unama = null; role = "guest";
   }
   applyRole();
-  if (role !== "guest") await loadAll();
+  if (role !== "guest") { try { await loadAll(); } catch(e) { console.error("loadAll error:", e); } }
   document.getElementById("loader").style.display = "none";
 });
 
