@@ -1488,28 +1488,37 @@ async function submitAmbil() {
   if(!tgl||!pj) return toast("Tanggal & penjahit wajib!");
   const it=colA(); if(!it.length) return toast("Minimal 1 item!");
   const tp=it.reduce((s,i)=>s+i.pcs,0), tu=it.reduce((s,i)=>s+i.pcs*i.upah,0);
-  await new Promise(resolve=>showConfirm("Konfirmasi Pengambilan",[
-    {label:"Penjahit",val:pj},{label:"Total",val:tp+" pcs"}
-  ],resolve,"📦"));
-  const fotos = await uploadFotos(fF.a);
-  await fsAdd("transaksi",{type:"ambil",tanggal:tgl,orang:pj,order:document.getElementById("a-ord").value,deadline:document.getElementById("a-ddl").value,items:it,totalPcs:tp,totalUpah:tu,keterangan:document.getElementById("a-ket").value,fotos});
-  // Kurangi stok guntingan (FIFO), tambah stok jahitan
-  const sg=(await fsGet("config","stok_guntingan"))||{};
-  const sj=(await fsGet("config","stok_jahitan"))||{};
-  if(!sj[pj]) sj[pj]={};
-  it.forEach(i=>{
-    const k=`${i.nama}||${i.ukuran}`; let sisa=i.pcs;
-    for(const op of Object.keys(sg)){
-      if(sisa<=0) break;
-      const ada=sg[op][k]||0; if(ada>0){const kurang=Math.min(ada,sisa);sg[op][k]=ada-kurang;sisa-=kurang;}
-    }
-    sj[pj][k]=(sj[pj][k]||0)+i.pcs;
+  const ok = await new Promise(resolve=>{
+    showConfirm("Konfirmasi Pengambilan",[
+      {label:"Penjahit",val:pj},{label:"Total",val:tp+" pcs"}
+    ],()=>resolve(true),"📦");
+    cfmRejectCallback=()=>resolve(false);
   });
-  await fsSet("config","stok_guntingan",sg);
-  await fsSet("config","stok_jahitan",sj);
-  toast("Pengambilan "+pj+" disimpan!");
-  ["a-pjt","a-ord","a-ddl","a-ket"].forEach(id=>document.getElementById(id).value="");
-  document.getElementById("a-blocks").innerHTML=""; addAmbilBlock(); calcA(); clearF("a");
+  if(!ok) return;
+  try {
+    const fotos = await uploadFotos(fF.a);
+    await fsAdd("transaksi",{type:"ambil",tanggal:tgl,orang:pj,order:document.getElementById("a-ord").value,deadline:document.getElementById("a-ddl").value,items:it,totalPcs:tp,totalUpah:tu,keterangan:document.getElementById("a-ket").value,fotos});
+    // Kurangi stok guntingan (FIFO), tambah stok jahitan
+    const sg=(await fsGet("config","stok_guntingan"))||{};
+    const sj=(await fsGet("config","stok_jahitan"))||{};
+    if(!sj[pj]) sj[pj]={};
+    it.forEach(i=>{
+      const k=`${i.nama}||${i.ukuran}`; let sisa=i.pcs;
+      for(const op of Object.keys(sg)){
+        if(sisa<=0) break;
+        const ada=(sg[op]&&sg[op][k])||0; if(ada>0){const kurang=Math.min(ada,sisa);sg[op][k]=ada-kurang;sisa-=kurang;}
+      }
+      sj[pj][k]=(sj[pj][k]||0)+i.pcs;
+    });
+    await fsSet("config","stok_guntingan",sg);
+    await fsSet("config","stok_jahitan",sj);
+    toast("Pengambilan "+pj+" disimpan!");
+    ["a-pjt","a-ord","a-ddl","a-ket"].forEach(id=>document.getElementById(id).value="");
+    document.getElementById("a-blocks").innerHTML=""; addAmbilBlock(); calcA(); clearF("a");
+  } catch(e) {
+    toast("Gagal menyimpan: "+e.message);
+    console.error("submitAmbil error:",e);
+  }
 }
 
 // ── QC ───────────────────────────────────────────────────────────────────────
