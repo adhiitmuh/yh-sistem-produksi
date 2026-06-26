@@ -1404,14 +1404,33 @@ function renderFG(p) {
     return `<div class="ft2"><img src="${u}"><button class="ftdel" onclick="fF['${p}'].splice(${i},1);renderFG('${p}')">&#215;</button></div>`;
   }).join("");
 }
+async function compressImage(file, maxPx=1280, quality=0.72) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.width, h = img.height;
+      if (w > maxPx) { h = Math.round(h * maxPx / w); w = maxPx; }
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      c.getContext("2d").drawImage(img, 0, 0, w, h);
+      c.toBlob(blob => {
+        if (!blob) { resolve(file); return; }
+        resolve(new File([blob], genId()+".jpg", { type: "image/jpeg" }));
+      }, "image/jpeg", quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
 async function uploadFotos(files) {
   const urls = [];
   for (const f of files) {
     try {
-      const ext  = f.name.split(".").pop().toLowerCase();
-      const name = genId() + "." + ext;
-      const ref  = storage.ref("fotos/" + name);
-      await ref.put(f);
+      const compressed = await compressImage(f);
+      const ref = storage.ref("fotos/" + compressed.name);
+      await ref.put(compressed);
       urls.push(await ref.getDownloadURL());
     } catch(e) {
       console.warn("Upload foto gagal (Storage mungkin belum aktif):", e);
