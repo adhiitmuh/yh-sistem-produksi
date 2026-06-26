@@ -635,16 +635,8 @@ tr:hover td{background:rgba(255,251,213,.04)}
       <div><div style="height:20px"></div><button class="btsm" onclick="addItemMaster()">+ Tambah</button></div>
     </div>
   </div>
-  <div class="card" id="user-mc">
-    <div class="ct">👥 Manajemen Pengguna <span style="font-size:10px;color:var(--t2);font-weight:400">(Admin only)</span></div>
-    <div id="user-list" style="margin-bottom:10px"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:7px;align-items:end" id="add-user-row">
-      <div class="fg"><label>Email</label><input type="email" id="u-em" placeholder="staff@email.com"></div>
-      <div class="fg"><label>Nama Lengkap</label><input type="text" id="u-nm" placeholder="Budi S."></div>
-      <div class="fg"><label>Password</label><input type="password" id="u-pw" placeholder="Min 6 karakter"></div>
-      <div><div style="height:20px"></div><button class="btsm" onclick="addUser()">+ Staff</button></div>
-    </div>
-    <div style="margin-top:8px"><button class="btsm gh" onclick="showCPW()">🔑 Ganti Password Saya</button></div>
+  <div class="card" style="background:var(--adim);border-color:rgba(255,251,213,.15)">
+    <div style="font-size:12px;color:var(--t2);text-align:center;padding:4px 0">👥 Manajemen pengguna dikelola melalui <a href="https://adhiitmuh.github.io/harmoni-indonesia/" target="_blank" style="color:var(--a);text-decoration:none;font-weight:700">Portal Harmoni →</a></div>
   </div>
 </div>
 
@@ -717,18 +709,6 @@ tr:hover td{background:rgba(255,251,213,.04)}
   </div>
 </div>
 
-<!-- GANTI PASSWORD MODAL -->
-<div class="mo" id="cpw-mo" style="display:none">
-  <div class="mbox">
-    <div style="font-size:24px;margin-bottom:8px">🔑</div>
-    <div style="font-size:15px;font-weight:800;margin-bottom:3px">Ganti Password</div>
-    <div class="fg" style="margin-bottom:8px"><label>Password Baru</label><input type="password" id="cpw-n"></div>
-    <div class="fg" style="margin-bottom:10px"><label>Konfirmasi</label><input type="password" id="cpw-c"></div>
-    <div class="merr" id="cpw-err"></div>
-    <button onclick="doChangePw()" style="width:100%;padding:9px;background:var(--a);color:#0a0a0a;border:none;border-radius:var(--rads);font-family:var(--f);font-size:13px;font-weight:700;cursor:pointer;margin-bottom:6px">Simpan</button>
-    <button onclick="document.getElementById('cpw-mo').style.display='none'" style="width:100%;padding:7px;background:transparent;border:1px solid var(--b);color:var(--t2);border-radius:var(--rads);font-family:var(--f);font-size:12px;cursor:pointer">Batal</button>
-  </div>
-</div>
 
 <!-- LIGHTBOX -->
 <div class="lb" id="lb" onclick="closeLb(event)">
@@ -1000,23 +980,6 @@ async function doLogout() {
   toast("Logout berhasil");
 }
 
-function showCPW() { document.getElementById("cpw-mo").style.display = "flex"; }
-async function doChangePw() {
-  const n = document.getElementById("cpw-n").value;
-  const c = document.getElementById("cpw-c").value;
-  const err = document.getElementById("cpw-err");
-  if (n !== c) { err.textContent = "Tidak cocok!"; err.style.display = "block"; return; }
-  if (n.length < 6) { err.textContent = "Minimal 6 karakter!"; err.style.display = "block"; return; }
-  try {
-    await auth.currentUser.updatePassword(n);
-    document.getElementById("cpw-mo").style.display = "none";
-    ["cpw-n","cpw-c"].forEach(id => document.getElementById(id).value = "");
-    toast("Password diubah!");
-  } catch(e) {
-    err.textContent = e.message || "Gagal";
-    err.style.display = "block";
-  }
-}
 
 function applyRole() {
   const pill   = document.getElementById("rolePill");
@@ -1044,49 +1007,11 @@ function applyRole() {
   const isAdmin = role === "admin";
   const tmt = document.getElementById("t-modal");
   if (tmt) tmt.style.display = isAdmin ? "block" : "none";
-  const aur = document.getElementById("add-user-row");
-  if (aur) aur.style.display = isAdmin ? "grid" : "none";
 
   document.querySelectorAll(".btp,.btg,.btr,.btp2").forEach(b => b.classList.toggle("locked", !loggedIn));
   document.querySelectorAll(".farea").forEach(el => { el.style.pointerEvents = loggedIn ? "all" : "none"; el.style.opacity = loggedIn ? "1" : "0.4"; });
 }
 
-// ── USER MANAGEMENT ───────────────────────────────────────────────────────────
-async function loadUserList() {
-  if (role !== "admin") return;
-  const users = await fsAll("users");
-  const el = document.getElementById("user-list");
-  if (!el || !users.length) return;
-  el.innerHTML = `<table><thead><tr><th>Email</th><th>Nama</th><th>Role</th><th></th></tr></thead><tbody>
-    ${users.map(u => `<tr>
-      <td class="mono" style="font-size:11px">${u.email}</td>
-      <td>${u.nama}</td>
-      <td><span class="rp ${u.role==="admin"?"rpa":"rps"}">${u.role==="admin"?"Admin":"Staff"}</span></td>
-      <td>${u._id !== uid ? `<button onclick="delUser('${u._id}')" style="background:transparent;border:none;color:var(--r);cursor:pointer;font-size:14px">×</button>` : ""}</td>
-    </tr>`).join("")}
-  </tbody></table>`;
-}
-
-async function addUser() {
-  const email = document.getElementById("u-em").value.trim();
-  const nama  = document.getElementById("u-nm").value.trim();
-  const pw    = document.getElementById("u-pw").value;
-  if (!email || !nama || !pw) return toast("Semua field wajib!");
-  try {
-    const cred = await secondaryApp.auth().createUserWithEmailAndPassword(email, pw);
-    await secondaryApp.auth().signOut();
-    await fsSet("users", cred.user.uid, {email, nama, role:"staff"});
-    toast("Staff " + nama + " ditambahkan!");
-    ["u-em","u-nm","u-pw"].forEach(id => document.getElementById(id).value = "");
-    loadUserList();
-  } catch(e) { toast(e.message || "Gagal tambah user"); }
-}
-
-async function delUser(docId) {
-  if (!confirm("Hapus user ini?")) return;
-  await fsDel("users", docId);
-  toast("User dihapus"); loadUserList();
-}
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
 async function loadSettings() {
@@ -1226,7 +1151,7 @@ function go(name) {
   if (name==="stok")       switchStokTab("gunting");
   if (name==="keluar")     loadKeluarHist();
   if (name==="ringkasan")  loadRingkasan();
-  if (name==="setting")    { renderItemTable(); renderKainTags(); if (role==="admin") loadUserList(); }
+  if (name==="setting")    { renderItemTable(); renderKainTags(); }
   if (name==="modal")      loadModalDashboard();
   if (name==="kain-masuk") { loadKainList(); loadKainMasukHist(); loadStokKain(); }
   if (name==="kain-ambil") { loadKainList(); loadKainAmbilHist(); loadStokKain(); }
