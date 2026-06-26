@@ -910,6 +910,8 @@ auth.onAuthStateChanged(async user => {
   if (user) {
     uid = user.uid;
     uname = user.email;
+    // Sign in anonymously ke main Firebase app agar Firestore & Storage rules terpenuhi
+    try { await firebase.auth().signInAnonymously(); } catch(e) { console.warn("Anonymous auth main app:", e.code); }
     const userSnap = await authDb.collection('users').doc(user.uid).get();
     const userDoc  = userSnap.exists ? userSnap.data() : null;
 
@@ -1488,28 +1490,48 @@ async function submitAmbil() {
   if(!tgl||!pj) return toast("Tanggal & penjahit wajib!");
   const it=colA(); if(!it.length) return toast("Minimal 1 item!");
   const tp=it.reduce((s,i)=>s+i.pcs,0), tu=it.reduce((s,i)=>s+i.pcs*i.upah,0);
-  await new Promise(resolve=>showConfirm("Konfirmasi Pengambilan",[
-    {label:"Penjahit",val:pj},{label:"Total",val:tp+" pcs"}
-  ],resolve,"📦"));
-  const fotos = await uploadFotos(fF.a);
-  await fsAdd("transaksi",{type:"ambil",tanggal:tgl,orang:pj,order:document.getElementById("a-ord").value,deadline:document.getElementById("a-ddl").value,items:it,totalPcs:tp,totalUpah:tu,keterangan:document.getElementById("a-ket").value,fotos});
-  // Kurangi stok guntingan (FIFO), tambah stok jahitan
-  const sg=(await fsGet("config","stok_guntingan"))||{};
-  const sj=(await fsGet("config","stok_jahitan"))||{};
-  if(!sj[pj]) sj[pj]={};
-  it.forEach(i=>{
-    const k=`${i.nama}||${i.ukuran}`; let sisa=i.pcs;
-    for(const op of Object.keys(sg)){
-      if(sisa<=0) break;
-      const ada=sg[op][k]||0; if(ada>0){const kurang=Math.min(ada,sisa);sg[op][k]=ada-kurang;sisa-=kurang;}
-    }
-    sj[pj][k]=(sj[pj][k]||0)+i.pcs;
+  const ok = await new Promise(resolve=>{
+    showConfirm("Konfirmasi Pengambilan",[
+      {label:"Penjahit",val:pj},{label:"Total",val:tp+" pcs"}
+    ],()=>resolve(true),"📦");
+    cfmRejectCallback=()=>resolve(false);
   });
-  await fsSet("config","stok_guntingan",sg);
-  await fsSet("config","stok_jahitan",sj);
-  toast("Pengambilan "+pj+" disimpan!");
-  ["a-pjt","a-ord","a-ddl","a-ket"].forEach(id=>document.getElementById(id).value="");
-  document.getElementById("a-blocks").innerHTML=""; addAmbilBlock(); calcA(); clearF("a");
+  if(!ok) return;
+  const btn = document.querySelector("#s-ambil .btp2");
+  const origTxt = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
+  try {
+    // Upload foto — jika gagal, lanjut simpan tanpa foto
+    let fotos = [];
+    if (fF.a.length > 0) {
+      try { fotos = await uploadFotos(fF.a); }
+      catch(fe) { console.warn("Upload foto gagal:", fe); }
+    }
+    await fsAdd("transaksi",{type:"ambil",tanggal:tgl,orang:pj,order:document.getElementById("a-ord").value,deadline:document.getElementById("a-ddl").value,items:it,totalPcs:tp,totalUpah:tu,keterangan:document.getElementById("a-ket").value,fotos});
+    // Kurangi stok guntingan (FIFO), tambah stok jahitan
+    const sg=(await fsGet("config","stok_guntingan"))||{};
+    const sj=(await fsGet("config","stok_jahitan"))||{};
+    if(!sj[pj]) sj[pj]={};
+    it.forEach(i=>{
+      const k=`${i.nama}||${i.ukuran}`; let sisa=i.pcs;
+      for(const op of Object.keys(sg)){
+        if(sisa<=0) break;
+        const ada=(sg[op]&&sg[op][k])||0; if(ada>0){const kurang=Math.min(ada,sisa);sg[op][k]=ada-kurang;sisa-=kurang;}
+      }
+      sj[pj][k]=(sj[pj][k]||0)+i.pcs;
+    });
+    await fsSet("config","stok_guntingan",sg);
+    await fsSet("config","stok_jahitan",sj);
+    toast("✓ Pengambilan "+pj+" disimpan!"+(fF.a.length>0&&!fotos.length?" (foto gagal diupload)":""));
+    ["a-pjt","a-ord","a-ddl","a-ket"].forEach(id=>document.getElementById(id).value="");
+    document.getElementById("a-blocks").innerHTML=""; addAmbilBlock(); calcA(); clearF("a");
+  } catch(e) {
+    const msg = e.message||e.code||String(e);
+    console.error("submitAmbil error:", e);
+    showAlert("Gagal Menyimpan", "Error: "+msg+"\n\nJika terus gagal, pastikan Firebase Firestore & Storage rules sudah diset ke: allow read, write: if true");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = origTxt; }
+  }
 }
 
 // ── QC ───────────────────────────────────────────────────────────────────────
