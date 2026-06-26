@@ -1407,11 +1407,15 @@ function renderFG(p) {
 async function uploadFotos(files) {
   const urls = [];
   for (const f of files) {
-    const ext  = f.name.split(".").pop().toLowerCase();
-    const name = genId() + "." + ext;
-    const ref  = storage.ref("fotos/" + name);
-    await ref.put(f);
-    urls.push(await ref.getDownloadURL());
+    try {
+      const ext  = f.name.split(".").pop().toLowerCase();
+      const name = genId() + "." + ext;
+      const ref  = storage.ref("fotos/" + name);
+      await ref.put(f);
+      urls.push(await ref.getDownloadURL());
+    } catch(e) {
+      console.warn("Upload foto gagal (Storage mungkin belum aktif):", e);
+    }
   }
   return urls;
 }
@@ -1538,10 +1542,17 @@ async function submitAmbil() {
 let qcRows = [];
 function addQCRow(nm, uk, qMasuk) {
   const i = qcRows.length;
-  qcRows.push({nm, uk, masuk: qMasuk||0, ok:0, reject:0});
+  const isManual = !nm;
+  qcRows.push({nm:nm||"", uk:uk||"", masuk: qMasuk||0, ok:0, reject:0});
   const div = document.createElement("div");
-  div.className = "blk"; div.id = "qcr-"+i;
-  div.innerHTML = `<div style="font-weight:700;margin-bottom:6px">${nm} – ${uk}</div>
+  div.className = "blk"; div.id = "qcrow-"+i;
+  const header = isManual
+    ? `<div style="display:flex;gap:6px;margin-bottom:8px">
+        <input type="text" placeholder="Nama item" oninput="qcRows[${i}].nm=this.value" style="flex:1;padding:6px 9px;font-size:12px;background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);color:var(--t);font-family:var(--f)">
+        <input type="text" placeholder="Ukuran" oninput="qcRows[${i}].uk=this.value" style="width:80px;padding:6px 9px;font-size:12px;background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);color:var(--t);font-family:var(--f)">
+      </div>`
+    : `<div style="font-weight:700;margin-bottom:6px">${nm} – ${uk}</div>`;
+  div.innerHTML = `${header}
     <div class="fgrow">
       <div class="fg"><label>Masuk</label><input type="number" id="qcm-${i}" value="${qMasuk||0}" min="0" oninput="calcQCRow(${i})"></div>
       <div class="fg"><label>Lolos</label><input type="number" id="qcl-${i}" value="0" min="0" oninput="calcQCRow(${i})"></div>
@@ -1627,13 +1638,13 @@ async function submitKeluar() {
   if(!items.length) return toast("Tambah item dulu!","w");
   if(!await confirm2("Simpan data keluar?")) return;
   const fotos = await uploadFotos(fF.ke||[]);
-  const totalPcs = items.reduce((s,i)=>s+(i.qty||0),0);
+  const totalPcs = items.reduce((s,i)=>s+(i.pcs||0),0);
   await fsAdd("keluar", {tujuan, order:ord, tanggal:tgl, ket, fotos, items, totalPcs});
   // deduct stok
   const sm = (await db.collection("config").doc("stok").get()).data()||{};
   items.forEach(it=>{
     const key = it.nama+"||"+it.ukuran;
-    sm[key] = Math.max(0,(sm[key]||0)-it.qty);
+    sm[key] = Math.max(0,(sm[key]||0)-it.pcs);
   });
   await db.collection("config").doc("stok").set(sm);
   toast("Keluar disimpan!");
@@ -2023,7 +2034,7 @@ async function submitKainMasuk() {
   kStok[kain] = (kStok[kain]||0) + meter;
   await db.collection("config").doc("stok_kain").set(kStok);
   toast("Kain masuk disimpan!");
-  ["km-tgl","km-meter","km-supplier","km-ket"].forEach(id=>document.getElementById(id).value="");
+  ["km-tgl","km-kain","km-meter","km-supplier","km-ket"].forEach(id=>document.getElementById(id).value="");
   await loadKainMasukHist();
 }
 async function loadKainMasukHist() {
@@ -2173,22 +2184,22 @@ async function loadGuntingPending() {
 }
 function addGuntingFromKain(item, ukuran, qty, btn) {
   btn.disabled=true; btn.style.opacity=".4";
-  const bid = "gb-"+(Date.now());
+  const bid = "gb-"+Date.now();
   const blocks = document.getElementById("g-blocks");
   const div = document.createElement("div");
-  div.className="blk"; div.id=bid;
+  div.className="iblock"; div.id="ib-"+bid;
   const found = (settings.items||[]).find(i=>i.nama===item);
   const itemType = found ? (found.type||"umum") : "umum";
-  div.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-    <div style="font-weight:700">${item}</div>
-    <button type="button" onclick="this.closest('.blk').remove();calcG()" style="background:transparent;border:none;color:var(--r);cursor:pointer;font-size:16px">×</button>
+  div.innerHTML = `<div class="ibhdr" style="margin-bottom:8px">
+    <input type="text" class="ibn" value="${item}" style="display:none" readonly>
+    <div style="font-weight:700;flex:1">${item}</div>
+    <button type="button" onclick="this.closest('.iblock').remove();calcG()" class="btnrm">&#215;</button>
   </div>
-  ${buildUK(bid, itemType, `calcG`)}`;
+  <div class="ukw" data-fn="calcG">${buildUK(bid, itemType, "calcG")}</div>
+  <div style="margin-top:5px;font-size:11px;font-family:var(--m);font-weight:700;color:var(--g)" id="ibt-${bid}"></div>`;
   blocks.appendChild(div);
-  // set the specific ukuran
   const ukIn = div.querySelector(`[data-ukuran="${ukuran}"]`)||div.querySelector(".ukin");
   if(ukIn){ ukIn.value=qty; }
-  div.querySelector(".acin") && (div.querySelector(".acin").value=item);
   calcG();
 }
 
