@@ -910,6 +910,8 @@ auth.onAuthStateChanged(async user => {
   if (user) {
     uid = user.uid;
     uname = user.email;
+    // Sign in anonymously ke main Firebase app agar Firestore & Storage rules terpenuhi
+    try { await firebase.auth().signInAnonymously(); } catch(e) { console.warn("Anonymous auth main app:", e.code); }
     const userSnap = await authDb.collection('users').doc(user.uid).get();
     const userDoc  = userSnap.exists ? userSnap.data() : null;
 
@@ -1495,8 +1497,16 @@ async function submitAmbil() {
     cfmRejectCallback=()=>resolve(false);
   });
   if(!ok) return;
+  const btn = document.querySelector("#s-ambil .btp2");
+  const origTxt = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
   try {
-    const fotos = await uploadFotos(fF.a);
+    // Upload foto — jika gagal, lanjut simpan tanpa foto
+    let fotos = [];
+    if (fF.a.length > 0) {
+      try { fotos = await uploadFotos(fF.a); }
+      catch(fe) { console.warn("Upload foto gagal:", fe); }
+    }
     await fsAdd("transaksi",{type:"ambil",tanggal:tgl,orang:pj,order:document.getElementById("a-ord").value,deadline:document.getElementById("a-ddl").value,items:it,totalPcs:tp,totalUpah:tu,keterangan:document.getElementById("a-ket").value,fotos});
     // Kurangi stok guntingan (FIFO), tambah stok jahitan
     const sg=(await fsGet("config","stok_guntingan"))||{};
@@ -1512,12 +1522,15 @@ async function submitAmbil() {
     });
     await fsSet("config","stok_guntingan",sg);
     await fsSet("config","stok_jahitan",sj);
-    toast("Pengambilan "+pj+" disimpan!");
+    toast("✓ Pengambilan "+pj+" disimpan!"+(fF.a.length>0&&!fotos.length?" (foto gagal diupload)":""));
     ["a-pjt","a-ord","a-ddl","a-ket"].forEach(id=>document.getElementById(id).value="");
     document.getElementById("a-blocks").innerHTML=""; addAmbilBlock(); calcA(); clearF("a");
   } catch(e) {
-    toast("Gagal menyimpan: "+e.message);
-    console.error("submitAmbil error:",e);
+    const msg = e.message||e.code||String(e);
+    console.error("submitAmbil error:", e);
+    showAlert("Gagal Menyimpan", "Error: "+msg+"\n\nJika terus gagal, pastikan Firebase Firestore & Storage rules sudah diset ke: allow read, write: if true");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = origTxt; }
   }
 }
 
