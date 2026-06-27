@@ -1215,6 +1215,7 @@ function acSel(e) {
   block.querySelector(".ibn").value = nama;
   const ui=block.querySelector(".ibu"); if(ui) ui.value=upah||"";
   const ukw=block.querySelector(".ukw"); if(ukw) { const fn=ukw.dataset.fn; ukw.innerHTML=buildUK(bid,type,fn); }
+  const typeSel=block.querySelector(".uk-type-sel"); if(typeSel) typeSel.value=type;
   acHide(bid);
   if (el.dataset.new==="1" && nama && !itemMaster.find(i=>i.nama.toLowerCase()===nama.toLowerCase())) {
     itemMaster.push({nama,upah:0,type}); saveIM();
@@ -1231,12 +1232,19 @@ function acKey(e, bid) {
   its.forEach((el,i)=>el.classList.toggle("sel",i===acAct[bid]));
 }
 
+function switchUKType(bid, type) {
+  const block = document.getElementById("ib-"+bid); if(!block) return;
+  const ukw = block.querySelector(".ukw"); if(!ukw) return;
+  ukw.innerHTML = buildUK(bid, type, ukw.dataset.fn);
+  if(window[ukw.dataset.fn]) window[ukw.dataset.fn]();
+}
 function mkBlock(cid, fn, hasU, exf) {
   const c=document.getElementById(cid), bid=cid[0]+"b"+Date.now(), div=document.createElement("div");
   div.className="iblock"; div.id="ib-"+bid;
   const ef=exf?`<div class="fg" style="flex:0 0 95px"><input type="number" class="${exf.cls}" placeholder="${exf.ph}" min="0" oninput="${fn}()" style="font-family:var(--m)"></div>`:"";
   const uf=hasU?`<div class="fg" style="flex:0 0 115px"><input type="number" class="ibu" placeholder="Upah/pcs" min="0" oninput="${fn}()" style="font-family:var(--m)"></div>`:"";
-  div.innerHTML=`<div class="ibhdr"><div class="acw" style="flex:1"><input type="text" class="ibn" placeholder="Nama item..." oninput="acShow(this,'${bid}',${hasU});${fn}()" onblur="setTimeout(()=>acHide('${bid}'),180)" onkeydown="acKey(event,'${bid}')"><div class="acdd" id="ac-${bid}" style="display:none"></div></div>${uf}${ef}<button onclick="document.getElementById('ib-${bid}').remove();${fn}()" class="btnrm">&#215;</button></div><div class="ukw" data-fn="${fn}">${buildUK(bid,"umum",fn)}</div><div style="margin-top:5px;font-size:11px;font-family:var(--m);font-weight:700;color:var(--g)" id="ibt-${bid}"></div>`;
+  const tsf=`<select class="uk-type-sel" onchange="switchUKType('${bid}',this.value)" title="Tipe Ukuran" style="padding:4px 6px;font-size:10px;background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);color:var(--t2);font-family:var(--f);cursor:pointer;flex-shrink:0;height:32px"><option value="umum">S–XXXXXL</option><option value="sekolah_baju">No.3–24</option><option value="sekolah_celana">No.24–38</option></select>`;
+  div.innerHTML=`<div class="ibhdr"><div class="acw" style="flex:1"><input type="text" class="ibn" placeholder="Nama item..." oninput="acShow(this,'${bid}',${hasU});${fn}()" onblur="setTimeout(()=>acHide('${bid}'),180)" onkeydown="acKey(event,'${bid}')"><div class="acdd" id="ac-${bid}" style="display:none"></div></div>${uf}${ef}${tsf}<button onclick="document.getElementById('ib-${bid}').remove();${fn}()" class="btnrm">&#215;</button></div><div class="ukw" data-fn="${fn}">${buildUK(bid,"umum",fn)}</div><div style="margin-top:5px;font-size:11px;font-family:var(--m);font-weight:700;color:var(--g)" id="ibt-${bid}"></div>`;
   c.appendChild(div);
 }
 function addJahitBlock()   { mkBlock("j-blocks","calcJ",true,null); }
