@@ -1176,11 +1176,13 @@ async function delItem(i) {
 }
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
+const VALID_PAGES = ["kain-masuk","kain-ambil","gunting","ambil","jahit","qc","stok","keluar","ringkasan","riwayat","alihtgas","progress","kasbon","bayar","setting","modal"];
 function go(name) {
   document.querySelectorAll(".sec").forEach(s => s.classList.remove("active"));
   document.querySelectorAll(".nt").forEach(t => t.classList.remove("active"));
   document.getElementById("s-"+name).classList.add("active");
   document.getElementById("t-"+name).classList.add("active");
+  if (location.hash.slice(1) !== name) location.hash = name;
   if (name==="riwayat")    { loadRiwayat(); loadStats(); }
   if (name==="kasbon")     loadKasbonHist();
   if (name==="bayar")      loadBayarHist();
@@ -1217,6 +1219,8 @@ async function loadAll() {
   });
   addJahitBlock(); addGuntingBlock(); addAmbilBlock(); addKeluarBlock();
   loadKainList(); loadKainMasukHist(); loadStokKain();
+  const initHash = location.hash.slice(1);
+  go(VALID_PAGES.includes(initHash) ? initHash : "kain-masuk");
   setTimeout(checkBackupReminder, 3000);
 }
 
