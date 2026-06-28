@@ -16,7 +16,7 @@ Aplikasi manajemen produksi konveksi untuk Young Harmoni. Single-file HTML + Fir
 - `keluar` — stok keluar / pengiriman
 - `kain_masuk`, `kain_ambil` — manajemen kain
 - `alih_tugas` — pindah bahan antar penjahit
-- `config/settings` — daftar penjahit, item, kain, nama konveksi
+- `config/settings` — daftar penjahit, operator cutting, item, kain, nama konveksi
 - `config/stok` — stok barang jadi (`nama||ukuran` → qty)
 - `config/stok_guntingan` — stok per operator cutting
 - `config/stok_jahitan` — stok per penjahit (bahan dipegang)
@@ -33,6 +33,9 @@ Aplikasi manajemen produksi konveksi untuk Young Harmoni. Single-file HTML + Fir
 - Konfirmasi dialog: gunakan `confirm2(msg)` yang returns `Promise<boolean>` — JANGAN pakai `new Promise(r=>showConfirm(...,r))` tanpa set `cfmRejectCallback`
 - Foto: selalu lewat `uploadFotos(files)` — sudah handle non-blocking dan kompresi otomatis
 - Item blocks (jahit/gunting/ambil/keluar): class harus `.iblock`, ada input `.ibn` (nama), `.ibu` (upah), `.ibl` (lembar), ukuran via `.ukin`
+- Penjahit vs Operator: `settings.penjahit[]` → select `j-pjt/a-pjt/kb-pjt/by-pjt/qc-pjt/at-dari/at-ke`; `settings.operator[]` → select `g-op/ka-op`
+- Item master punya dua upah: `upah` (jahit) dan `upah_gunting` (cutting) — `acShow` otomatis pilih yang tepat berdasarkan `bid[0]==="g"`
+- Render tags: `renderPjtTags()` untuk penjahit, `renderOpTags()` untuk operator — keduanya dipanggil setelah `loadSettings` dan `saveSettings`
 
 ## Bug History (sudah diperbaiki)
 - `uploadFotos` blocking → sekarang non-blocking + kompresi Canvas
