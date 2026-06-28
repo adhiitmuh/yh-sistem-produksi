@@ -610,11 +610,18 @@ tr:hover td{background:rgba(255,251,213,.04)}
     <div class="fg" style="margin-bottom:10px"><label>Nama Konveksi</label><input type="text" id="s-nama"></div>
     <button class="btsm" onclick="saveNama()">Simpan</button>
   </div>
-  <div class="card"><div class="ct">👷 Daftar Penjahit / Operator</div>
+  <div class="card"><div class="ct">🪡 Daftar Penjahit</div>
     <div class="tglist" id="pjt-tags"></div>
     <div style="display:flex;gap:7px">
       <input type="text" id="s-newpjt" placeholder="Nama penjahit baru..." onkeydown="if(event.key==='Enter')addPjt()" style="flex:1">
       <button class="btsm" onclick="addPjt()">+ Tambah</button>
+    </div>
+  </div>
+  <div class="card"><div class="ct">✂️ Daftar Operator Cutting</div>
+    <div class="tglist" id="op-tags"></div>
+    <div style="display:flex;gap:7px">
+      <input type="text" id="s-newop" placeholder="Nama operator baru..." onkeydown="if(event.key==='Enter')addOp()" style="flex:1">
+      <button class="btsm" onclick="addOp()">+ Tambah</button>
     </div>
   </div>
   <div class="card" id="item-mc">
@@ -622,9 +629,10 @@ tr:hover td{background:rgba(255,251,213,.04)}
       <div class="ct" style="margin-bottom:0">🏷️ Daftar Item & Harga Upah</div>
     </div>
     <div id="item-tbl" style="margin-bottom:10px"></div>
-    <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:7px;align-items:end">
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:7px;align-items:end">
       <div class="fg"><label>Nama Item</label><input type="text" id="s-itn" placeholder="Kemeja PDH..."></div>
-      <div class="fg"><label>Upah/Pcs (Rp)</label><input type="number" id="s-itu" placeholder="0" min="0"></div>
+      <div class="fg"><label>Upah Jahit (Rp)</label><input type="number" id="s-itu" placeholder="0" min="0"></div>
+      <div class="fg"><label>Upah Gunting (Rp)</label><input type="number" id="s-itug" placeholder="0" min="0"></div>
       <div class="fg"><label>Tipe Ukuran</label>
         <select id="s-itt">
           <option value="umum">Umum (S-XXXXXL)</option>
@@ -797,15 +805,15 @@ const UKURAN = {
 };
 const BL_LABELS = {kancing:'Kancing',puring:'Puring',kain_keras:'Kain Keras',lobang_kancing:'Lobang Kancing',setrika:'Setrika',bordiran:'Bordiran',upah_gunting:'Upah Gunting'};
 const DEFAULT_ITEMS = [
-  {nama:"Kemeja PDH",upah:15000,type:"umum"},{nama:"Kemeja PNS",upah:15000,type:"umum"},
-  {nama:"Kemeja Korpri",upah:15000,type:"umum"},{nama:"Celana PDH",upah:18000,type:"umum"},
-  {nama:"Celana PNS",upah:18000,type:"umum"},{nama:"Baju Sekolah",upah:12000,type:"sekolah_baju"},
-  {nama:"Celana Sekolah",upah:14000,type:"sekolah_celana"},{nama:"Rok Sekolah",upah:14000,type:"sekolah_celana"},
+  {nama:"Kemeja PDH",upah:15000,upah_gunting:0,type:"umum"},{nama:"Kemeja PNS",upah:15000,upah_gunting:0,type:"umum"},
+  {nama:"Kemeja Korpri",upah:15000,upah_gunting:0,type:"umum"},{nama:"Celana PDH",upah:18000,upah_gunting:0,type:"umum"},
+  {nama:"Celana PNS",upah:18000,upah_gunting:0,type:"umum"},{nama:"Baju Sekolah",upah:12000,upah_gunting:0,type:"sekolah_baju"},
+  {nama:"Celana Sekolah",upah:14000,upah_gunting:0,type:"sekolah_celana"},{nama:"Rok Sekolah",upah:14000,upah_gunting:0,type:"sekolah_celana"},
 ];
 const DEFAULT_KAIN = ["Kain Korpri","Kain Drill","Kain TC","Kain Lacoste"];
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
-let settings = {penjahit:[], nama_konveksi:"Young Harmonis Production", kain:[], items:[]};
+let settings = {penjahit:[], operator:[], nama_konveksi:"Young Harmonis Production", kain:[], items:[]};
 let itemMaster = [];
 let role = "guest", uname = null, unama = null, uid = null;
 let stokData = [], keluarData = [], allRingData = [];
@@ -943,7 +951,7 @@ async function doSetup() {
     const cred = await auth.createUserWithEmailAndPassword(email, pw);
     await fsSet("users", cred.user.uid, {email, nama, role:"admin"});
     await fsSet("config", "settings", {
-      penjahit: [], nama_konveksi: "Young Harmonis Production",
+      penjahit: [], operator: [], nama_konveksi: "Young Harmonis Production",
       kain: DEFAULT_KAIN.map(n => ({nama: n})),
       items: DEFAULT_ITEMS
     });
@@ -1021,13 +1029,14 @@ async function loadSettings() {
     if (!settings.items || !settings.items.length) settings.items = DEFAULT_ITEMS;
     if (!settings.kain)  settings.kain  = DEFAULT_KAIN.map(n => ({nama:n}));
     if (!settings.penjahit) settings.penjahit = [];
+    if (!settings.operator) settings.operator = [];
   }
   itemMaster = settings.items || DEFAULT_ITEMS;
   const nm = settings.nama_konveksi || "YHK";
   document.getElementById("namaK").textContent = nm;
   const lgn = document.getElementById("lg-nama"); if (lgn) lgn.textContent = nm;
   document.getElementById("s-nama").value = settings.nama_konveksi || "";
-  renderPjtTags(); fillSelects(); renderItemTable(); renderKainTags();
+  renderPjtTags(); renderOpTags(); fillSelects(); renderItemTable(); renderKainTags();
 }
 
 async function saveSettings() {
@@ -1039,12 +1048,18 @@ function renderPjtTags() {
     settings.penjahit.map((p,i) => `<div class="tg">${p}<span class="tgd" onclick="delPjt(${i})">&#215;</span></div>`).join("");
 }
 function fillSelects() {
-  const o = "<option value=''>&#8212; Pilih &#8212;</option>" + settings.penjahit.map(p => `<option>${p}</option>`).join("");
-  ["j-pjt","g-op","a-pjt","kb-pjt","by-pjt","qc-pjt","at-dari","at-ke","ka-op"].forEach(id => {
-    const el = document.getElementById(id); if (el) el.innerHTML = o;
+  const pj = "<option value=''>&#8212; Pilih &#8212;</option>" + settings.penjahit.map(p => `<option>${p}</option>`).join("");
+  ["j-pjt","a-pjt","kb-pjt","by-pjt","qc-pjt","at-dari","at-ke"].forEach(id => {
+    const el = document.getElementById(id); if (el) el.innerHTML = pj;
+  });
+  const op = "<option value=''>&#8212; Pilih &#8212;</option>" + (settings.operator||[]).map(p => `<option>${p}</option>`).join("");
+  ["g-op","ka-op"].forEach(id => {
+    const el = document.getElementById(id); if (el) el.innerHTML = op;
   });
   const fo = document.getElementById("f-orang");
-  if (fo) fo.innerHTML = "<option value=''>Semua Orang</option>" + settings.penjahit.map(p => `<option>${p}</option>`).join("");
+  if (fo) fo.innerHTML = "<option value=''>Semua Orang</option>" +
+    settings.penjahit.map(p => `<option>${p}</option>`).join("") +
+    (settings.operator||[]).map(p => `<option>${p}</option>`).join("");
 }
 
 async function saveNama() {
@@ -1067,6 +1082,26 @@ async function delPjt(i) {
   settings.penjahit.splice(i, 1);
   await saveSettings();
   renderPjtTags(); fillSelects();
+}
+function renderOpTags() {
+  const el = document.getElementById("op-tags"); if (!el) return;
+  el.innerHTML = (settings.operator||[]).map((p,i) => `<div class="tg">${p}<span class="tgd" onclick="delOp(${i})">&#215;</span></div>`).join("");
+}
+async function addOp() {
+  const n = document.getElementById("s-newop").value.trim();
+  if (!n) return;
+  if (!settings.operator) settings.operator = [];
+  if (settings.operator.includes(n)) return toast("⚠ Sudah ada!");
+  settings.operator.push(n);
+  await saveSettings();
+  renderOpTags(); fillSelects();
+  document.getElementById("s-newop").value = "";
+}
+async function delOp(i) {
+  if (!confirm("Hapus operator ini?")) return;
+  settings.operator.splice(i, 1);
+  await saveSettings();
+  renderOpTags(); fillSelects();
 }
 
 async function renderKainTags() {
@@ -1103,11 +1138,12 @@ function renderItemTable() {
   const w = document.getElementById("item-tbl"); if (!w) return;
   if (!itemMaster.length) { w.innerHTML = "<div style='padding:12px;text-align:center;color:var(--t2);font-size:12px'>Belum ada item</div>"; return; }
   const bs = "background:transparent;border:1px solid var(--b);color:var(--t2);width:20px;height:20px;border-radius:4px;cursor:pointer;font-size:10px;display:inline-flex;align-items:center;justify-content:center;transition:all .15s;padding:0";
-  w.innerHTML = `<table class="itbl"><thead><tr><th>#</th><th>Nama</th><th>Upah/Pcs</th><th>Tipe</th><th></th></tr></thead><tbody>
+  w.innerHTML = `<table class="itbl"><thead><tr><th>#</th><th>Nama</th><th>Upah Jahit</th><th>Upah Gunting</th><th>Tipe</th><th></th></tr></thead><tbody>
     ${itemMaster.map((it,i) => `<tr>
       <td style="color:var(--t2);font-size:10px">${i+1}</td>
       <td><input value="${it.nama}" onchange="itemMaster[${i}].nama=this.value.trim();saveIM()" style="padding:4px 6px;font-size:11px;background:var(--s2);border:1px solid var(--b);border-radius:5px;color:var(--t);font-family:var(--f);width:100%"></td>
       <td><input type="number" value="${it.upah}" onchange="itemMaster[${i}].upah=+this.value;saveIM()" style="padding:4px 6px;font-size:11px;text-align:right;background:var(--s2);border:1px solid var(--b);border-radius:5px;color:var(--t);font-family:var(--m);width:75px" min="0"></td>
+      <td><input type="number" value="${it.upah_gunting||0}" onchange="itemMaster[${i}].upah_gunting=+this.value;saveIM()" style="padding:4px 6px;font-size:11px;text-align:right;background:var(--s2);border:1px solid var(--b);border-radius:5px;color:var(--t);font-family:var(--m);width:75px" min="0"></td>
       <td><select onchange="itemMaster[${i}].type=this.value;saveIM()" style="padding:4px 6px;font-size:11px;background:var(--s2);border:1px solid var(--b);border-radius:5px;color:var(--t);font-family:var(--f)"><option value="umum" ${it.type==="umum"?"selected":""}>Umum</option><option value="sekolah_baju" ${it.type==="sekolah_baju"?"selected":""}>Baju Sekolah</option><option value="sekolah_celana" ${it.type==="sekolah_celana"?"selected":""}>Celana/Rok</option></select></td>
       <td style="white-space:nowrap">
         <button onclick="moveItem(${i},-1)" style="${bs}" ${i===0?"disabled":""}  title="Naik">▲</button>
@@ -1125,12 +1161,13 @@ function moveItem(i, d) {
 async function addItemMaster() {
   const n = document.getElementById("s-itn").value.trim();
   const u = +document.getElementById("s-itu").value || 0;
+  const ug = +document.getElementById("s-itug").value || 0;
   const t = document.getElementById("s-itt").value;
   if (!n) return toast("Nama wajib!");
   if (getIM(n)) return toast("Sudah ada!");
-  itemMaster.push({nama:n, upah:u, type:t});
+  itemMaster.push({nama:n, upah:u, upah_gunting:ug, type:t});
   await saveIM(); renderItemTable();
-  document.getElementById("s-itn").value = ""; document.getElementById("s-itu").value = "";
+  document.getElementById("s-itn").value = ""; document.getElementById("s-itu").value = ""; document.getElementById("s-itug").value = "";
   toast(n+" ditambahkan!");
 }
 async function delItem(i) {
@@ -1203,7 +1240,8 @@ function acShow(inp, bid, hasU) {
   const ms = itemMaster.filter(i=>i.nama.toLowerCase().includes(q));
   if (!ms.length && q.length<2) { dd.style.display="none"; return; }
   acAct[bid] = -1;
-  let h = ms.slice(0,8).map(it=>`<div class="aci" data-bid="${bid}" data-nama="${it.nama}" data-upah="${it.upah}" data-type="${it.type}" onmousedown="acSel(event)"><span class="acin">${it.nama}</span>${hasU&&it.upah?`<span class="acip">Rp ${fmt(it.upah)}</span>`:""}</div>`).join("");
+  const isG = bid[0]==="g";
+  let h = ms.slice(0,8).map(it=>{ const u=isG?(it.upah_gunting||0):it.upah; return `<div class="aci" data-bid="${bid}" data-nama="${it.nama}" data-upah="${u}" data-type="${it.type}" onmousedown="acSel(event)"><span class="acin">${it.nama}</span>${hasU&&u?`<span class="acip">Rp ${fmt(u)}</span>`:""}</div>`; }).join("");
   const ex = itemMaster.find(i=>i.nama.toLowerCase()===q);
   if (!ex && q.length>=2) h+=`<div class="aci" data-bid="${bid}" data-nama="${inp.value.trim()}" data-upah="0" data-type="umum" data-new="1" onmousedown="acSel(event)"><span class="acnw">+ Tambah "${inp.value.trim()}"</span></div>`;
   dd.innerHTML = h; dd.style.display="block";
