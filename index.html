@@ -1445,18 +1445,24 @@ async function compressImage(file, maxPx=1280, quality=0.72) {
   });
 }
 async function uploadFotos(files) {
-  const urls = [];
-  for (const f of files) {
-    try {
-      const compressed = await compressImage(f);
-      const ref = storage.ref("fotos/" + compressed.name);
-      await ref.put(compressed);
-      urls.push(await ref.getDownloadURL());
-    } catch(e) {
-      console.warn("Upload foto gagal (Storage mungkin belum aktif):", e);
-    }
-  }
-  return urls;
+  if (!files || !files.length) return [];
+  return Promise.all(files.map(f => new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 600;
+        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.75));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(f);
+  })));
 }
 
 // ── LIGHTBOX ──────────────────────────────────────────────────────────────────
@@ -1504,16 +1510,12 @@ async function submitJahit() {
       if(i.pcs>ambil) warnings.push(`${i.nama} ${i.ukuran}: setor ${i.pcs} pcs tapi ambil ${ambil} pcs`);
     });
     if(warnings.length) { if(!confirm("Perhatian:\n"+warnings.join("\n")+"\n\nLanjutkan?")) return; }
-    let fotos = [];
-    if (fF.j.length > 0) {
-      try { fotos = await uploadFotos(fF.j); }
-      catch(fe) { console.warn("Upload foto gagal:", fe); }
-    }
+    const fotos = await uploadFotos(fF.j);
     await fsAdd("transaksi",{type:"jahit",tanggal:tgl,orang:pj,items:it,totalPcs:tp,totalUpah:tu,keterangan:document.getElementById("j-ket").value,fotos});
     // Kurangi stok jahitan
     it.forEach(i => { const k=`${i.nama}||${i.ukuran}`; pjStok[k]=Math.max(0,(pjStok[k]||0)-i.pcs); });
     sj[pj]=pjStok; await fsSet("config","stok_jahitan",sj);
-    toast("✓ Setoran "+pj+" disimpan!"+(fF.j.length>0&&!fotos.length?" (foto gagal diupload)":""));
+    toast("✓ Setoran "+pj+" disimpan!");
     document.getElementById("j-pjt").value=""; document.getElementById("j-ket").value="";
     document.getElementById("j-blocks").innerHTML=""; addJahitBlock(); calcJ(); clearF("j");
   } catch(e) {
@@ -1542,18 +1544,14 @@ async function submitGunting() {
   const origTxt = btn ? btn.textContent : "";
   if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
   try {
-    let fotos = [];
-    if (fF.g.length > 0) {
-      try { fotos = await uploadFotos(fF.g); }
-      catch(fe) { console.warn("Upload foto gagal:", fe); }
-    }
+    const fotos = await uploadFotos(fF.g);
     await fsAdd("transaksi",{type:"gunting",tanggal:tgl,orang:op,order:document.getElementById("g-ord").value,kain:document.getElementById("g-kain").value,items:it,totalPcs:tp,totalLembar:tl,keterangan:document.getElementById("g-ket").value,fotos});
     // Tambah stok guntingan
     const sg = (await fsGet("config","stok_guntingan")) || {};
     if(!sg[op]) sg[op]={};
     it.forEach(i=>{ const k=`${i.nama}||${i.ukuran}`; sg[op][k]=(sg[op][k]||0)+i.pcs; });
     await fsSet("config","stok_guntingan",sg);
-    toast("✓ Setoran "+op+" disimpan! Stok guntingan diupdate."+(fF.g.length>0&&!fotos.length?" (foto gagal diupload)":""));
+    toast("✓ Setoran "+op+" disimpan! Stok guntingan diupdate.");
     ["g-op","g-ord","g-kain","g-ket"].forEach(id=>document.getElementById(id).value="");
     document.getElementById("g-blocks").innerHTML=""; addGuntingBlock(); calcG(); clearF("g");
   } catch(e) {
@@ -1582,12 +1580,7 @@ async function submitAmbil() {
   const origTxt = btn ? btn.textContent : "";
   if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
   try {
-    // Upload foto — jika gagal, lanjut simpan tanpa foto
-    let fotos = [];
-    if (fF.a.length > 0) {
-      try { fotos = await uploadFotos(fF.a); }
-      catch(fe) { console.warn("Upload foto gagal:", fe); }
-    }
+    const fotos = await uploadFotos(fF.a);
     await fsAdd("transaksi",{type:"ambil",tanggal:tgl,orang:pj,order:document.getElementById("a-ord").value,deadline:document.getElementById("a-ddl").value,items:it,totalPcs:tp,totalUpah:tu,keterangan:document.getElementById("a-ket").value,fotos});
     // Kurangi stok guntingan (FIFO), tambah stok jahitan
     const sg=(await fsGet("config","stok_guntingan"))||{};
@@ -1603,13 +1596,13 @@ async function submitAmbil() {
     });
     await fsSet("config","stok_guntingan",sg);
     await fsSet("config","stok_jahitan",sj);
-    toast("✓ Pengambilan "+pj+" disimpan!"+(fF.a.length>0&&!fotos.length?" (foto gagal diupload)":""));
+    toast("✓ Pengambilan "+pj+" disimpan!");
     ["a-pjt","a-ord","a-ddl","a-ket"].forEach(id=>document.getElementById(id).value="");
     document.getElementById("a-blocks").innerHTML=""; addAmbilBlock(); calcA(); clearF("a");
   } catch(e) {
     const msg = e.message||e.code||String(e);
     console.error("submitAmbil error:", e);
-    showAlert("Gagal Menyimpan", "Error: "+msg+"\n\nJika terus gagal, pastikan Firebase Firestore & Storage rules sudah diset ke: allow read, write: if true");
+    showAlert("Gagal Menyimpan", "Error: "+msg+"\n\nJika terus gagal, pastikan Firebase Firestore rules sudah diset ke: allow read, write: if true");
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = origTxt; }
   }
@@ -1682,26 +1675,37 @@ async function submitQC() {
   if(!qcRows.length) return toast("Tambah item QC dulu!","w");
   const items = qcRows.map(r=>({nama:r.nm,ukuran:r.uk,masuk:r.masuk,ok:r.ok,reject:r.reject}));
   if(!await confirm2("Simpan data QC?")) return;
-  const fotos = await uploadFotos(fF["qc"]||[]);
-  await fsAdd("qc", {penjahit:pj, operator:op, order:ord, tanggal:tgl, ket, fotos, items});
-  // update stok: deduct from stok_jahitan, add ok to stok utama
-  const sj = (await db.collection("config").doc("stok_jahitan").get()).data()||{};
-  const pjStok = {...(sj[pj]||{})};
-  const sm = (await db.collection("config").doc("stok").get()).data()||{};
-  items.forEach(it => {
-    const key = it.nama+"||"+it.ukuran;
-    pjStok[key] = Math.max(0,(pjStok[key]||0)-(it.ok+it.reject));
-    sm[key] = (sm[key]||0) + it.ok;
-  });
-  sj[pj] = pjStok;
-  await db.collection("config").doc("stok_jahitan").set(sj);
-  await db.collection("config").doc("stok").set(sm);
-  toast("QC disimpan!");
-  document.getElementById("qc-rows").innerHTML=""; qcRows=[];
-  ["qc-pjt","qc-op","qc-ord","qc-ket"].forEach(id=>document.getElementById(id).value="");
-  document.getElementById("qc-pending-wrap").style.display="none";
-  clearF("qc");
-  await loadQCHist();
+  const btn = document.querySelector("#s-qc .btg");
+  const origTxt = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
+  try {
+    const fotos = await uploadFotos(fF["qc"]||[]);
+    await fsAdd("qc", {penjahit:pj, operator:op, order:ord, tanggal:tgl, ket, fotos, items});
+    // update stok: deduct from stok_jahitan, add ok to stok utama
+    const sj = (await db.collection("config").doc("stok_jahitan").get()).data()||{};
+    const pjStok = {...(sj[pj]||{})};
+    const sm = (await db.collection("config").doc("stok").get()).data()||{};
+    items.forEach(it => {
+      const key = it.nama+"||"+it.ukuran;
+      pjStok[key] = Math.max(0,(pjStok[key]||0)-(it.ok+it.reject));
+      sm[key] = (sm[key]||0) + it.ok;
+    });
+    sj[pj] = pjStok;
+    await db.collection("config").doc("stok_jahitan").set(sj);
+    await db.collection("config").doc("stok").set(sm);
+    toast("✓ QC disimpan!");
+    document.getElementById("qc-rows").innerHTML=""; qcRows=[];
+    ["qc-pjt","qc-op","qc-ord","qc-ket"].forEach(id=>document.getElementById(id).value="");
+    document.getElementById("qc-pending-wrap").style.display="none";
+    clearF("qc");
+    await loadQCHist();
+  } catch(e) {
+    const msg = e.message||e.code||String(e);
+    console.error("submitQC error:", e);
+    showAlert("Gagal Menyimpan QC", "Error: "+msg+"\n\nJika terus gagal, pastikan Firebase Firestore rules sudah diset ke: allow read, write: if true");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = origTxt; }
+  }
 }
 
 // ── KELUAR ───────────────────────────────────────────────────────────────────
@@ -1714,20 +1718,31 @@ async function submitKeluar() {
   const items = colK();
   if(!items.length) return toast("Tambah item dulu!","w");
   if(!await confirm2("Simpan data keluar?")) return;
-  const fotos = await uploadFotos(fF.ke||[]);
-  const totalPcs = items.reduce((s,i)=>s+(i.pcs||0),0);
-  await fsAdd("keluar", {tujuan, order:ord, tanggal:tgl, ket, fotos, items, totalPcs});
-  // deduct stok
-  const sm = (await db.collection("config").doc("stok").get()).data()||{};
-  items.forEach(it=>{
-    const key = it.nama+"||"+it.ukuran;
-    sm[key] = Math.max(0,(sm[key]||0)-it.pcs);
-  });
-  await db.collection("config").doc("stok").set(sm);
-  toast("Keluar disimpan!");
-  ["ke-tgl","ke-tujuan","ke-ord","ke-ket"].forEach(id=>document.getElementById(id).value="");
-  document.getElementById("ke-blocks").innerHTML=""; addKeluarBlock(); calcK(); clearF("ke");
-  await loadKeluarHist();
+  const btn = document.querySelector("#s-keluar .btr");
+  const origTxt = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
+  try {
+    const fotos = await uploadFotos(fF.ke||[]);
+    const totalPcs = items.reduce((s,i)=>s+(i.pcs||0),0);
+    await fsAdd("keluar", {tujuan, order:ord, tanggal:tgl, ket, fotos, items, totalPcs});
+    // deduct stok
+    const sm = (await db.collection("config").doc("stok").get()).data()||{};
+    items.forEach(it=>{
+      const key = it.nama+"||"+it.ukuran;
+      sm[key] = Math.max(0,(sm[key]||0)-it.pcs);
+    });
+    await db.collection("config").doc("stok").set(sm);
+    toast("✓ Keluar disimpan!");
+    ["ke-tgl","ke-tujuan","ke-ord","ke-ket"].forEach(id=>document.getElementById(id).value="");
+    document.getElementById("ke-blocks").innerHTML=""; addKeluarBlock(); calcK(); clearF("ke");
+    await loadKeluarHist();
+  } catch(e) {
+    const msg = e.message||e.code||String(e);
+    console.error("submitKeluar error:", e);
+    showAlert("Gagal Menyimpan Keluar", "Error: "+msg+"\n\nJika terus gagal, pastikan Firebase Firestore rules sudah diset ke: allow read, write: if true");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = origTxt; }
+  }
 }
 
 // ── KASBON ───────────────────────────────────────────────────────────────────
