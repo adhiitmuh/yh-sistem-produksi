@@ -230,6 +230,23 @@ tr:hover td{background:rgba(255,251,213,.04)}
 .erow{display:flex;gap:7px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;background:var(--s2);border:1px solid var(--b);border-radius:var(--rad);padding:13px}
 .bexp{padding:9px 16px;border:none;border-radius:var(--rads);font-family:var(--f);font-size:12px;font-weight:700;cursor:pointer;transition:all .18s}
 .bpdf{background:linear-gradient(135deg,#dc2626,#ef4444);color:#fff;box-shadow:0 3px 10px rgba(239,68,68,.25)}
+.rcard{cursor:pointer}
+.rdet-hint{font-size:10px;color:var(--t2);text-align:right;margin-top:8px;padding-top:6px;border-top:1px solid var(--b)}
+.rdet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:4500;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);animation:fu .15s ease;padding:16px}
+.rdet-box{background:var(--s);border:1px solid var(--b);border-top:3px solid var(--a);border-radius:var(--radl);width:100%;max-width:540px;max-height:88vh;box-shadow:0 8px 56px rgba(0,0,0,.55);display:flex;flex-direction:column}
+.rdet-head{padding:18px 20px 14px;border-bottom:1px solid var(--b);display:flex;justify-content:space-between;align-items:flex-start;flex-shrink:0}
+.rdet-head-left{display:flex;flex-direction:column;gap:3px}
+.rdet-head-name{font-size:17px;font-weight:800}
+.rdet-head-type{font-size:11px;color:var(--t2)}
+.rdet-close{background:transparent;border:1px solid var(--b);color:var(--t2);width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
+.rdet-close:hover{border-color:var(--r);color:var(--r)}
+.rdet-summary{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:14px 20px;border-bottom:1px solid var(--b);flex-shrink:0}
+.rdet-body{overflow-y:auto;padding:14px 20px;flex:1}
+.rdet-sect{margin-bottom:18px}
+.rdet-sect-title{font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.rdet-tx-item{background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);padding:10px 12px;margin-bottom:7px;font-size:12px}
+.rdet-tx-type{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;color:#0a0a0a}
+.rdet-money-item{background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);padding:9px 12px;margin-bottom:7px;font-size:12px;border-left-width:3px}
 </style>
 </head>
 <body>
@@ -747,6 +764,34 @@ tr:hover td{background:rgba(255,251,213,.04)}
     <div class="alert-title" id="alert-title">Error</div>
     <div class="alert-msg" id="alert-msg"></div>
     <button class="alert-btn" onclick="document.getElementById('alert-modal').style.display='none'">✕ Tutup</button>
+  </div>
+</div>
+
+<!-- RINGKASAN DETAIL MODAL -->
+<div id="ring-det-modal" style="display:none" class="rdet-overlay" onclick="if(event.target===this)closeRingDetail()">
+  <div class="rdet-box">
+    <div class="rdet-head">
+      <div class="rdet-head-left">
+        <div class="rdet-head-name" id="rdet-name"></div>
+        <div class="rdet-head-type" id="rdet-type"></div>
+      </div>
+      <button class="rdet-close" onclick="closeRingDetail()">✕</button>
+    </div>
+    <div class="rdet-summary" id="rdet-summary"></div>
+    <div class="rdet-body">
+      <div class="rdet-sect">
+        <div class="rdet-sect-title">🪡 Riwayat Transaksi</div>
+        <div id="rdet-tx"></div>
+      </div>
+      <div class="rdet-sect">
+        <div class="rdet-sect-title">💰 Kasbon</div>
+        <div id="rdet-kb"></div>
+      </div>
+      <div class="rdet-sect">
+        <div class="rdet-sect-title">💸 Pembayaran</div>
+        <div id="rdet-by"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1861,14 +1906,16 @@ let ringData = {};
 async function loadRingkasan() {
   const [txDocs, kbDocs, byDocs] = await Promise.all([fsAll("transaksi"),fsAll("kasbon"),fsAll("pembayaran")]);
   const map = {};
+  const mk = who => ({name:who,upah:0,kasbon:0,bayar:0,type:"penjahit",txList:[],kbList:[],byList:[]});
   txDocs.forEach(d=>{
     const who = d.orang||d.penjahit||d.operator; if(!who) return;
-    if(!map[who]) map[who]={name:who,upah:0,kasbon:0,bayar:0,type:"penjahit"};
+    if(!map[who]) map[who]=mk(who);
     map[who].upah += d.totalUpah||0;
     if(d.type==="gunting") map[who].type="cutting";
+    map[who].txList.push(d);
   });
-  kbDocs.forEach(d=>{ if(!map[d.penjahit]) map[d.penjahit]={name:d.penjahit,upah:0,kasbon:0,bayar:0,type:"penjahit"}; map[d.penjahit].kasbon+=d.jumlah||0; });
-  byDocs.forEach(d=>{ if(!map[d.penjahit]) map[d.penjahit]={name:d.penjahit,upah:0,kasbon:0,bayar:0,type:"penjahit"}; map[d.penjahit].bayar+=d.jumlah||0; });
+  kbDocs.forEach(d=>{ if(!d.penjahit) return; if(!map[d.penjahit]) map[d.penjahit]=mk(d.penjahit); map[d.penjahit].kasbon+=d.jumlah||0; map[d.penjahit].kbList.push(d); });
+  byDocs.forEach(d=>{ if(!d.penjahit) return; if(!map[d.penjahit]) map[d.penjahit]=mk(d.penjahit); map[d.penjahit].bayar+=d.jumlah||0; map[d.penjahit].byList.push(d); });
   ringData = map;
   renderRingkasan();
 }
@@ -1881,15 +1928,63 @@ function renderRingkasan() {
   if(!list.length){el.innerHTML='<div class="empty">Belum ada data.</div>';return;}
   el.innerHTML = list.map(p=>{
     const saldo = p.upah - p.kasbon - p.bayar;
-    return `<div class="rcard">
+    const nm = p.name.replace(/'/g,"&#39;");
+    return `<div class="rcard" onclick="showRingDetail('${nm}')">
       <div class="rcname">${p.name}</div>
       <div class="rcrow"><span>Total Upah</span><span style="color:var(--g)">${fmtRp(p.upah)}</span></div>
       <div class="rcrow"><span>Kasbon</span><span style="color:var(--r)">${fmtRp(p.kasbon)}</span></div>
       <div class="rcrow"><span>Sudah Dibayar</span><span style="color:var(--bl)">${fmtRp(p.bayar)}</span></div>
       <div class="rcrow" style="border-top:1px solid var(--b);margin-top:6px;padding-top:6px;font-weight:700"><span>Saldo Belum Dibayar</span><span style="color:${saldo>=0?"var(--g)":"var(--r)"}">${fmtRp(saldo)}</span></div>
+      <div class="rdet-hint">Lihat rincian ›</div>
     </div>`;
   }).join("");
 }
+function showRingDetail(name) {
+  const p = ringData[name]; if(!p) return;
+  const saldo = p.upah - p.kasbon - p.bayar;
+  const txColor = {jahit:"var(--a)",ambil:"var(--p)",gunting:"var(--g)"};
+  const txLabel = {jahit:"Setor Jahitan",ambil:"Ambil Jahitan",gunting:"Setor Guntingan"};
+  const txSorted = [...p.txList].sort((a,b)=>(b.tanggal||"").localeCompare(a.tanggal||""));
+  const kbSorted = [...p.kbList].sort((a,b)=>(b.tanggal||"").localeCompare(a.tanggal||""));
+  const bySorted = [...p.byList].sort((a,b)=>(b.tanggal||"").localeCompare(a.tanggal||""));
+  document.getElementById("rdet-name").textContent = name;
+  document.getElementById("rdet-type").textContent = p.type==="cutting"?"✂️ Operator Cutting":"🪡 Penjahit";
+  document.getElementById("rdet-summary").innerHTML =
+    `<div class="cfm-body-item"><div class="cfm-body-label">Total Upah</div><div class="cfm-body-val" style="color:var(--g)">${fmtRp(p.upah)}</div></div>` +
+    `<div class="cfm-body-item"><div class="cfm-body-label">Kasbon</div><div class="cfm-body-val" style="color:var(--r)">${fmtRp(p.kasbon)}</div></div>` +
+    `<div class="cfm-body-item"><div class="cfm-body-label">Sudah Dibayar</div><div class="cfm-body-val" style="color:var(--bl)">${fmtRp(p.bayar)}</div></div>` +
+    `<div class="cfm-body-item"><div class="cfm-body-label">Saldo Belum Dibayar</div><div class="cfm-body-val" style="color:${saldo>=0?"var(--g)":"var(--r)"};font-size:13px">${fmtRp(saldo)}</div></div>`;
+  document.getElementById("rdet-tx").innerHTML = txSorted.length ? txSorted.map(d=>{
+    const items = (d.items||[]).map(i=>`<span class="tag">${i.nama}${i.ukuran?" "+i.ukuran:""}: ${i.pcs} pcs</span>`).join(" ");
+    return `<div class="rdet-tx-item">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span class="rdet-tx-type" style="background:${txColor[d.type]||"var(--t2)"}">${txLabel[d.type]||d.type}</span>
+        <span style="color:var(--t2);font-size:10px">${fmtTgl(d.tanggal)}</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px">${items}</div>
+      ${d.totalUpah?`<div style="color:var(--g);font-weight:700">Upah: ${fmtRp(d.totalUpah)}</div>`:""}
+      ${d.keterangan?`<div class="ket">${d.keterangan}</div>`:""}
+    </div>`;
+  }).join("") : `<div class="empty">Belum ada transaksi.</div>`;
+  document.getElementById("rdet-kb").innerHTML = kbSorted.length ? kbSorted.map(d=>
+    `<div class="rdet-money-item" style="border-left-color:var(--r)">
+      <div style="display:flex;justify-content:space-between">
+        <span style="color:var(--r);font-weight:700">${fmtRp(d.jumlah||0)}</span>
+        <span style="color:var(--t2);font-size:10px">${fmtTgl(d.tanggal)}</span>
+      </div>
+      ${d.keterangan?`<div class="ket">${d.keterangan}</div>`:""}
+    </div>`).join("") : `<div class="empty">Tidak ada kasbon.</div>`;
+  document.getElementById("rdet-by").innerHTML = bySorted.length ? bySorted.map(d=>
+    `<div class="rdet-money-item" style="border-left-color:var(--bl)">
+      <div style="display:flex;justify-content:space-between">
+        <span style="color:var(--bl);font-weight:700">${fmtRp(d.jumlah||0)}</span>
+        <span style="color:var(--t2);font-size:10px">${fmtTgl(d.tanggal)}</span>
+      </div>
+      ${d.keterangan?`<div class="ket">${d.keterangan}</div>`:""}
+    </div>`).join("") : `<div class="empty">Belum ada pembayaran.</div>`;
+  document.getElementById("ring-det-modal").style.display = "flex";
+}
+function closeRingDetail() { document.getElementById("ring-det-modal").style.display = "none"; }
 
 // ── STOK ──────────────────────────────────────────────────────────────────────
 let stokTab = "gunting";
