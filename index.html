@@ -584,7 +584,7 @@ tr:hover td{background:rgba(255,251,213,.04)}
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Penjahit</label><select id="kb-pjt"><option value="">— Pilih —</option></select></div>
       <div class="fg"><label>Tanggal</label><input type="date" id="kb-tgl"></div>
-      <div class="fg"><label>Jumlah (Rp)</label><input type="number" id="kb-jml" placeholder="0" min="0"></div>
+      <div class="fg"><label>Jumlah (Rp)</label><input type="text" inputmode="numeric" id="kb-jml" placeholder="0" oninput="fmtRpIn(this)"></div>
       <div class="fg"><label>Keterangan</label><input type="text" id="kb-ket" placeholder="Alasan kasbon..."></div>
     </div>
     <button class="btn btr" onclick="submitKasbon()">Catat Kasbon</button>
@@ -599,7 +599,7 @@ tr:hover td{background:rgba(255,251,213,.04)}
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Penjahit</label><select id="by-pjt"><option value="">— Pilih —</option></select></div>
       <div class="fg"><label>Tanggal Transfer</label><input type="date" id="by-tgl"></div>
-      <div class="fg"><label>Jumlah (Rp)</label><input type="number" id="by-jml" placeholder="0" min="0"></div>
+      <div class="fg"><label>Jumlah (Rp)</label><input type="text" inputmode="numeric" id="by-jml" placeholder="0" oninput="fmtRpIn(this)"></div>
       <div class="fg"><label>Keterangan</label><input type="text" id="by-ket" placeholder="Transfer BCA, tunai..."></div>
     </div>
     <button class="btn btg" onclick="submitBayar()">💸 Catat Pembayaran</button>
@@ -648,8 +648,8 @@ tr:hover td{background:rgba(255,251,213,.04)}
     <div id="item-tbl" style="margin-bottom:10px"></div>
     <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:7px;align-items:end">
       <div class="fg"><label>Nama Item</label><input type="text" id="s-itn" placeholder="Kemeja PDH..."></div>
-      <div class="fg"><label>Upah Jahit (Rp)</label><input type="number" id="s-itu" placeholder="0" min="0"></div>
-      <div class="fg"><label>Upah Gunting (Rp)</label><input type="number" id="s-itug" placeholder="0" min="0"></div>
+      <div class="fg"><label>Upah Jahit (Rp)</label><input type="text" inputmode="numeric" id="s-itu" placeholder="0" oninput="fmtRpIn(this)"></div>
+      <div class="fg"><label>Upah Gunting (Rp)</label><input type="text" inputmode="numeric" id="s-itug" placeholder="0" oninput="fmtRpIn(this)"></div>
       <div class="fg"><label>Tipe Ukuran</label>
         <select id="s-itt">
           <option value="umum">Umum (S-XXXXXL)</option>
@@ -872,6 +872,11 @@ const fF = {j:[], g:[], a:[], qc:[], ke:[]};
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 const td  = () => new Date().toISOString().split("T")[0];
 const fmt = n  => (+n||0).toLocaleString("id-ID");
+function fmtRpIn(el) {
+  const raw = (el.value||"").replace(/[^\d]/g,"");
+  el.value = raw ? raw.replace(/\B(?=(\d{3})+(?!\d))/g,".") : "";
+}
+function parseRpIn(v) { return parseInt((v||"").replace(/[^\d]/g,""))||0; }
 const fmtD = s => s ? new Date(s+"T00:00:00").toLocaleDateString("id-ID",{day:"numeric",month:"short",year:"numeric"}) : "";
 const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 
@@ -1205,8 +1210,8 @@ function moveItem(i, d) {
 }
 async function addItemMaster() {
   const n = document.getElementById("s-itn").value.trim();
-  const u = +document.getElementById("s-itu").value || 0;
-  const ug = +document.getElementById("s-itug").value || 0;
+  const u = parseRpIn(document.getElementById("s-itu").value);
+  const ug = parseRpIn(document.getElementById("s-itug").value);
   const t = document.getElementById("s-itt").value;
   if (!n) return toast("Nama wajib!");
   if (getIM(n)) return toast("Sudah ada!");
@@ -1300,7 +1305,7 @@ function acSel(e) {
   const el=e.currentTarget, bid=el.dataset.bid, nama=el.dataset.nama, upah=+el.dataset.upah||0, type=el.dataset.type||"umum";
   const block=document.getElementById("ib-"+bid); if(!block) return;
   block.querySelector(".ibn").value = nama;
-  const ui=block.querySelector(".ibu"); if(ui) ui.value=upah||"";
+  const ui=block.querySelector(".ibu"); if(ui) { ui.value=upah||""; fmtRpIn(ui); }
   const ukw=block.querySelector(".ukw"); if(ukw) { const fn=ukw.dataset.fn; ukw.innerHTML=buildUK(bid,type,fn); }
   const typeSel=block.querySelector(".uk-type-sel"); if(typeSel) typeSel.value=type;
   acHide(bid);
@@ -1329,7 +1334,7 @@ function mkBlock(cid, fn, hasU, exf) {
   const c=document.getElementById(cid), bid=cid[0]+"b"+Date.now(), div=document.createElement("div");
   div.className="iblock"; div.id="ib-"+bid;
   const ef=exf?`<div class="fg" style="flex:0 0 95px"><input type="number" class="${exf.cls}" placeholder="${exf.ph}" min="0" oninput="${fn}()" style="font-family:var(--m)"></div>`:"";
-  const uf=hasU?`<div class="fg" style="flex:0 0 115px"><input type="number" class="ibu" placeholder="Upah/pcs" min="0" oninput="${fn}()" style="font-family:var(--m)"></div>`:"";
+  const uf=hasU?`<div class="fg" style="flex:0 0 115px"><input type="text" inputmode="numeric" class="ibu" placeholder="Upah/pcs" oninput="fmtRpIn(this);${fn}()" style="font-family:var(--m)"></div>`:"";
   const tsf=`<select class="uk-type-sel" onchange="switchUKType('${bid}',this.value)" title="Tipe Ukuran" style="padding:4px 6px;font-size:10px;background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);color:var(--t2);font-family:var(--f);cursor:pointer;flex-shrink:0;height:32px"><option value="umum">S–XXXXXL</option><option value="sekolah_baju">No.3–24</option><option value="sekolah_celana">No.24–38</option></select>`;
   div.innerHTML=`<div class="ibhdr"><div class="acw" style="flex:1"><input type="text" class="ibn" placeholder="Nama item..." oninput="acShow(this,'${bid}',${hasU});${fn}()" onblur="setTimeout(()=>acHide('${bid}'),180)" onkeydown="acKey(event,'${bid}')"><div class="acdd" id="ac-${bid}" style="display:none"></div></div>${uf}${ef}${tsf}<button onclick="document.getElementById('ib-${bid}').remove();${fn}()" class="btnrm">&#215;</button></div><div class="ukw" data-fn="${fn}">${buildUK(bid,"umum",fn)}</div><div style="margin-top:5px;font-size:11px;font-family:var(--m);font-weight:700;color:var(--g)" id="ibt-${bid}"></div>`;
   c.appendChild(div);
@@ -1342,7 +1347,7 @@ function addKeluarBlock()  { mkBlock("ke-blocks","calcK",false,null); }
 function calcJ() {
   let p=0,u=0;
   document.querySelectorAll("#j-blocks .iblock").forEach(b=>{
-    const up=+b.querySelector(".ibu")?.value||0, pc=totUK(b); p+=pc; u+=pc*up;
+    const up=parseRpIn(b.querySelector(".ibu")?.value), pc=totUK(b); p+=pc; u+=pc*up;
     const te=document.getElementById("ibt-"+b.id.replace("ib-",""));
     if(te) te.textContent=pc>0?pc+" pcs × Rp "+fmt(up)+" = Rp "+fmt(pc*up):"";
   });
@@ -1352,7 +1357,7 @@ function calcJ() {
 function calcG() {
   let p=0,l=0,u=0;
   document.querySelectorAll("#g-blocks .iblock").forEach(b=>{
-    const pc=totUK(b),lm=+b.querySelector(".ibl")?.value||0,up=+b.querySelector(".ibu")?.value||0;
+    const pc=totUK(b),lm=+b.querySelector(".ibl")?.value||0,up=parseRpIn(b.querySelector(".ibu")?.value);
     p+=pc; l+=lm; u+=pc*up;
     const te=document.getElementById("ibt-"+b.id.replace("ib-",""));
     if(te) te.textContent=pc>0?pc+" pcs, "+lm+" lembar"+(up?" × Rp "+fmt(up)+" = Rp "+fmt(pc*up):""):"";
@@ -1364,7 +1369,7 @@ function calcG() {
 function calcA() {
   let p=0,u=0;
   document.querySelectorAll("#a-blocks .iblock").forEach(b=>{
-    const up=+b.querySelector(".ibu")?.value||0,pc=totUK(b); p+=pc; u+=pc*up;
+    const up=parseRpIn(b.querySelector(".ibu")?.value),pc=totUK(b); p+=pc; u+=pc*up;
     const te=document.getElementById("ibt-"+b.id.replace("ib-",""));
     if(te){te.style.color="var(--p)";te.textContent=pc>0?pc+" pcs × Rp "+fmt(up)+" = Rp "+fmt(pc*up):"";}
   });
@@ -1384,7 +1389,7 @@ function calcK() {
 function colJ() {
   const it=[];
   document.querySelectorAll("#j-blocks .iblock").forEach(b=>{
-    const n=b.querySelector(".ibn")?.value?.trim(),u=+b.querySelector(".ibu")?.value||0,uk=getUKVals(b);
+    const n=b.querySelector(".ibn")?.value?.trim(),u=parseRpIn(b.querySelector(".ibu")?.value),uk=getUKVals(b);
     if(n&&uk.length) uk.forEach(x=>it.push({nama:n,ukuran:x.ukuran,pcs:x.qty,upah:u,subtotal:x.qty*u}));
   });
   return it;
@@ -1392,7 +1397,7 @@ function colJ() {
 function colG() {
   const it=[];
   document.querySelectorAll("#g-blocks .iblock").forEach(b=>{
-    const n=b.querySelector(".ibn")?.value?.trim(),l=+b.querySelector(".ibl")?.value||0,u=+b.querySelector(".ibu")?.value||0,uk=getUKVals(b);
+    const n=b.querySelector(".ibn")?.value?.trim(),l=+b.querySelector(".ibl")?.value||0,u=parseRpIn(b.querySelector(".ibu")?.value),uk=getUKVals(b);
     if(n&&uk.length) uk.forEach(x=>it.push({nama:n,ukuran:x.ukuran,pcs:x.qty,lembar:l,upah:u}));
   });
   return it;
@@ -1400,7 +1405,7 @@ function colG() {
 function colA() {
   const it=[];
   document.querySelectorAll("#a-blocks .iblock").forEach(b=>{
-    const n=b.querySelector(".ibn")?.value?.trim(),u=+b.querySelector(".ibu")?.value||0,uk=getUKVals(b);
+    const n=b.querySelector(".ibn")?.value?.trim(),u=parseRpIn(b.querySelector(".ibu")?.value),uk=getUKVals(b);
     if(n&&uk.length) uk.forEach(x=>it.push({nama:n,ukuran:x.ukuran,pcs:x.qty,upah:u}));
   });
   return it;
@@ -1749,7 +1754,7 @@ async function submitKeluar() {
 async function submitKasbon() {
   const pj  = document.getElementById("kb-pjt").value;
   const tgl = document.getElementById("kb-tgl").value;
-  const jml = +document.getElementById("kb-jml").value||0;
+  const jml = parseRpIn(document.getElementById("kb-jml").value);
   const ket = document.getElementById("kb-ket").value.trim();
   if(!pj||!tgl||!jml) return toast("Penjahit, tanggal, dan jumlah wajib diisi!","w");
   if(!await confirm2(`Simpan kasbon Rp${jml.toLocaleString("id")} untuk ${pj}?`)) return;
@@ -1763,7 +1768,7 @@ async function submitKasbon() {
 async function submitBayar() {
   const pj  = document.getElementById("by-pjt").value;
   const tgl = document.getElementById("by-tgl").value;
-  const jml = +document.getElementById("by-jml").value||0;
+  const jml = parseRpIn(document.getElementById("by-jml").value);
   const ket = document.getElementById("by-ket").value.trim();
   if(!pj||!tgl||!jml) return toast("Penjahit, tanggal, dan jumlah wajib diisi!","w");
   if(!await confirm2(`Simpan pembayaran Rp${jml.toLocaleString("id")} untuk ${pj}?`)) return;
