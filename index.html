@@ -2002,16 +2002,22 @@ async function loadRiwayat() {
   document.getElementById("rw-cnt").textContent = docs.length;
   const el = document.getElementById("rw-body");
   if(!docs.length){el.innerHTML='<div class="empty">Belum ada data untuk filter ini.</div>';return;}
+  const canEdit = role !== "guest";
   el.innerHTML = docs.map(d=>{
     const who = d.orang||d.penjahit||d.operator||"—";
+    const whoEsc = who.replace(/'/g,"\\'");
     const typeLbl = {jahit:"🧵 Setor Jahitan",gunting:"✂️ Setor Guntingan",ambil:"📦 Ambil Jahitan"}[d.type]||d.type||"—";
+    const actions = canEdit ? `<div style="display:flex;gap:6px;margin-top:6px">
+      <button class="btn-del" style="background:var(--bl);color:#fff" onclick="editTxLite('${d._id}','${whoEsc}')">✏️ Edit</button>
+      <button class="btn-del" onclick="delTx('${d._id}',this)">🗑️ Hapus</button>
+    </div>` : "";
     return `<div class="card">
       <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> ${typeLbl} — <b>${who}</b>${d.order?" ["+d.order+"]":""}</div>
       <div>${itemsBadge(d.items)}</div>
       ${d.totalUpah!=null?`<div class="ket">Upah: ${fmtRp(d.totalUpah)}</div>`:""}
       ${fotoThumb(d.fotos)}
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
-      <div style="margin-top:6px">${role!=="guest"?`<button class="btn-del" onclick="delTx('${d._id}',this)">Hapus</button>`:""}</div>
+      ${actions}
     </div>`;
   }).join("");
 }
