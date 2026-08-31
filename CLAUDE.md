@@ -59,6 +59,13 @@ Aplikasi manajemen produksi konveksi untuk Young Harmoni. Single-file HTML + Fir
 - Disimpan sebagai `pembayaran.potong_kasbon` (default 0)
 - `showKasbonInfo()` tampilkan sisa kasbon aktif saat pilih penjahit
 
+## Fitur Pending → Verifikasi Pembayaran
+- Staff bisa catat pembayaran → status `pending`, WAJIB upload bukti TF (`fF.by`)
+- Admin catat pembayaran → langsung `verified`, dengan `verifiedBy` + `verifiedAt`
+- Panel "⏳ Menunggu Verifikasi" (`#by-verifikasi-wrap`) muncul di atas history — admin lihat tombol Verifikasi/Tolak, staff lihat status baca-saja
+- `loadRingkasan` **skip** entri `status==="pending"` — saldo baru berkurang saat admin verifikasi
+- Backward compat: entri lama tanpa `status` field diperlakukan sebagai `verified`
+
 ## Role Permissions
 - `STAFF_DEL_ALLOW = ["transaksi"]` — staff hanya boleh hapus setoran (jahit/gunting/ambil), tidak boleh hapus `pembayaran`/`kasbon`/`qc`/`keluar`/`alih_tugas`/`kain_masuk`/`kain_ambil`
 - Staff boleh edit ringan transaksi (tanggal + keterangan) via profil modal atau Riwayat

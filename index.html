@@ -604,7 +604,18 @@ tr:hover td{background:rgba(255,251,213,.04)}
       <div class="fg" style="grid-column:1/-1"><label>Keterangan</label><input type="text" id="by-ket" placeholder="Transfer BCA, tunai..."></div>
     </div>
     <div id="by-kbinfo" style="display:none;padding:8px 11px;background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);font-size:11px;color:var(--t2);margin-bottom:10px"></div>
+    <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📸 Bukti Transfer</div>
+    <div class="fgrid" id="by-fg"></div>
+    <div class="farea" onclick="document.getElementById('by-fi').click()">
+      <input type="file" accept="image/*" multiple style="display:none" id="by-fi" onchange="onFoto('by',this)">
+      <div style="font-size:18px;margin-bottom:3px">📷</div>
+      <div style="font-size:11px;font-weight:600;color:var(--t2)">Klik untuk upload bukti TF</div>
+    </div>
     <button class="btn btg" onclick="submitBayar()">💸 Catat Pembayaran</button>
+  </div>
+  <div id="by-verifikasi-wrap" style="display:none;margin-bottom:14px">
+    <div class="th2" style="margin-bottom:8px"><span class="tt">⏳ Menunggu Verifikasi</span><span class="bdg" id="by-pending-cnt">0</span></div>
+    <div id="by-pending-list"></div>
   </div>
   <div id="by-list"></div>
 </div>
@@ -893,7 +904,7 @@ let cfmCallback = null;
 let cfmRejectCallback = null;
 let mdetIdx = -1, modalData = {}, mdetItem = null;
 let rrVisible = false;
-const fF = {j:[], g:[], a:[], qc:[], ke:[]};
+const fF = {j:[], g:[], a:[], qc:[], ke:[], by:[]};
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 const td  = () => new Date().toISOString().split("T")[0];
@@ -1795,6 +1806,7 @@ async function submitKasbon() {
 
 // ── PEMBAYARAN ────────────────────────────────────────────────────────────────
 async function submitBayar() {
+  if(role==="guest") return toast("Silakan login dulu.","w");
   const pj  = document.getElementById("by-pjt").value;
   const tgl = document.getElementById("by-tgl").value;
   const jml = parseRpIn(document.getElementById("by-jml").value);
@@ -1802,15 +1814,49 @@ async function submitBayar() {
   const ket = document.getElementById("by-ket").value.trim();
   if(!pj||!tgl) return toast("Penjahit dan tanggal wajib diisi!","w");
   if(!jml && !pk) return toast("Isi jumlah TF atau potong kasbon!","w");
+  if(jml>0 && !fF.by.length) return toast("Wajib upload bukti TF!","w");
   const total = jml + pk;
+  const isAdmin = role==="admin";
+  const statusLbl = isAdmin ? "" : "\n\n⏳ Status: MENUNGGU VERIFIKASI ADMIN";
   const msg = pk>0
-    ? `Simpan pembayaran ${pj}?\n\nTF: Rp${jml.toLocaleString("id")}\nPotong Kasbon: Rp${pk.toLocaleString("id")}\nTotal upah lunas: Rp${total.toLocaleString("id")}`
-    : `Simpan pembayaran Rp${jml.toLocaleString("id")} untuk ${pj}?`;
+    ? `Simpan pembayaran ${pj}?\n\nTF: Rp${jml.toLocaleString("id")}\nPotong Kasbon: Rp${pk.toLocaleString("id")}\nTotal upah lunas: Rp${total.toLocaleString("id")}${statusLbl}`
+    : `Simpan pembayaran Rp${jml.toLocaleString("id")} untuk ${pj}?${statusLbl}`;
   if(!await confirm2(msg)) return;
-  await fsAdd("pembayaran", {penjahit:pj, jumlah:jml, potong_kasbon:pk, tanggal:tgl, ket});
-  toast("Pembayaran disimpan!");
+  toast("Uploading bukti...");
+  const fotos = await uploadFotos(fF.by);
+  await fsAdd("pembayaran", {
+    penjahit:pj, jumlah:jml, potong_kasbon:pk, tanggal:tgl, ket, fotos,
+    status: isAdmin ? "verified" : "pending",
+    ...(isAdmin ? {verifiedBy:unama||uname||"admin", verifiedAt:new Date().toISOString()} : {})
+  });
+  toast(isAdmin ? "Pembayaran disimpan & terverifikasi!" : "Pembayaran dikirim — menunggu verifikasi admin.");
   ["by-pjt","by-tgl","by-jml","by-pk","by-ket"].forEach(id=>document.getElementById(id).value="");
   document.getElementById("by-kbinfo").style.display="none";
+  clearF("by");
+  await loadBayarHist();
+  if(isAdmin) await loadRingkasan();
+}
+async function verifikasiBayar(id) {
+  if(role!=="admin") return toast("Hanya admin yang boleh verifikasi.","w");
+  const snap = await db.collection("pembayaran").doc(id).get();
+  if(!snap.exists) return toast("Data tidak ditemukan","w");
+  const d = snap.data();
+  const total = (d.jumlah||0) + (d.potong_kasbon||0);
+  if(!await confirm2(`Verifikasi pembayaran ${d.penjahit} sebesar Rp${total.toLocaleString("id")}?\n\nSetelah verifikasi, saldo di Ringkasan akan berkurang.`)) return;
+  await db.collection("pembayaran").doc(id).update({
+    status:"verified",
+    verifiedBy: unama||uname||"admin",
+    verifiedAt: new Date().toISOString()
+  });
+  toast("✓ Pembayaran terverifikasi.");
+  await loadBayarHist();
+  await loadRingkasan();
+}
+async function tolakBayar(id) {
+  if(role!=="admin") return toast("Hanya admin yang boleh menolak.","w");
+  if(!await confirm2("Tolak & hapus pembayaran ini? Aksi tidak bisa dibatalkan.")) return;
+  await fsDel("pembayaran", id);
+  toast("Pembayaran ditolak & dihapus.");
   await loadBayarHist();
 }
 async function showKasbonInfo() {
@@ -1896,13 +1942,48 @@ async function loadKasbonHist() {
 }
 async function loadBayarHist() {
   const docs = await fsAll("pembayaran");
-  renderHistList("by-list","",docs,d=>{
+  const pending = docs.filter(d=>d.status==="pending");
+  const verified = docs.filter(d=>d.status!=="pending"); // status===verified atau undefined (data lama)
+  const isAdmin = role==="admin";
+  // Panel pending
+  const wrap = document.getElementById("by-verifikasi-wrap");
+  const pcnt = document.getElementById("by-pending-cnt");
+  const plist = document.getElementById("by-pending-list");
+  if(pending.length && wrap) {
+    wrap.style.display = "";
+    if(pcnt) pcnt.textContent = pending.length;
+    pending.sort((a,b)=>b.tanggal?.localeCompare(a.tanggal)||0);
+    plist.innerHTML = pending.map(d=>{
+      const jml = d.jumlah||0, pk = d.potong_kasbon||0, total = jml + pk;
+      const rincian = pk>0 ? `<div style="font-size:11px;color:var(--t2);margin-top:2px">TF ${fmtRp(jml)} · Potong kasbon ${fmtRp(pk)}</div>` : "";
+      const by = d.createdByNama||d.createdBy||"—";
+      const actions = isAdmin ? `<div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn-del" style="background:var(--g);color:#0a0a0a" onclick="verifikasiBayar('${d._id}')">✓ Verifikasi</button>
+        <button class="btn-del" onclick="tolakBayar('${d._id}')">✗ Tolak</button>
+      </div>` : `<div style="font-size:11px;color:var(--t2);margin-top:6px">⏳ Menunggu verifikasi admin</div>`;
+      return `<div class="card" style="border-left:3px solid var(--gold)">
+        <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.penjahit}</b> — ${fmtRp(total)} <span style="font-size:10px;background:var(--gold);color:#0a0a0a;padding:2px 7px;border-radius:8px;font-weight:700;margin-left:6px">PENDING</span></div>
+        ${rincian}
+        <div style="font-size:11px;color:var(--t2);margin-top:2px">Diinput oleh: ${by}</div>
+        ${d.ket?`<div class="ket">${d.ket}</div>`:""}
+        ${fotoThumb(d.fotos)}
+        ${actions}
+      </div>`;
+    }).join("");
+  } else if(wrap) {
+    wrap.style.display = "none";
+  }
+  // History verified
+  renderHistList("by-list","",verified,d=>{
     const jml = d.jumlah||0, pk = d.potong_kasbon||0, total = jml + pk;
     const rincian = pk>0 ? `<div style="font-size:11px;color:var(--t2);margin-top:2px">TF ${fmtRp(jml)} · Potong kasbon ${fmtRp(pk)}</div>` : "";
+    const vinfo = d.verifiedBy ? `<div style="font-size:11px;color:var(--g);margin-top:2px">✓ Diverifikasi oleh ${d.verifiedBy}</div>` : "";
     return `<div class="card">
       <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.penjahit}</b> — ${fmtRp(total)}</div>
       ${rincian}
+      ${vinfo}
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
+      ${fotoThumb(d.fotos)}
       <div style="margin-top:6px">${mkDelBtn("pembayaran",d._id)}</div>
     </div>`;
   });
@@ -1991,10 +2072,11 @@ async function loadRingkasan() {
   byDocs.forEach(d=>{
     if(!d.penjahit) return;
     if(!map[d.penjahit]) map[d.penjahit]=mk(d.penjahit);
+    map[d.penjahit].byList.push(d);
+    if(d.status === "pending") return; // pending TIDAK ikut hitung sampai admin verifikasi
     const jml = d.jumlah||0, pk = d.potong_kasbon||0;
     map[d.penjahit].bayar  += jml + pk; // total upah yang sudah lunas (TF + potong)
     map[d.penjahit].kasbon -= pk;       // potong kasbon → kasbon aktif berkurang
-    map[d.penjahit].byList.push(d);
   });
   ringData = map;
   renderRingkasan();
@@ -2062,14 +2144,20 @@ function showRingDetail(name) {
       </div>
       ${d.keterangan?`<div class="ket">${d.keterangan}</div>`:""}
     </div>`).join("") : `<div class="empty">Tidak ada kasbon.</div>`;
-  document.getElementById("rdet-by").innerHTML = bySorted.length ? bySorted.map(d=>
-    `<div class="rdet-money-item" style="border-left-color:var(--bl)">
+  document.getElementById("rdet-by").innerHTML = bySorted.length ? bySorted.map(d=>{
+    const total = (d.jumlah||0) + (d.potong_kasbon||0);
+    const isPending = d.status === "pending";
+    const badge = isPending ? `<span style="font-size:9px;background:var(--gold);color:#0a0a0a;padding:1px 6px;border-radius:6px;font-weight:700;margin-left:5px">PENDING</span>` : "";
+    const rinc = d.potong_kasbon>0 ? `<div style="font-size:10px;color:var(--t2);margin-top:2px">TF ${fmtRp(d.jumlah||0)} · Potong kasbon ${fmtRp(d.potong_kasbon||0)}</div>` : "";
+    return `<div class="rdet-money-item" style="border-left-color:${isPending?"var(--gold)":"var(--bl)"}">
       <div style="display:flex;justify-content:space-between">
-        <span style="color:var(--bl);font-weight:700">${fmtRp(d.jumlah||0)}</span>
+        <span style="color:${isPending?"var(--gold)":"var(--bl)"};font-weight:700">${fmtRp(total)}${badge}</span>
         <span style="color:var(--t2);font-size:10px">${fmtTgl(d.tanggal)}</span>
       </div>
+      ${rinc}
       ${d.keterangan?`<div class="ket">${d.keterangan}</div>`:""}
-    </div>`).join("") : `<div class="empty">Belum ada pembayaran.</div>`;
+    </div>`;
+  }).join("") : `<div class="empty">Belum ada pembayaran.</div>`;
   document.getElementById("ring-det-modal").style.display = "flex";
 }
 function closeRingDetail() { document.getElementById("ring-det-modal").style.display = "none"; }
