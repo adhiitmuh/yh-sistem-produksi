@@ -963,7 +963,12 @@ async function fsSet(col, docId, data) {
   await db.collection(col).doc(docId).set(data);
 }
 async function fsAdd(col, data) {
-  const ref = await db.collection(col).add({...data, createdAt: firebase.firestore.FieldValue.serverTimestamp()});
+  const ref = await db.collection(col).add({
+    ...data,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    createdBy: uid || "",
+    createdByNama: unama || uname || "",
+  });
   return ref.id;
 }
 async function fsDel(col, docId) {
@@ -1887,10 +1892,11 @@ function fotoThumb(fotos) {
   return `<div class="fotostrip">${fotos.map((u,i)=>`<img src="${u}" onclick="openLb(${JSON.stringify(fotos)},${i})" style="height:40px;border-radius:4px;cursor:pointer;margin-right:4px">`).join("")}</div>`;
 }
 const STAFF_DEL_ALLOW = ["transaksi"]; // staff hanya boleh hapus setoran (jahit/gunting/ambil)
-function mkDelBtn(col, docId, cb) {
+function mkDelBtn(col, docId, cbName) {
   if(role==="guest") return "";
   if(role!=="admin" && !STAFF_DEL_ALLOW.includes(col)) return "";
-  return `<button class="btn-del" onclick="delRecord('${col}','${docId}',this,${cb?cb.toString().replace(/"/g,"'"):null})">Hapus</button>`;
+  const cbArg = cbName ? `,${cbName}` : "";
+  return `<button class="btn-del" onclick="delRecord('${col}','${docId}',this${cbArg})">Hapus</button>`;
 }
 async function delRecord(col, docId, btn, cb) {
   if(!await confirm2("Hapus data ini?")) return;
@@ -1937,7 +1943,7 @@ async function loadKasbonHist() {
     <div class="card">
       <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.penjahit}</b> — ${fmtRp(d.jumlah)}</div>
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
-      <div style="margin-top:6px">${mkDelBtn("kasbon",d._id)}</div>
+      <div style="margin-top:6px">${mkDelBtn("kasbon",d._id,"loadRingkasan")}</div>
     </div>`);
 }
 async function loadBayarHist() {
@@ -1984,7 +1990,7 @@ async function loadBayarHist() {
       ${vinfo}
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
       ${fotoThumb(d.fotos)}
-      <div style="margin-top:6px">${mkDelBtn("pembayaran",d._id)}</div>
+      <div style="margin-top:6px">${mkDelBtn("pembayaran",d._id,"loadRingkasan")}</div>
     </div>`;
   });
 }
@@ -2026,7 +2032,9 @@ async function delTx(docId, btn) {
   if(!await confirm2("Hapus transaksi ini?")) return;
   await fsDel("transaksi", docId);
   btn.closest(".card")?.remove();
-  toast("Transaksi dihapus."); loadStats();
+  toast("Transaksi dihapus.");
+  loadStats();
+  loadRingkasan();
 }
 
 async function loadStats() {
@@ -2148,7 +2156,7 @@ function showRingDetail(name) {
         <span style="color:var(--r);font-weight:700">${fmtRp(d.jumlah||0)}</span>
         <span style="color:var(--t2);font-size:10px">${fmtTgl(d.tanggal)}</span>
       </div>
-      ${d.keterangan?`<div class="ket">${d.keterangan}</div>`:""}
+      ${d.ket?`<div class="ket">${d.ket}</div>`:""}
     </div>`).join("") : `<div class="empty">Tidak ada kasbon.</div>`;
   document.getElementById("rdet-by").innerHTML = bySorted.length ? bySorted.map(d=>{
     const total = (d.jumlah||0) + (d.potong_kasbon||0);
@@ -2161,7 +2169,7 @@ function showRingDetail(name) {
         <span style="color:var(--t2);font-size:10px">${fmtTgl(d.tanggal)}</span>
       </div>
       ${rinc}
-      ${d.keterangan?`<div class="ket">${d.keterangan}</div>`:""}
+      ${d.ket?`<div class="ket">${d.ket}</div>`:""}
     </div>`;
   }).join("") : `<div class="empty">Belum ada pembayaran.</div>`;
   document.getElementById("ring-det-modal").style.display = "flex";
