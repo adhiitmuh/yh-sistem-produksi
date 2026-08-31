@@ -829,6 +829,9 @@ tr:hover td{background:rgba(255,251,213,.04)}
         <div id="rdet-by"></div>
       </div>
     </div>
+    <div id="rdet-footer" style="padding:12px 20px;border-top:1px solid var(--b);flex-shrink:0;display:none">
+      <button id="rdet-bayar-btn" onclick="bayarSekarang()" style="width:100%;padding:11px;background:var(--g);color:#0a0a0a;border:none;border-radius:var(--rads);font-family:var(--f);font-size:13px;font-weight:800;cursor:pointer">💸 Bayar Sekarang</button>
+    </div>
   </div>
 </div>
 
@@ -1142,10 +1145,19 @@ function renderPjtTags() {
     settings.penjahit.map((p,i) => `<div class="tg">${p}<span class="tgd" onclick="delPjt(${i})">&#215;</span></div>`).join("");
 }
 function fillSelects() {
+  // Setor jahit/ambil/QC hanya untuk penjahit
   const pj = "<option value=''>&#8212; Pilih &#8212;</option>" + settings.penjahit.map(p => `<option>${p}</option>`).join("");
-  ["j-pjt","a-pjt","kb-pjt","by-pjt","qc-pjt","at-dari","at-ke"].forEach(id => {
+  ["j-pjt","a-pjt","qc-pjt","at-dari","at-ke"].forEach(id => {
     const el = document.getElementById(id); if (el) el.innerHTML = pj;
   });
+  // Kasbon & pembayaran: siapa saja yang earn upah — penjahit + operator cutting
+  const pjOp = "<option value=''>&#8212; Pilih &#8212;</option>"
+    + (settings.penjahit.length ? `<optgroup label="🪡 Penjahit">${settings.penjahit.map(p=>`<option>${p}</option>`).join("")}</optgroup>` : "")
+    + ((settings.operator||[]).length ? `<optgroup label="✂️ Operator Cutting">${settings.operator.map(p=>`<option>${p}</option>`).join("")}</optgroup>` : "");
+  ["kb-pjt","by-pjt"].forEach(id => {
+    const el = document.getElementById(id); if (el) el.innerHTML = pjOp;
+  });
+  // Setor gunting hanya untuk operator
   const op = "<option value=''>&#8212; Pilih &#8212;</option>" + (settings.operator||[]).map(p => `<option>${p}</option>`).join("");
   ["g-op","ka-op"].forEach(id => {
     const el = document.getElementById(id); if (el) el.innerHTML = op;
@@ -2105,9 +2117,14 @@ function renderRingkasan() {
   el.innerHTML = list.map(p=>{
     const saldo = p.upah - p.kasbon - p.bayar;
     const nm = p.name.replace(/'/g,"&#39;");
+    let badge = "";
+    if(p.upah > 0) {
+      badge = saldo <= 0
+        ? `<span style="font-size:9px;background:var(--gdim);color:var(--g);padding:2px 8px;border-radius:20px;font-weight:800;letter-spacing:.4px;border:1px solid var(--g)">✓ LUNAS</span>`
+        : `<span style="font-size:9px;background:var(--adim);color:var(--a);padding:2px 8px;border-radius:20px;font-weight:800;letter-spacing:.4px;border:1px solid var(--a)">⏳ BELUM LUNAS</span>`;
+    }
     return `<div class="rcard" onclick="showRingDetail('${nm}')">
-
-      <div class="rcname">${p.name}</div>
+      <div class="rcname" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${p.name}</span>${badge}</div>
       <div class="rcrow"><span>Total Upah</span><span style="color:var(--g)">${fmtRp(p.upah)}</span></div>
       <div class="rcrow"><span>Kasbon</span><span style="color:var(--r)">${fmtRp(p.kasbon)}</span></div>
       <div class="rcrow"><span>Sudah Dibayar</span><span style="color:var(--bl)">${fmtRp(p.bayar)}</span></div>
@@ -2172,9 +2189,38 @@ function showRingDetail(name) {
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
     </div>`;
   }).join("") : `<div class="empty">Belum ada pembayaran.</div>`;
+  // Footer: tombol Bayar Sekarang muncul kalau saldo > 0 (masih ada hak yang belum dibayar)
+  const footer = document.getElementById("rdet-footer");
+  const btn = document.getElementById("rdet-bayar-btn");
+  if(saldo > 0) {
+    footer.style.display = "";
+    btn.dataset.name = name;
+    btn.dataset.saldo = saldo;
+    btn.textContent = `💸 Bayar Sekarang — ${fmtRp(saldo)}`;
+  } else {
+    footer.style.display = "none";
+  }
   document.getElementById("ring-det-modal").style.display = "flex";
 }
 function closeRingDetail() { document.getElementById("ring-det-modal").style.display = "none"; }
+function bayarSekarang() {
+  const btn = document.getElementById("rdet-bayar-btn");
+  const name = btn.dataset.name;
+  const saldo = +btn.dataset.saldo || 0;
+  closeRingDetail();
+  go("bayar");
+  // Tunggu dropdown by-pjt terisi sebelum pre-fill
+  setTimeout(()=>{
+    const sel = document.getElementById("by-pjt");
+    if(sel) {
+      const opt = [...sel.options].find(o => o.value === name || o.textContent === name);
+      if(opt) { sel.value = opt.value || opt.textContent; showKasbonInfo(); }
+    }
+    const jml = document.getElementById("by-jml");
+    if(jml && saldo > 0) { jml.value = fmt(saldo); }
+    document.getElementById("s-bayar")?.scrollIntoView({behavior:"smooth", block:"start"});
+  }, 120);
+}
 
 // ── EDIT RINGAN & HAPUS TRANSAKSI (dari Ringkasan Detail) ─────────────────────
 async function delTxFromRing(id, name) {
