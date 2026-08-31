@@ -597,11 +597,13 @@ tr:hover td{background:rgba(255,251,213,.04)}
   <div class="ph"><div class="pt">💸 Pembayaran Upah</div><div class="ps">Catat transfer — saldo otomatis berkurang</div></div>
   <div class="card"><div class="ct">➕ Catat Pembayaran</div>
     <div class="g2" style="margin-bottom:10px">
-      <div class="fg"><label>Penjahit</label><select id="by-pjt"><option value="">— Pilih —</option></select></div>
+      <div class="fg"><label>Penjahit</label><select id="by-pjt" onchange="showKasbonInfo()"><option value="">— Pilih —</option></select></div>
       <div class="fg"><label>Tanggal Transfer</label><input type="date" id="by-tgl"></div>
-      <div class="fg"><label>Jumlah (Rp)</label><input type="text" inputmode="numeric" id="by-jml" placeholder="0" oninput="fmtRpIn(this)"></div>
-      <div class="fg"><label>Keterangan</label><input type="text" id="by-ket" placeholder="Transfer BCA, tunai..."></div>
+      <div class="fg"><label>Jumlah TF (Rp)</label><input type="text" inputmode="numeric" id="by-jml" placeholder="0" oninput="fmtRpIn(this)"></div>
+      <div class="fg"><label>Potong Kasbon (Rp)</label><input type="text" inputmode="numeric" id="by-pk" placeholder="0" oninput="fmtRpIn(this)"></div>
+      <div class="fg" style="grid-column:1/-1"><label>Keterangan</label><input type="text" id="by-ket" placeholder="Transfer BCA, tunai..."></div>
     </div>
+    <div id="by-kbinfo" style="display:none;padding:8px 11px;background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);font-size:11px;color:var(--t2);margin-bottom:10px"></div>
     <button class="btn btg" onclick="submitBayar()">💸 Catat Pembayaran</button>
   </div>
   <div id="by-list"></div>
@@ -622,6 +624,11 @@ tr:hover td{background:rgba(255,251,213,.04)}
     <div class="ct">💾 Backup & Restore Data</div>
     <div style="font-size:12px;color:var(--t2);margin-bottom:12px">Download semua data sebagai file JSON backup.</div>
     <button onclick="downloadBackup()" style="padding:9px 20px;background:var(--bl);color:#fff;border:none;border-radius:var(--rads);font-family:var(--f);font-size:13px;font-weight:700;cursor:pointer">⬇ Download Backup Data</button>
+  </div>
+  <div class="card" id="backfill-card" style="display:none">
+    <div class="ct">🔧 Backfill Upah Gunting</div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:12px">Hitung ulang total upah semua setoran guntingan lama menggunakan <b>upah_gunting terbaru</b> di daftar item. Jalankan setelah mengisi upah_gunting untuk item yang sebelumnya 0.</div>
+    <button onclick="backfillGuntingUpah()" style="padding:9px 20px;background:var(--gold,#eab308);color:#0a0a0a;border:none;border-radius:var(--rads);font-family:var(--f);font-size:13px;font-weight:700;cursor:pointer">🔧 Jalankan Backfill Upah Gunting</button>
   </div>
   <div class="card"><div class="ct">🏭 Informasi Konveksi</div>
     <div class="fg" style="margin-bottom:10px"><label>Nama Konveksi</label><input type="text" id="s-nama"></div>
@@ -716,6 +723,25 @@ tr:hover td{background:rgba(255,251,213,.04)}
     <div style="display:flex;gap:8px">
       <button onclick="closeMdetail()" style="flex:1;padding:9px;background:transparent;border:1px solid var(--b);color:var(--t2);border-radius:var(--rads);font-family:var(--f);font-size:12px;cursor:pointer">Batal</button>
       <button onclick="saveMdetail()" style="flex:2;padding:9px;background:linear-gradient(135deg,#0d9488,#06b6d4);color:#fff;border:none;border-radius:var(--rads);font-family:var(--f);font-size:13px;font-weight:700;cursor:pointer">💾 Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT TRANSAKSI (LITE) MODAL -->
+<div class="mo" id="etx-mo" style="display:none" onclick="if(event.target===this)closeEtx()">
+  <div class="mbox" style="max-width:400px;padding:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-size:14px;font-weight:800">✏️ Edit Transaksi</div>
+      <button onclick="closeEtx()" style="background:transparent;border:none;color:var(--t2);font-size:22px;cursor:pointer;line-height:1">×</button>
+    </div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:14px">Item & jumlah tidak dapat diubah (agar stok tidak korup). Hanya tanggal & keterangan.</div>
+    <input type="hidden" id="etx-id">
+    <input type="hidden" id="etx-owner">
+    <div class="fg" style="margin-bottom:10px"><label>Tanggal</label><input type="date" id="etx-tgl"></div>
+    <div class="fg" style="margin-bottom:14px"><label>Keterangan</label><input type="text" id="etx-ket" placeholder="..."></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeEtx()" style="flex:1;padding:9px;background:transparent;border:1px solid var(--b);color:var(--t2);border-radius:var(--rads);font-family:var(--f);font-size:12px;cursor:pointer">Batal</button>
+      <button onclick="saveEtx()" style="flex:2;padding:9px;background:var(--a);color:#0a0a0a;border:none;border-radius:var(--rads);font-family:var(--f);font-size:13px;font-weight:700;cursor:pointer">💾 Simpan</button>
     </div>
   </div>
 </div>
@@ -1065,6 +1091,8 @@ function applyRole() {
   const isAdmin = role === "admin";
   const tmt = document.getElementById("t-modal");
   if (tmt) tmt.style.display = isAdmin ? "block" : "none";
+  const bfc = document.getElementById("backfill-card");
+  if (bfc) bfc.style.display = isAdmin ? "block" : "none";
 
   document.querySelectorAll(".btp,.btg,.btr,.btp2").forEach(b => b.classList.toggle("locked", !loggedIn));
   document.querySelectorAll(".farea").forEach(el => { el.style.pointerEvents = loggedIn ? "all" : "none"; el.style.opacity = loggedIn ? "1" : "0.4"; });
@@ -1398,7 +1426,7 @@ function colG() {
   const it=[];
   document.querySelectorAll("#g-blocks .iblock").forEach(b=>{
     const n=b.querySelector(".ibn")?.value?.trim(),l=+b.querySelector(".ibl")?.value||0,u=parseRpIn(b.querySelector(".ibu")?.value),uk=getUKVals(b);
-    if(n&&uk.length) uk.forEach(x=>it.push({nama:n,ukuran:x.ukuran,pcs:x.qty,lembar:l,upah:u}));
+    if(n&&uk.length) uk.forEach(x=>it.push({nama:n,ukuran:x.ukuran,pcs:x.qty,lembar:l,upah:u,subtotal:x.qty*u}));
   });
   return it;
 }
@@ -1537,10 +1565,11 @@ async function submitGunting() {
   const tgl=document.getElementById("g-tgl").value, op=document.getElementById("g-op").value;
   if(!tgl||!op) return toast("Tanggal & operator wajib!");
   const it=colG(); if(!it.length) return toast("Minimal 1 item!");
-  const tp=it.reduce((s,i)=>s+i.pcs,0), tl=it.reduce((s,i)=>s+i.lembar,0);
+  const tp=it.reduce((s,i)=>s+i.pcs,0), tl=it.reduce((s,i)=>s+i.lembar,0), tu=it.reduce((s,i)=>s+(i.subtotal||0),0);
   const ok = await new Promise(resolve=>{
     showConfirm("Konfirmasi Setoran Guntingan",[
-      {label:"Operator",val:op},{label:"Total Item",val:it.length+" item, "+tp+" pcs"}
+      {label:"Operator",val:op},{label:"Total Item",val:it.length+" item, "+tp+" pcs"},
+      {label:"Total Upah",val:"Rp "+fmt(tu)}
     ],()=>resolve(true),"✂️");
     cfmRejectCallback=()=>resolve(false);
   });
@@ -1550,7 +1579,7 @@ async function submitGunting() {
   if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
   try {
     const fotos = await uploadFotos(fF.g);
-    await fsAdd("transaksi",{type:"gunting",tanggal:tgl,orang:op,order:document.getElementById("g-ord").value,kain:document.getElementById("g-kain").value,items:it,totalPcs:tp,totalLembar:tl,keterangan:document.getElementById("g-ket").value,fotos});
+    await fsAdd("transaksi",{type:"gunting",tanggal:tgl,orang:op,order:document.getElementById("g-ord").value,kain:document.getElementById("g-kain").value,items:it,totalPcs:tp,totalLembar:tl,totalUpah:tu,keterangan:document.getElementById("g-ket").value,fotos});
     // Tambah stok guntingan
     const sg = (await fsGet("config","stok_guntingan")) || {};
     if(!sg[op]) sg[op]={};
@@ -1769,13 +1798,31 @@ async function submitBayar() {
   const pj  = document.getElementById("by-pjt").value;
   const tgl = document.getElementById("by-tgl").value;
   const jml = parseRpIn(document.getElementById("by-jml").value);
+  const pk  = parseRpIn(document.getElementById("by-pk").value);
   const ket = document.getElementById("by-ket").value.trim();
-  if(!pj||!tgl||!jml) return toast("Penjahit, tanggal, dan jumlah wajib diisi!","w");
-  if(!await confirm2(`Simpan pembayaran Rp${jml.toLocaleString("id")} untuk ${pj}?`)) return;
-  await fsAdd("pembayaran", {penjahit:pj, jumlah:jml, tanggal:tgl, ket});
+  if(!pj||!tgl) return toast("Penjahit dan tanggal wajib diisi!","w");
+  if(!jml && !pk) return toast("Isi jumlah TF atau potong kasbon!","w");
+  const total = jml + pk;
+  const msg = pk>0
+    ? `Simpan pembayaran ${pj}?\n\nTF: Rp${jml.toLocaleString("id")}\nPotong Kasbon: Rp${pk.toLocaleString("id")}\nTotal upah lunas: Rp${total.toLocaleString("id")}`
+    : `Simpan pembayaran Rp${jml.toLocaleString("id")} untuk ${pj}?`;
+  if(!await confirm2(msg)) return;
+  await fsAdd("pembayaran", {penjahit:pj, jumlah:jml, potong_kasbon:pk, tanggal:tgl, ket});
   toast("Pembayaran disimpan!");
-  ["by-pjt","by-tgl","by-jml","by-ket"].forEach(id=>document.getElementById(id).value="");
+  ["by-pjt","by-tgl","by-jml","by-pk","by-ket"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("by-kbinfo").style.display="none";
   await loadBayarHist();
+}
+async function showKasbonInfo() {
+  const pj = document.getElementById("by-pjt").value;
+  const box = document.getElementById("by-kbinfo");
+  if(!pj) { box.style.display="none"; return; }
+  const [kbDocs, byDocs] = await Promise.all([fsAll("kasbon"), fsAll("pembayaran")]);
+  const kbSum = kbDocs.filter(d=>d.penjahit===pj).reduce((s,d)=>s+(d.jumlah||0),0);
+  const potongSum = byDocs.filter(d=>d.penjahit===pj).reduce((s,d)=>s+(d.potong_kasbon||0),0);
+  const sisa = kbSum - potongSum;
+  box.textContent = sisa>0 ? `💰 Sisa kasbon ${pj}: Rp${sisa.toLocaleString("id")}` : `✅ ${pj} tidak punya kasbon aktif`;
+  box.style.display = "";
 }
 
 // ── HISTORY LOADERS ───────────────────────────────────────────────────────────
@@ -1793,8 +1840,10 @@ function fotoThumb(fotos) {
   if(!fotos||!fotos.length) return "";
   return `<div class="fotostrip">${fotos.map((u,i)=>`<img src="${u}" onclick="openLb(${JSON.stringify(fotos)},${i})" style="height:40px;border-radius:4px;cursor:pointer;margin-right:4px">`).join("")}</div>`;
 }
+const STAFF_DEL_ALLOW = ["transaksi"]; // staff hanya boleh hapus setoran (jahit/gunting/ambil)
 function mkDelBtn(col, docId, cb) {
-  if(role!=="admin") return "";
+  if(role==="guest") return "";
+  if(role!=="admin" && !STAFF_DEL_ALLOW.includes(col)) return "";
   return `<button class="btn-del" onclick="delRecord('${col}','${docId}',this,${cb?cb.toString().replace(/"/g,"'"):null})">Hapus</button>`;
 }
 async function delRecord(col, docId, btn, cb) {
@@ -1847,12 +1896,16 @@ async function loadKasbonHist() {
 }
 async function loadBayarHist() {
   const docs = await fsAll("pembayaran");
-  renderHistList("by-list","",docs,d=>`
-    <div class="card">
-      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.penjahit}</b> — ${fmtRp(d.jumlah)}</div>
+  renderHistList("by-list","",docs,d=>{
+    const jml = d.jumlah||0, pk = d.potong_kasbon||0, total = jml + pk;
+    const rincian = pk>0 ? `<div style="font-size:11px;color:var(--t2);margin-top:2px">TF ${fmtRp(jml)} · Potong kasbon ${fmtRp(pk)}</div>` : "";
+    return `<div class="card">
+      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.penjahit}</b> — ${fmtRp(total)}</div>
+      ${rincian}
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
       <div style="margin-top:6px">${mkDelBtn("pembayaran",d._id)}</div>
-    </div>`);
+    </div>`;
+  });
 }
 
 // ── RIWAYAT ───────────────────────────────────────────────────────────────────
@@ -1877,7 +1930,7 @@ async function loadRiwayat() {
       ${d.totalUpah!=null?`<div class="ket">Upah: ${fmtRp(d.totalUpah)}</div>`:""}
       ${fotoThumb(d.fotos)}
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
-      <div style="margin-top:6px">${role==="admin"?`<button class="btn-del" onclick="delTx('${d._id}',this)">Hapus</button>`:""}</div>
+      <div style="margin-top:6px">${role!=="guest"?`<button class="btn-del" onclick="delTx('${d._id}',this)">Hapus</button>`:""}</div>
     </div>`;
   }).join("");
 }
@@ -1935,7 +1988,14 @@ async function loadRingkasan() {
     map[who].txList.push(d);
   });
   kbDocs.forEach(d=>{ if(!d.penjahit) return; if(!map[d.penjahit]) map[d.penjahit]=mk(d.penjahit); map[d.penjahit].kasbon+=d.jumlah||0; map[d.penjahit].kbList.push(d); });
-  byDocs.forEach(d=>{ if(!d.penjahit) return; if(!map[d.penjahit]) map[d.penjahit]=mk(d.penjahit); map[d.penjahit].bayar+=d.jumlah||0; map[d.penjahit].byList.push(d); });
+  byDocs.forEach(d=>{
+    if(!d.penjahit) return;
+    if(!map[d.penjahit]) map[d.penjahit]=mk(d.penjahit);
+    const jml = d.jumlah||0, pk = d.potong_kasbon||0;
+    map[d.penjahit].bayar  += jml + pk; // total upah yang sudah lunas (TF + potong)
+    map[d.penjahit].kasbon -= pk;       // potong kasbon → kasbon aktif berkurang
+    map[d.penjahit].byList.push(d);
+  });
   ringData = map;
   renderRingkasan();
 }
@@ -1950,6 +2010,7 @@ function renderRingkasan() {
     const saldo = p.upah - p.kasbon - p.bayar;
     const nm = p.name.replace(/'/g,"&#39;");
     return `<div class="rcard" onclick="showRingDetail('${nm}')">
+
       <div class="rcname">${p.name}</div>
       <div class="rcrow"><span>Total Upah</span><span style="color:var(--g)">${fmtRp(p.upah)}</span></div>
       <div class="rcrow"><span>Kasbon</span><span style="color:var(--r)">${fmtRp(p.kasbon)}</span></div>
@@ -1974,8 +2035,14 @@ function showRingDetail(name) {
     `<div class="cfm-body-item"><div class="cfm-body-label">Kasbon</div><div class="cfm-body-val" style="color:var(--r)">${fmtRp(p.kasbon)}</div></div>` +
     `<div class="cfm-body-item"><div class="cfm-body-label">Sudah Dibayar</div><div class="cfm-body-val" style="color:var(--bl)">${fmtRp(p.bayar)}</div></div>` +
     `<div class="cfm-body-item"><div class="cfm-body-label">Saldo Belum Dibayar</div><div class="cfm-body-val" style="color:${saldo>=0?"var(--g)":"var(--r)"};font-size:13px">${fmtRp(saldo)}</div></div>`;
+  const canEdit = role !== "guest";
+  const nameEsc = name.replace(/'/g,"\\'");
   document.getElementById("rdet-tx").innerHTML = txSorted.length ? txSorted.map(d=>{
     const items = (d.items||[]).map(i=>`<span class="tag">${i.nama}${i.ukuran?" "+i.ukuran:""}: ${i.pcs} pcs</span>`).join(" ");
+    const actions = canEdit ? `<div style="display:flex;gap:6px;margin-top:6px">
+        <button class="btn-del" style="background:var(--bl);color:#fff" onclick="event.stopPropagation();editTxLite('${d._id}','${nameEsc}')">✏️ Edit</button>
+        <button class="btn-del" onclick="event.stopPropagation();delTxFromRing('${d._id}','${nameEsc}')">🗑️ Hapus</button>
+      </div>` : "";
     return `<div class="rdet-tx-item">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <span class="rdet-tx-type" style="background:${txColor[d.type]||"var(--t2)"}">${txLabel[d.type]||d.type}</span>
@@ -1984,6 +2051,7 @@ function showRingDetail(name) {
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px">${items}</div>
       ${d.totalUpah?`<div style="color:var(--g);font-weight:700">Upah: ${fmtRp(d.totalUpah)}</div>`:""}
       ${d.keterangan?`<div class="ket">${d.keterangan}</div>`:""}
+      ${actions}
     </div>`;
   }).join("") : `<div class="empty">Belum ada transaksi.</div>`;
   document.getElementById("rdet-kb").innerHTML = kbSorted.length ? kbSorted.map(d=>
@@ -2005,6 +2073,40 @@ function showRingDetail(name) {
   document.getElementById("ring-det-modal").style.display = "flex";
 }
 function closeRingDetail() { document.getElementById("ring-det-modal").style.display = "none"; }
+
+// ── EDIT RINGAN & HAPUS TRANSAKSI (dari Ringkasan Detail) ─────────────────────
+async function delTxFromRing(id, name) {
+  if(!await confirm2("Hapus transaksi ini?")) return;
+  await fsDel("transaksi", id);
+  toast("Transaksi dihapus.");
+  await loadRingkasan();
+  const p = ringData[name];
+  if(p) showRingDetail(name); else closeRingDetail();
+}
+async function editTxLite(id, name) {
+  const snap = await db.collection("transaksi").doc(id).get();
+  if(!snap.exists) return toast("Transaksi tidak ditemukan","w");
+  const doc = snap.data();
+  document.getElementById("etx-id").value = id;
+  document.getElementById("etx-owner").value = name;
+  document.getElementById("etx-tgl").value = doc.tanggal||"";
+  document.getElementById("etx-ket").value = doc.keterangan||"";
+  document.getElementById("etx-mo").style.display = "flex";
+}
+function closeEtx() { document.getElementById("etx-mo").style.display = "none"; }
+async function saveEtx() {
+  const id = document.getElementById("etx-id").value;
+  const name = document.getElementById("etx-owner").value;
+  const tgl = document.getElementById("etx-tgl").value;
+  const ket = document.getElementById("etx-ket").value.trim();
+  if(!tgl) return toast("Tanggal wajib!","w");
+  await db.collection("transaksi").doc(id).update({tanggal:tgl, keterangan:ket});
+  toast("Transaksi diupdate.");
+  closeEtx();
+  await loadRingkasan();
+  if(document.getElementById("ring-det-modal")?.style.display === "flex") showRingDetail(name);
+  if(document.getElementById("s-riwayat")?.style.display !== "none") loadRiwayat();
+}
 
 // ── STOK ──────────────────────────────────────────────────────────────────────
 let stokTab = "gunting";
@@ -2516,6 +2618,36 @@ function checkBackupReminder() {
   const last = +localStorage.getItem("yhk_last_backup")||0;
   const days = (Date.now()-last)/(1000*60*60*24);
   if(days>7) toast("⚠️ Backup terakhir "+Math.floor(days)+" hari yang lalu. Pertimbangkan backup sekarang.","w");
+}
+
+// ── BACKFILL UPAH GUNTING ────────────────────────────────────────────────────
+async function backfillGuntingUpah() {
+  if(role!=="admin") return toast("Admin only!","w");
+  if(!await confirm2("Hitung ulang totalUpah semua setoran guntingan pakai upah_gunting terbaru dari daftar item? Data lama akan ditulis ulang.")) return;
+  toast("Memproses...");
+  const txs = await fsAll("transaksi");
+  const guntings = txs.filter(d=>d.type==="gunting");
+  const byName = Object.fromEntries((itemMaster||[]).map(it=>[it.nama, it]));
+  let updated=0, unchanged=0;
+  for(const d of guntings) {
+    const items = d.items || [];
+    let sum = 0;
+    const newItems = items.map(i=>{
+      const m = byName[i.nama];
+      const u = (m && m.upah_gunting) || i.upah || 0;
+      const subtotal = (i.pcs||0) * u;
+      sum += subtotal;
+      return { ...i, upah:u, subtotal };
+    });
+    if(sum !== (d.totalUpah||0)) {
+      await db.collection("transaksi").doc(d._id).update({items:newItems, totalUpah:sum});
+      updated++;
+    } else {
+      unchanged++;
+    }
+  }
+  toast(`Backfill selesai: ${updated} diupdate, ${unchanged} tidak berubah.`);
+  if(document.getElementById("s-ringkasan")?.style.display !== "none") loadRingkasan();
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────────────

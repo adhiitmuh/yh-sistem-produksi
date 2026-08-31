@@ -43,6 +43,26 @@ Aplikasi manajemen produksi konveksi untuk Young Harmoni. Single-file HTML + Fir
 - `addGuntingFromKain` buat `.blk` bukan `.iblock` → item tidak tersimpan → sudah fix
 - `addQCRow` div id `qcr-i` konflik dengan input reject → reject selalu 0 → sudah fix
 - `addQCRow()` tanpa argumen → "undefined – undefined" → sekarang tampil form input
+- `submitGunting` tidak simpan `totalUpah` & `colG` tidak isi `subtotal` → upah operator cutting selalu Rp 0 di Ringkasan → sudah fix + tombol Backfill di Pengaturan untuk data lama
+
+## Fitur Ringkasan & Profil
+- Card di Ringkasan clickable → `openProfile(name)` buka modal `#prof-mo` dengan stat + riwayat setoran per orang
+- Setiap entri di riwayat profil punya tombol Edit (mini-modal `#etx-mo`, hanya tanggal + keterangan) & Hapus
+- `ringData` (map by name) di-share antara `renderRingkasan` dan `openProfile`
+- Formula saldo di Ringkasan: `saldo = upah - kasbon_display - bayar_display`
+  - `upah` = sum(`transaksi.totalUpah`)
+  - `kasbon_display` = sum(`kasbon.jumlah`) − sum(`pembayaran.potong_kasbon`)
+  - `bayar_display` = sum(`pembayaran.jumlah`) + sum(`pembayaran.potong_kasbon`)
+
+## Fitur Potong Kasbon
+- Form Pembayaran (`s-bayar`) punya field `by-pk` (Potong Kasbon) selain `by-jml` (Jumlah TF)
+- Disimpan sebagai `pembayaran.potong_kasbon` (default 0)
+- `showKasbonInfo()` tampilkan sisa kasbon aktif saat pilih penjahit
+
+## Role Permissions
+- `STAFF_DEL_ALLOW = ["transaksi"]` — staff hanya boleh hapus setoran (jahit/gunting/ambil), tidak boleh hapus `pembayaran`/`kasbon`/`qc`/`keluar`/`alih_tugas`/`kain_masuk`/`kain_ambil`
+- Staff boleh edit ringan transaksi (tanggal + keterangan) via profil modal atau Riwayat
+- Tombol Backfill Upah Gunting hanya untuk admin (via `applyRole` toggle `#backfill-card`)
 
 ## Deploy
 Push ke `main` → otomatis live di GitHub Pages (biasanya 1-2 menit).
