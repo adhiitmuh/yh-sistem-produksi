@@ -2086,7 +2086,7 @@ let ringData = {};
 async function loadRingkasan() {
   const [txDocs, kbDocs, byDocs] = await Promise.all([fsAll("transaksi"),fsAll("kasbon"),fsAll("pembayaran")]);
   const map = {};
-  const mk = who => ({name:who,upah:0,kasbon:0,bayar:0,type:"penjahit",txList:[],kbList:[],byList:[]});
+  const mk = who => ({name:who,upah:0,kasbon:0,bayar:0,pending:0,type:"penjahit",txList:[],kbList:[],byList:[]});
   txDocs.forEach(d=>{
     const who = d.orang||d.penjahit||d.operator; if(!who) return;
     if(!map[who]) map[who]=mk(who);
@@ -2099,13 +2099,35 @@ async function loadRingkasan() {
     if(!d.penjahit) return;
     if(!map[d.penjahit]) map[d.penjahit]=mk(d.penjahit);
     map[d.penjahit].byList.push(d);
-    if(d.status === "pending") return; // pending TIDAK ikut hitung sampai admin verifikasi
+    if(d.status === "pending") { map[d.penjahit].pending += (d.jumlah||0) + (d.potong_kasbon||0); return; } // pending TIDAK ikut hitung sampai admin verifikasi
     const jml = d.jumlah||0, pk = d.potong_kasbon||0;
     map[d.penjahit].bayar  += jml + pk; // total upah yang sudah lunas (TF + potong)
     map[d.penjahit].kasbon -= pk;       // potong kasbon → kasbon aktif berkurang
   });
+  // Tandai setoran mana yang sudah terbayar: uang yang sudah diterima (pembayaran terverifikasi
+  // + kasbon berjalan) dialokasikan ke setoran paling lama lebih dulu.
+  Object.values(map).forEach(p => {
+    let tersedia = Math.max(0, p.bayar + p.kasbon);
+    p.belumCount = 0;
+    [...p.txList].filter(t => (t.totalUpah||0) > 0)
+      .sort((a,b) => (a.tanggal||"").localeCompare(b.tanggal||"") || ((a.createdAt?.seconds||0) - (b.createdAt?.seconds||0)))
+      .forEach(t => {
+        const upah = t.totalUpah || 0;
+        t._dibayar = Math.min(upah, tersedia);
+        tersedia -= t._dibayar;
+        if (t._dibayar < upah) p.belumCount++;
+      });
+  });
   ringData = map;
   renderRingkasan();
+}
+function statusBayarTx(d) {
+  const upah = d.totalUpah || 0;
+  if (!upah) return "";
+  const dibayar = d._dibayar || 0;
+  if (dibayar >= upah) return `<span style="font-size:9px;background:var(--gdim);color:var(--g);padding:2px 7px;border-radius:20px;font-weight:800;border:1px solid var(--g)">✓ SUDAH DIBAYAR</span>`;
+  if (dibayar > 0) return `<span style="font-size:9px;background:var(--adim);color:var(--a);padding:2px 7px;border-radius:20px;font-weight:800;border:1px solid var(--a)">◐ DIBAYAR ${fmtRp(dibayar)} · KURANG ${fmtRp(upah - dibayar)}</span>`;
+  return `<span style="font-size:9px;background:var(--rdim, rgba(239,68,68,.12));color:var(--r);padding:2px 7px;border-radius:20px;font-weight:800;border:1px solid var(--r)">⏳ BELUM DIBAYAR</span>`;
 }
 function renderRingkasan() {
   let list = Object.values(ringData);
@@ -2129,6 +2151,8 @@ function renderRingkasan() {
       <div class="rcrow"><span>Kasbon</span><span style="color:var(--r)">${fmtRp(p.kasbon)}</span></div>
       <div class="rcrow"><span>Sudah Dibayar</span><span style="color:var(--bl)">${fmtRp(p.bayar)}</span></div>
       <div class="rcrow" style="border-top:1px solid var(--b);margin-top:6px;padding-top:6px;font-weight:700"><span>Saldo Belum Dibayar</span><span style="color:${saldo>=0?"var(--g)":"var(--r)"}">${fmtRp(saldo)}</span></div>
+      ${p.belumCount ? `<div style="font-size:10px;color:var(--a);margin-top:4px">⏳ ${p.belumCount} setoran belum dibayar penuh</div>` : ""}
+      ${p.pending ? `<div style="font-size:10px;color:var(--gold);margin-top:2px">🕓 ${fmtRp(p.pending)} menunggu verifikasi</div>` : ""}
       <div class="rdet-hint">Lihat rincian ›</div>
     </div>`;
   }).join("");
@@ -2161,6 +2185,7 @@ function showRingDetail(name) {
         <span class="rdet-tx-type" style="background:${txColor[d.type]||"var(--t2)"}">${txLabel[d.type]||d.type}</span>
         <span style="color:var(--t2);font-size:10px">${fmtTgl(d.tanggal)}</span>
       </div>
+      ${statusBayarTx(d) ? `<div style="margin-bottom:6px">${statusBayarTx(d)}</div>` : ""}
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px">${items}</div>
       ${d.totalUpah?`<div style="color:var(--g);font-weight:700">Upah: ${fmtRp(d.totalUpah)}</div>`:""}
       ${d.keterangan?`<div class="ket">${d.keterangan}</div>`:""}
