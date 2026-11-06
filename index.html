@@ -8,7 +8,6 @@
   <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
   <meta name="theme-color" content="#034543">
 <title>Young Harmonis Production</title>
-<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#022b2a;--s:#034543;--s2:#022b2a;--s3:#02312f;--b:rgba(255,251,213,.13);--b2:rgba(255,251,213,.22);--a:#FFFBD5;--adim:rgba(255,251,213,.12);--g:#4db6ac;--gdim:rgba(77,182,172,.12);--bl:#2eb8b4;--p:#4db6ac;--pdim:rgba(77,182,172,.12);--r:#f87171;--rdim:rgba(248,113,113,.12);--gold:#FFFBD5;--golddim:rgba(255,251,213,.12);--t:#FAFAFA;--t2:rgba(250,250,250,.52);--f:"Raleway",system-ui,sans-serif;--m:"JetBrains Mono","Courier New",monospace;--rad:12px;--rads:8px;--radl:16px}
 body.light{--bg:#FFFBD5;--s:#FAFAFA;--s2:#FFFBD5;--s3:#fff8c5;--b:rgba(3,69,67,.15);--b2:rgba(3,69,67,.28);--t:#282828;--t2:#034543;--a:#034543;--adim:rgba(3,69,67,.1);--g:#034543;--gdim:rgba(3,69,67,.1);background:linear-gradient(135deg,#FFFBD5 0%,#EEF9F6 45%,#FFFEF0 100%)}
@@ -251,6 +250,90 @@ tr:hover td{background:rgba(255,251,213,.04)}
 .rdet-tx-item{background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);padding:10px 12px;margin-bottom:7px;font-size:12px}
 .rdet-tx-type{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;color:#0a0a0a}
 .rdet-money-item{background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);padding:9px 12px;margin-bottom:7px;font-size:12px;border-left-width:3px}
+
+/* ═════ TEMA HARMONI — tampilan sama seperti Custom Order (hanya gaya, tidak mengubah data) ═════ */
+:root{--f:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;--m:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+body.light{--bg:#f6faf7;--s:#FAFAFA;--s2:#ffffff;--s3:#f4f8f5;--b:rgba(3,69,67,.10);--b2:rgba(3,69,67,.2);--t:#282828;--t2:rgba(3,69,67,.62);--a:#034543;--adim:rgba(3,69,67,.07);--g:#047857;--gdim:#ecfdf5;--p:#034543;--pdim:rgba(3,69,67,.07);--r:#b91c1c;--rdim:#fef2f2;--gold:#92400e;--golddim:#fef3c7;--rad:12px;--rads:10px;--radl:14px;
+  background:linear-gradient(150deg,#edfaf3 0%,#fffde8 35%,#fff8c2 100%)!important;background-attachment:fixed!important}
+/* Sidebar hijau polos seperti Custom Order */
+body.light #sidebar{background:#034543;border-right:none}
+body.light #sidebar::after{display:none}
+body.light .sb-top{border-bottom:1px solid rgba(255,251,213,.1)}
+body.light .ln{color:#FFFBD5;font-size:15px;letter-spacing:-.03em}
+body.light .lt{color:rgba(255,251,213,.4);font-size:9px;letter-spacing:.08em;text-transform:uppercase}
+body.light nav{padding:10px 8px;gap:2px}
+body.light .nt{color:#FFFBD5;opacity:.68;font-size:12.5px;font-weight:500;border-left:none;border-radius:8px;padding:9px 11px}
+body.light .nt:hover{opacity:1;background:rgba(255,251,213,.1);border-left:none}
+body.light .nt.active{opacity:1;color:#FFFBD5;background:rgba(255,251,213,.14);font-weight:600}
+body.light .sb-foot{border-top:1px solid rgba(255,251,213,.1)}
+/* Judul halaman */
+body.light .pt{font-size:24px;font-weight:800;letter-spacing:-.025em;background:none;-webkit-text-fill-color:#282828;color:#282828}
+body.light .ps{font-size:12px;color:rgba(3,69,67,.5)}
+/* Kartu: putih bersih, garis tipis, tanpa gradasi/bayangan berat */
+body.light .card,body.light .sc,body.light .tw,body.light .iblock,body.light .rcard{background:#FAFAFA!important;border:1px solid rgba(3,69,67,.08);box-shadow:none}
+body.light .card{border-radius:14px;padding:20px}
+body.light .card:hover,body.light .tw:hover,body.light .iblock:focus-within{border-color:rgba(3,69,67,.16);box-shadow:none}
+body.light .sc:hover,body.light .rcard:hover{transform:none;border-color:rgba(3,69,67,.16);box-shadow:0 4px 16px rgba(3,69,67,.06)}
+body.light .sc::before{height:3px;background:#034543!important;opacity:.85}
+body.light .rcard::before{background:#034543}
+body.light .ct{font-size:13px;font-weight:700;text-transform:none;letter-spacing:0;color:#282828}
+body.light .scl,body.light .sil{font-size:11px;font-weight:600;text-transform:none;letter-spacing:0;color:rgba(3,69,67,.55)}
+body.light .scv{font-family:var(--f);font-weight:800;letter-spacing:-.02em;background:none;-webkit-text-fill-color:#034543;color:#034543}
+body.light .siv,body.light .rrv,body.light .sqty,body.light .rsaldo{font-family:var(--f);letter-spacing:-.01em}
+body.light .sb,body.light .uksec,body.light .qcb,body.light .qc-pending-item{background:#ffffff!important;border:1px solid rgba(3,69,67,.08)}
+body.light .th2,body.light .sgh{background:#ffffff!important;border-bottom:1px solid rgba(3,69,67,.08)}
+body.light .tt{font-size:13px;font-weight:700}
+/* Isian */
+body.light .fg label{font-size:12px;font-weight:600;text-transform:none;letter-spacing:0;color:#282828}
+body.light input,body.light select,body.light textarea{background:#ffffff;border:1.5px solid rgba(3,69,67,.15);border-radius:10px;padding:10px 14px;font-size:14px;color:#282828}
+body.light input:focus,body.light select:focus,body.light textarea:focus{border-color:#034543;box-shadow:none}
+body.light select option{background:#fff}
+body.light .ukin{padding:5px 2px;font-size:13px;border-radius:8px}
+/* Tombol: bulat (pill) seperti Custom Order */
+body.light .btn:hover,body.light .btsm:hover,body.light .bexp:hover{transform:none}
+body.light .btp,body.light .btp2,body.light .btsm,body.light .lg-btn{background:#034543;color:#FFFBD5;border-radius:999px;box-shadow:none;font-weight:600}
+body.light .btp:hover,body.light .btp2:hover,body.light .btsm:hover{background:#023432;box-shadow:none!important}
+body.light .btg,body.light .bxlsx{background:#047857;color:#fff;border-radius:999px;box-shadow:none;font-weight:600}
+body.light .btg:hover,body.light .bxlsx:hover{background:#065f46}
+body.light .btr,body.light .bpdf{background:transparent;color:#b91c1c;border:1.5px solid #fca5a5;border-radius:999px;box-shadow:none;font-weight:600}
+body.light .btr:hover,body.light .bpdf:hover{background:#fee2e2}
+body.light .btsm.gh,body.light .btgh{background:transparent;color:#034543;border:1.5px solid rgba(3,69,67,.2);border-radius:999px}
+body.light .btsm.gh:hover,body.light .btgh:hover{background:rgba(3,69,67,.05)}
+body.light .btnrm{border-radius:999px}
+body.light .bexp{border-radius:999px}
+/* Tabel bersih */
+body.light th{background:transparent!important;color:rgba(3,69,67,.5);font-size:11px;font-weight:700;letter-spacing:.04em;border-bottom:1px solid rgba(3,69,67,.1)}
+body.light td{border-bottom:1px solid rgba(3,69,67,.06);font-size:13px}
+body.light tr:hover td{background:rgba(3,69,67,.03)}
+/* Badge & pill */
+body.light .bdg{font-family:var(--f);font-weight:700;background:rgba(3,69,67,.07);color:#034543;border:none}
+body.light .pill{font-weight:700}
+body.light .pj{background:rgba(3,69,67,.07);color:#034543}
+body.light .pg{background:#ecfdf5;color:#047857}
+body.light .pr{background:#fef2f2;color:#b91c1c}
+body.light .tg{background:rgba(3,69,67,.06);border:1px solid rgba(3,69,67,.12)}
+/* Upload & lain-lain */
+body.light .farea{border:2px dashed rgba(3,69,67,.2);border-radius:12px;background:#fff}
+body.light .farea:hover{border-color:#034543;background:rgba(3,69,67,.03)}
+body.light .lkn{background:#fff;border:1px dashed rgba(3,69,67,.2)}
+body.light .toast{background:#034543;color:#FFFBD5;border:none;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.18)}
+body.light .mbox{background:#fff;border:none;border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,.2)}
+body.light .mo,body.light .alert-overlay{background:rgba(0,0,0,.45);backdrop-filter:none}
+body.light .alert-box{background:#fff;border:none;border-radius:16px}
+body.light ::-webkit-scrollbar-thumb{background:rgba(3,69,67,.25)}
+/* Label kecil berhuruf besar (gaya inline) → label biasa seperti Custom Order */
+body.light .ukgl,body.light [style*="text-transform:uppercase"]{text-transform:none!important;letter-spacing:0!important;font-size:12px!important;font-weight:600!important;color:#282828!important}
+body.light .ukl{color:rgba(3,69,67,.55)}
+/* Badge PENDING & latar emas */
+body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:#92400e!important;border-radius:999px!important}
+/* HP: menu samping ringkas (ikon saja) tetap seperti semula */
+@media(max-width:768px){body.light .nt{font-size:0!important;padding:10px 14px!important;border-radius:8px}body.light .nt::first-letter{font-size:15px}}
+/* Halaman login seperti portal */
+#login-gate{background:linear-gradient(150deg,#edfaf3 0%,#fffde8 35%,#fff8c2 100%)}
+.lg-box{background:#FAFAFA;border:1px solid rgba(3,69,67,.08);backdrop-filter:none;box-shadow:0 10px 40px rgba(3,69,67,.08)}
+.lg-title{color:#282828}.lg-sub{color:rgba(3,69,67,.55)}
+.lg-btn{background:#034543;color:#FFFBD5;border-radius:999px;box-shadow:none}
+.lg-btn:hover{background:#023432;box-shadow:none}
 </style>
 </head>
 <body>
@@ -1311,10 +1394,11 @@ function go(name) {
 function toggleTheme() {
   const l = document.body.classList.toggle("light");
   document.getElementById("themeBtn").textContent = l ? "🌙" : "☀️";
-  localStorage.setItem("yhk_theme", l ? "light" : "dark");
+  localStorage.setItem("yhk_tema", l ? "light" : "dark");
 }
 function loadTheme() {
-  if (localStorage.getItem("yhk_theme") === "light") {
+  // Tampilan terang (gaya Custom Order) jadi bawaan; mode gelap tetap bisa dipilih lewat tombol ☀️/🌙
+  if (localStorage.getItem("yhk_tema") !== "dark") {
     document.body.classList.add("light"); document.getElementById("themeBtn").textContent = "🌙";
   } else { document.getElementById("themeBtn").textContent = "☀️"; }
 }
