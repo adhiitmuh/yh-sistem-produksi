@@ -288,6 +288,15 @@ body.light .fg label{font-size:12px;font-weight:600;text-transform:none;letter-s
 body.light input,body.light select,body.light textarea{background:#ffffff;border:1.5px solid rgba(3,69,67,.15);border-radius:10px;padding:10px 14px;font-size:14px;color:#282828}
 body.light input:focus,body.light select:focus,body.light textarea:focus{border-color:#034543;box-shadow:none}
 body.light select option{background:#fff}
+/* iPad/iPhone: isian tanggal Safari punya lebar bawaan sendiri → bisa menimpa kolom sebelahnya */
+.fg{min-width:0}.g2>*,.g3>*,.g4>*{min-width:0}
+input[type=date]{width:100%;max-width:100%;min-width:0;box-sizing:border-box;-webkit-appearance:none;appearance:none;min-height:44px;text-align:left;display:block}
+input[type=date]::-webkit-date-and-time-value{text-align:left}
+.frow input[type=date]{width:auto;flex:1 1 150px}
+.erow .fg{flex:1 1 160px;min-width:0}.erow .bexp{flex:0 0 auto}
+.rw-org{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:12px}
+.rw-org div{background:#fff;border:1px solid rgba(3,69,67,.1);border-radius:10px;padding:10px 12px}
+.rw-org b{display:block;font-size:17px;margin-top:2px}.rw-org span{font-size:11px;color:rgba(3,69,67,.55)}
 body.light .ukin{padding:5px 2px;font-size:13px;border-radius:8px}
 /* Tombol: bulat (pill) seperti Custom Order */
 body.light .btn:hover,body.light .btsm:hover,body.light .bexp:hover{transform:none}
@@ -625,16 +634,17 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
     <div class="sc"><div class="scl">Total Upah Hari Ini</div><div class="scv" style="color:var(--a);font-size:12px;padding-top:2px" id="st-u">Rp 0</div></div>
   </div>
   <div class="frow">
-    <input type="date" id="f-tgl" onchange="loadRiwayat()">
+    <input type="date" id="f-tgl" onchange="loadRiwayat()" title="Satu tanggal (kosongkan untuk semua)">
     <select id="f-type" onchange="loadRiwayat()"><option value="">Semua Jenis</option><option value="jahit">Setor Jahitan</option><option value="gunting">Setor Guntingan</option><option value="ambil">Ambil Jahitan</option></select>
     <select id="f-orang" onchange="loadRiwayat()"><option value="">Semua Orang</option></select>
   </div>
   <div class="erow">
-    <div class="fg"><label>Dari</label><input type="date" id="exp-dari"></div>
-    <div class="fg"><label>Sampai</label><input type="date" id="exp-ke"></div>
+    <div class="fg"><label>Dari</label><input type="date" id="exp-dari" onchange="loadRiwayat()"></div>
+    <div class="fg"><label>Sampai</label><input type="date" id="exp-ke" onchange="loadRiwayat()"></div>
     <button class="bexp bxlsx" onclick="doExport('excel')">⬇ Excel</button>
     <button class="bexp bpdf" onclick="doExport('pdf')">⬇ PDF</button>
   </div>
+  <div id="rw-org" class="rw-org" style="display:none"></div>
   <div class="tw"><div class="th2"><span class="tt">Log Aktivitas</span><span class="bdg" id="rw-cnt">0</span></div><div id="rw-body"></div></div>
 </div>
 
@@ -1408,7 +1418,7 @@ async function loadAll() {
   await loadSettings();
   document.getElementById("hdrDate").textContent = new Date().toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
   const d = td();
-  ["j-tgl","g-tgl","a-tgl","kb-tgl","by-tgl","qc-tgl","ke-tgl","f-tgl","exp-dari","exp-ke","km-tgl","ka-tgl","at-tgl"].forEach(id => {
+  ["j-tgl","g-tgl","a-tgl","kb-tgl","by-tgl","qc-tgl","ke-tgl","km-tgl","ka-tgl","at-tgl"].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = d;
   });
   addJahitBlock(); addGuntingBlock(); addAmbilBlock(); addKeluarBlock();
@@ -2100,12 +2110,31 @@ async function loadRiwayat() {
   const tgl   = document.getElementById("f-tgl").value;
   const type  = document.getElementById("f-type").value;
   const orang = document.getElementById("f-orang").value;
+  const dari  = document.getElementById("exp-dari").value;
+  const ke    = document.getElementById("exp-ke").value;
+  const siapa = d => d.orang||d.penjahit||d.operator||"";
   let docs = await fsAll("transaksi");
   if(tgl)   docs = docs.filter(d=>d.tanggal===tgl);
+  if(dari)  docs = docs.filter(d=>(d.tanggal||"")>=dari);
+  if(ke)    docs = docs.filter(d=>(d.tanggal||"")<=ke);
   if(type)  docs = docs.filter(d=>d.type===type);
-  if(orang) docs = docs.filter(d=>d.orang===orang);
+  if(orang) docs = docs.filter(d=>siapa(d)===orang);
   docs.sort((a,b)=>(b.tanggal||"").localeCompare(a.tanggal||"")||0);
   document.getElementById("rw-cnt").textContent = docs.length;
+  // Ringkasan sesuai filter (per orang / periode)
+  const orgEl = document.getElementById("rw-org");
+  if(orang||tgl||dari||ke||type){
+    const pcs = d => (d.items||[]).reduce((s,i)=>s+(Number(i.pcs||i.qty||i.jumlah)||(i.ukuran&&typeof i.ukuran==='object'?Object.values(i.ukuran).reduce((a,b)=>a+(Number(b)||0),0):0)),0);
+    const by = t => docs.filter(d=>d.type===t);
+    const upah = docs.reduce((s,d)=>s+(Number(d.totalUpah)||0),0);
+    const periode = tgl ? fmtTgl(tgl) : (dari||ke) ? `${dari?fmtTgl(dari):"awal"} – ${ke?fmtTgl(ke):"sekarang"}` : "semua tanggal";
+    orgEl.innerHTML = `<div style="grid-column:1/-1;background:none;border:none;padding:0 2px"><span>Ringkasan ${orang?"<b style='display:inline;font-size:13px;color:#034543'>"+orang+"</b> · ":""}${periode}</span></div>
+      <div><span>Setor Jahitan</span><b>${by("jahit").length}×</b><span>${by("jahit").reduce((s,d)=>s+pcs(d),0)} pcs</span></div>
+      <div><span>Setor Guntingan</span><b>${by("gunting").length}×</b><span>${by("gunting").reduce((s,d)=>s+pcs(d),0)} pcs</span></div>
+      <div><span>Ambil Jahitan</span><b>${by("ambil").length}×</b><span>${by("ambil").reduce((s,d)=>s+pcs(d),0)} pcs</span></div>
+      <div><span>Total Upah</span><b>${fmtRp(upah)}</b><span>${docs.length} transaksi</span></div>`;
+    orgEl.style.display = "";
+  } else orgEl.style.display = "none";
   const el = document.getElementById("rw-body");
   if(!docs.length){el.innerHTML='<div class="empty">Belum ada data untuk filter ini.</div>';return;}
   const canEdit = role !== "guest";
@@ -2814,6 +2843,11 @@ async function doExport(fmt) {
   let docs = await fsAll("transaksi");
   if(dari) docs = docs.filter(d=>d.tanggal>=dari);
   if(ke)   docs = docs.filter(d=>d.tanggal<=ke);
+  // Ikut filter orang / jenis / tanggal di Riwayat
+  const fOrang = document.getElementById("f-orang").value, fType = document.getElementById("f-type").value, fTgl = document.getElementById("f-tgl").value;
+  if(fOrang) docs = docs.filter(d=>(d.orang||d.penjahit||d.operator)===fOrang);
+  if(fType)  docs = docs.filter(d=>d.type===fType);
+  if(fTgl)   docs = docs.filter(d=>d.tanggal===fTgl);
   docs.sort((a,b)=>(a.tanggal||"").localeCompare(b.tanggal||""));
   const rows = [];
   docs.forEach(d=>{
