@@ -1671,6 +1671,45 @@ function colK() {
 // ── FOTO ──────────────────────────────────────────────────────────────────────
 function onFoto(p, inp) { fF[p].push(...[...inp.files].filter(f=>f.type.startsWith("image/"))); renderFG(p); inp.value=""; }
 function clearF(p)      { fF[p]=[]; renderFG(p); }
+
+// ── Foto: drag & drop, tempel (Cmd+V) & tombol "Tempel foto" — tanpa perlu menyimpan foto dulu ──
+function tambahFotoKe(p, files) {
+  const img = [...files].filter(f => f && f.type && f.type.startsWith("image/"));
+  if (!img.length) return 0;
+  fF[p].push(...img.map((f, i) => f.name && f.name !== "image.png" ? f : new File([f], `tempel-${Date.now()}-${i}.${(f.type.split("/")[1] || "png")}`, { type: f.type })));
+  renderFG(p); return img.length;
+}
+function pasangFotoArea() {
+  document.querySelectorAll(".farea").forEach(area => {
+    const inp = area.querySelector('input[type=file]'); if (!inp || area.dataset.siap) return;
+    const p = inp.id.replace(/-fi$/, ""); area.dataset.siap = "1"; area.dataset.p = p;
+    area.addEventListener("dragover", e => { e.preventDefault(); area.style.borderColor = "var(--g)"; area.style.background = "var(--gdim)"; });
+    area.addEventListener("dragleave", () => { area.style.borderColor = ""; area.style.background = ""; });
+    area.addEventListener("drop", e => { e.preventDefault(); area.style.borderColor = ""; area.style.background = "";
+      const n = tambahFotoKe(p, e.dataTransfer.files); toast(n ? `📸 ${n} foto ditambahkan` : "Yang ditarik bukan foto", n ? "s" : "w"); });
+    // Tombol tempel untuk iPad/HP tanpa keyboard
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "btsm"; btn.textContent = "📋 Tempel foto"; btn.style.marginTop = "6px";
+    btn.onclick = async e => {
+      e.stopPropagation();
+      try {
+        const items = await navigator.clipboard.read(); const files = [];
+        for (const it of items) { const t = it.types.find(x => x.startsWith("image/")); if (t) files.push(new File([await it.getType(t)], "image.png", { type: t })); }
+        const n = tambahFotoKe(p, files); toast(n ? `📸 ${n} foto ditempel` : "Tidak ada foto di clipboard — salin fotonya dulu", n ? "s" : "w");
+      } catch (err) { toast("Tempel tidak diizinkan browser — tekan kotak foto untuk memilih, atau tekan ⌘V", "w"); }
+    };
+    area.insertAdjacentElement("afterend", btn);
+    const lbl = area.querySelector("div:last-child"); if (lbl && !/tempel/i.test(lbl.textContent)) lbl.textContent += " · tarik foto ke sini · ⌘V tempel";
+  });
+}
+// Cmd+V / Ctrl+V di halaman yang punya kotak foto → masuk ke kotak foto halaman itu
+document.addEventListener("paste", e => {
+  const files = [...(e.clipboardData?.files || [])]; if (!files.some(f => f.type.startsWith("image/"))) return;
+  const area = document.querySelector(".sec.active .farea[data-p]"); if (!area) return;
+  e.preventDefault();
+  const n = tambahFotoKe(area.dataset.p, files); if (n) toast(`📸 ${n} foto ditempel`, "s");
+});
+document.addEventListener("DOMContentLoaded", pasangFotoArea);
 function renderFG(p) {
   const g=document.getElementById(p+"-fg"); if(!g) return;
   g.innerHTML=fF[p].map((f,i)=>{
