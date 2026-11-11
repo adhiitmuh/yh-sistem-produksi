@@ -474,6 +474,8 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
       <div class="fg"><label>Operator</label><select id="g-op" onchange="loadGuntingPending()"><option value="">— Pilih —</option></select></div>
       <div class="fg"><label>Order (Custom Order)</label><select id="g-ord" class="pilih-order"><option value="">— Pilih order Custom Order —</option></select></div>
       <div class="fg"><label>Jenis Kain</label><input type="text" id="g-kain" placeholder="Drill, TC..."></div>
+      <div class="fg"><label>Meter kain terpakai</label><input type="number" id="g-meter" min="0" step="0.01" placeholder="terisi otomatis" oninput="this.dataset.manual='1'"><div id="g-meter-info" style="font-size:10px;color:var(--t2);margin-top:3px"></div></div>
+      <div class="fg"><label>Sisa kain dikembalikan (m)</label><input type="number" id="g-sisa" min="0" step="0.01" placeholder="0"><div style="font-size:10px;color:var(--t2);margin-top:3px">Masuk lagi ke stok kain</div></div>
     </div>
     <div id="g-pending-wrap" style="display:none;margin-bottom:12px">
       <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">📋 Pilih dari kain yang diambil operator ini (belum disetor)</div>
@@ -1564,6 +1566,18 @@ function calcG() {
   });
   document.getElementById("g-tp").textContent=p;
   document.getElementById("g-tl").textContent=l;
+  // Perkiraan meter terpakai = pcs × meter/pcs dari pengambilan kain (per ukuran)
+  let est=0, adaMpp=false;
+  document.querySelectorAll("#g-blocks .iblock[data-mpp]").forEach(b=>{
+    let mpp={}; try{ mpp=JSON.parse(b.dataset.mpp); }catch(e){}
+    adaMpp=true;
+    b.querySelectorAll(".ukin").forEach(inp=>{ est += (+inp.value||0) * (mpp[inp.dataset.ukuran] ?? mpp["*"] ?? 0); });
+  });
+  const gm=document.getElementById("g-meter"), gi=document.getElementById("g-meter-info");
+  if(gm&&gi){
+    if(adaMpp){ if(!gm.dataset.manual) gm.value = est ? est.toFixed(2) : ""; gi.textContent = "Perkiraan dari pengambilan kain: "+est.toFixed(2)+" m"+(gm.dataset.manual?" (diubah manual)":""); }
+    else gi.textContent = "";
+  }
   document.getElementById("g-tu").textContent="Rp "+fmt(u);
 }
 function calcA() {
@@ -1884,6 +1898,12 @@ async function isiDariPengambilanKain(op, item) {
   const ka = (await fsQuery("kain_ambil", ["operator", "==", op])).filter(d => d.item === item)
     .sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)));
   const d = ka[0]; if (!d) return;
+  // Meter per pcs per ukuran dari semua pengambilan kain operator untuk item ini
+  const jm = {}, jp = {}; let tm = 0, tp = 0;
+  ka.forEach(x => (x.rows||[]).forEach(r => { if (r.pcs > 0 && r.meter > 0) { jm[r.ukuran] = (jm[r.ukuran]||0) + r.meter; jp[r.ukuran] = (jp[r.ukuran]||0) + r.pcs; tm += r.meter; tp += r.pcs; } }));
+  const mpp = { "*": tp ? tm / tp : 0 }; Object.keys(jm).forEach(u => { mpp[u] = jm[u] / jp[u]; });
+  const blk = [...document.querySelectorAll("#g-blocks .iblock[data-dari]")].find(b => b.dataset.item === item);
+  if (blk && tp) { blk.dataset.mpp = JSON.stringify(mpp); calcG(); }
   const kainEl = document.getElementById("g-kain"), ordEl = document.getElementById("g-ord");
   if (!kainEl.value.trim()) kainEl.value = d.kain || "";
   if (!ordEl.value) {
@@ -2013,6 +2033,8 @@ async function submitGunting() {
   if(!tgl||!op) return toast("Tanggal & operator wajib!");
   const it=colG(); if(!it.length) return toast("Minimal 1 item!");
   if(!wajibOrder("g-ord")) return;
+  const gMeter = +document.getElementById("g-meter").value || 0, gSisa = +document.getElementById("g-sisa").value || 0;
+  if(!gMeter && document.querySelector("#g-blocks .iblock[data-dari]")) return toast("Isi Meter kain terpakai (perkiraan terisi otomatis dari pengambilan kain)","w");
   const sakCek = (await fsGet("config","stok_ambil_kain")) || {};
   const cekG = await cekTersedia("Guntingan melebihi kain yang diambil",it,sakCek[op]||{});
   if(!cekG.ok) return;
@@ -2030,7 +2052,7 @@ async function submitGunting() {
   if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
   try {
     const fotos = await uploadFotos(fF.g);
-    await fsAdd("transaksi",{type:"gunting",tanggal:tgl,orang:op,order:namaOrder(document.getElementById("g-ord").value),orderId:idOrder(document.getElementById("g-ord").value),kain:document.getElementById("g-kain").value,items:it,totalPcs:tp,totalLembar:tl,totalUpah:tu,...(cekG.catatan?{lebihStok:cekG.catatan}:{}),keterangan:document.getElementById("g-ket").value,fotos});
+    await fsAdd("transaksi",{type:"gunting",tanggal:tgl,orang:op,order:namaOrder(document.getElementById("g-ord").value),orderId:idOrder(document.getElementById("g-ord").value),meterTerpakai:gMeter,sisaKain:gSisa,kain:document.getElementById("g-kain").value,items:it,totalPcs:tp,totalLembar:tl,totalUpah:tu,...(cekG.catatan?{lebihStok:cekG.catatan}:{}),keterangan:document.getElementById("g-ket").value,fotos});
     // Tambah stok guntingan
     const sg = (await fsGet("config","stok_guntingan")) || {};
     if(!sg[op]) sg[op]={};
@@ -2039,9 +2061,13 @@ async function submitGunting() {
     // Kurangi kain yang dipegang operator
     const sak = (await fsGet("config","stok_ambil_kain")) || {};
     if(sak[op]) { it.forEach(i=>{ const k=`${i.nama}||${i.ukuran}`; if(sak[op][k]!==undefined) sak[op][k]=Math.max(0,sak[op][k]-i.pcs); }); await fsSet("config","stok_ambil_kain",sak); }
-    toast("✓ Setoran "+op+" disimpan! Stok guntingan diupdate.");
+    // Sisa kain dikembalikan → masuk lagi ke stok kain
+    const gKain = document.getElementById("g-kain").value.trim();
+    if(gSisa>0 && gKain){ const kStok=(await fsGet("config","stok_kain"))||{}; kStok[gKain]=(+kStok[gKain]||0)+gSisa; await fsSet("config","stok_kain",kStok); }
+    toast("✓ Setoran "+op+" disimpan! Stok guntingan diupdate."+(gSisa>0&&gKain?" Sisa "+gSisa+" m "+gKain+" kembali ke stok kain.":""));
     kirimProgresOrder(document.getElementById("g-ord").value);
-    ["g-op","g-ord","g-kain","g-ket"].forEach(id=>document.getElementById(id).value="");
+    ["g-op","g-ord","g-kain","g-ket","g-meter","g-sisa"].forEach(id=>document.getElementById(id).value="");
+    delete document.getElementById("g-meter").dataset.manual; document.getElementById("g-meter-info").textContent="";
     document.getElementById("g-blocks").innerHTML=""; addGuntingBlock(); calcG(); clearF("g"); loadGuntingPending();
   } catch(e) {
     const msg = e.message||e.code||String(e);
@@ -3030,6 +3056,14 @@ async function toggleRataRata() {
   toggle.textContent="▲ Tutup"; content.style.display="";
   const docs = await fsAll("kain_ambil");
   const map = {};
+  // Aktual dari Setor Guntingan: meter terpakai ÷ pcs digunting
+  const akt = {};
+  (await fsQuery("transaksi", ["type", "==", "gunting"])).forEach(d => {
+    if (!(d.meterTerpakai > 0)) return;
+    const per = {}; (d.items||[]).forEach(i => { per[i.nama] = (per[i.nama]||0) + (+i.pcs||0); });
+    const tot = Object.values(per).reduce((a,b) => a+b, 0) || 1;
+    Object.entries(per).forEach(([n, q]) => { const x = akt[n] = akt[n] || { m:0, p:0 }; x.m += d.meterTerpakai * q / tot; x.p += q; });
+  });
   docs.forEach(d=>{
     if(!d.item||!d.rows) return;
     if(!map[d.item]) map[d.item]={total_m:0,total_pcs:0,count:0};
@@ -3046,6 +3080,8 @@ async function toggleRataRata() {
       <div class="rcrow"><span>Rata-rata Meter/Order</span><span>${avgM.toFixed(2)}m</span></div>
       <div class="rcrow"><span>Rata-rata Pcs/Order</span><span>${Math.round(avgP)} pcs</span></div>
       <div class="rcrow"><span>Jumlah Order</span><span>${r.count}</span></div>
+      <div class="rcrow"><span>Rencana meter/pcs (pengambilan)</span><span>${r.total_pcs?(r.total_m/r.total_pcs).toFixed(2)+"m":"-"}</span></div>
+      <div class="rcrow"><span><b>Aktual meter/pcs (penggunting)</b></span><span><b>${akt[it]&&akt[it].p?(akt[it].m/akt[it].p).toFixed(2)+"m":"-"}</b></span></div>
     </div>`;
   }).join("") || '<div class="empty">Belum ada data.</div>';
 }
