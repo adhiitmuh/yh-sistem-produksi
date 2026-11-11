@@ -390,6 +390,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
     <div class="nt" onclick="go('ringkasan')" id="t-ringkasan">📈 Ringkasan</div>
     <div class="nt" onclick="go('riwayat')" id="t-riwayat">📋 Riwayat</div>
     <div class="nt" onclick="go('alihtgas')" id="t-alihtgas">🔄 Alih Tugas</div>
+    <div class="nt" onclick="go('lacak')" id="t-lacak">🧭 Lacak Order</div>
     <div class="nt" onclick="go('progress')" id="t-progress">📌 Progress</div>
     <div class="nt" onclick="go('kasbon')" id="t-kasbon">💰 Kasbon</div>
     <div class="nt" onclick="go('bayar')" id="t-bayar">💸 Pembayaran</div>
@@ -679,6 +680,12 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
 </div>
 
 <!-- PROGRESS -->
+<div class="sec" id="s-lacak">
+  <div class="ph"><div class="pt">🧭 Lacak Order & Deadline</div><div class="ps">Posisi tiap order Custom Order di produksi, dan penjahit yang terlambat</div></div>
+  <div class="tw" style="margin-bottom:14px"><div class="th2"><span class="tt">⏰ Deadline Penjahit</span><span class="bdg" id="dl-cnt">0</span></div><div id="dl-list" style="padding:10px 14px"></div></div>
+  <div class="tw"><div class="th2"><span class="tt">📦 Order Konveksi Berjalan</span><span class="bdg" id="lo-cnt">0</span></div><div id="lo-list" style="padding:10px 14px"></div></div>
+</div>
+
 <div class="sec" id="s-progress">
   <div class="ph"><div class="pt">📌 Progress Penjahit</div><div class="ps">Monitor bahan di tangan, sudah disetor, dan progress per penjahit</div></div>
   <div id="progress-content"></div>
@@ -1395,7 +1402,7 @@ async function delItem(i) {
 }
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
-const VALID_PAGES = ["kain-masuk","kain-ambil","gunting","ambil","jahit","qc","stok","keluar","ringkasan","riwayat","alihtgas","progress","kasbon","bayar","setting","modal"];
+const VALID_PAGES = ["kain-masuk","kain-ambil","gunting","ambil","jahit","qc","stok","keluar","ringkasan","riwayat","alihtgas","lacak","progress","kasbon","bayar","setting","modal"];
 function go(name) {
   document.querySelectorAll(".sec").forEach(s => s.classList.remove("active"));
   document.querySelectorAll(".nt").forEach(t => t.classList.remove("active"));
@@ -1418,6 +1425,7 @@ function go(name) {
   if (name==="ambil")      loadPilihAmbil();
   if (name==="jahit")      loadPilihJahit();
   if (name==="alihtgas")   loadAlihTugasHist();
+  if (name==="lacak")      loadLacak();
   if (name==="progress")   loadProgress();
 }
 
@@ -1849,6 +1857,52 @@ async function tebakOrderJahit(pj, item) {
   const tr = (await fsQuery("transaksi", ["orang", "==", pj])).filter(d => d.type === "ambil" && d.orderId && (d.items || []).some(i => i.nama === item));
   tr.sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)));
   if (tr[0] && [...sel.options].some(o => o.value === tr[0].orderId)) sel.value = tr[0].orderId;
+}
+
+// ── LACAK ORDER & DEADLINE ───────────────────────────────────────────────────
+const hariIniISO = () => { const d = new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
+const selisihHari = (a, b) => Math.round((new Date(a+"T00:00:00") - new Date(b+"T00:00:00")) / 864e5);
+async function loadLacak() {
+  const dl = document.getElementById("dl-list"), lo = document.getElementById("lo-list");
+  dl.innerHTML = lo.innerHTML = '<div class="empty">Memuat…</div>';
+  const [orders, tr, ka, qc, sj] = await Promise.all([muatOrderCO(true), fsAll("transaksi"), fsAll("kain_ambil"), fsAll("qc"), fsGet("config","stok_jahitan")]);
+  const hari = hariIniISO();
+  // Deadline: pengambilan jahitan bertarget yang bahannya masih dipegang penjahit
+  const pegang = sj || {};
+  const ambil = tr.filter(d => d.type === "ambil" && d.deadline).map(d => {
+    const sisa = (d.items||[]).map(i => ({ i, n: Math.min(i.pcs||0, (pegang[d.orang]||{})[i.nama+"||"+i.ukuran]||0) })).filter(x => x.n > 0);
+    return { d, sisa, lewat: selisihHari(hari, d.deadline) };
+  }).filter(x => x.sisa.length && x.lewat >= -3).sort((a,b) => b.lewat - a.lewat);
+  document.getElementById("dl-cnt").textContent = ambil.length;
+  dl.innerHTML = ambil.length ? ambil.map(({d, sisa, lewat}) => {
+    const lbl = lewat > 0 ? `<span style="color:var(--r);font-weight:800">Terlambat ${lewat} hari</span>` : lewat === 0 ? `<span style="color:#d97706;font-weight:800">Hari ini</span>` : `<span style="color:var(--t2);font-weight:700">${-lewat} hari lagi</span>`;
+    return `<div style="padding:8px 0;border-bottom:1px solid var(--b);font-size:12px;display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between">
+      <div><b>🪡 ${escH(d.orang)}</b> ${d.order?`· <span class="tag">${escH(d.order)}</span>`:""}<div style="color:var(--t2);margin-top:3px">Masih dipegang: ${sisa.map(x => escH(x.i.nama)+" "+escH(x.i.ukuran)+": "+x.n).join(" · ")}</div></div>
+      <div style="text-align:right">${lbl}<div style="color:var(--t2);font-size:11px">target ${fmtTgl(d.deadline)}</div></div></div>`;
+  }).join("") : '<div class="empty">Tidak ada penjahit yang terlambat atau jatuh tempo 3 hari ke depan. 👍</div>';
+  // Per order
+  const per = {};
+  const tambah = (id, k, n, tgl) => { if (!id) return; const x = per[id] = per[id] || { kain:0, gunting:0, ambil:0, jahit:0, qc:0, akhir:"" }; x[k] += n; if (tgl && tgl > x.akhir) x.akhir = tgl; };
+  const pcs = d => +d.totalPcs || (d.items||[]).reduce((s,i) => s + (+i.pcs||0), 0);
+  ka.forEach(d => tambah(d.orderId, "kain", (d.rows||[]).reduce((s,r) => s + (+r.pcs||0), 0), d.tanggal));
+  tr.forEach(d => { if (["gunting","ambil","jahit"].includes(d.type)) tambah(d.orderId, d.type, pcs(d), d.tanggal); });
+  qc.forEach(d => tambah(d.orderId, "qc", (d.items||[]).reduce((s,i) => s + (+i.ok||0), 0), d.tanggal));
+  document.getElementById("lo-cnt").textContent = orders.length;
+  const tahap = [["kain","Kain diambil"],["gunting","Digunting"],["ambil","Ke penjahit"],["jahit","Dijahit"],["qc","Lolos QC"]];
+  lo.innerHTML = orders.length ? orders.map(o => {
+    const x = per[o.id] || { kain:0, gunting:0, ambil:0, jahit:0, qc:0, akhir:"" }, t = o.totalQty || 0;
+    const sisaHari = o.dueDate ? selisihHari(o.dueDate, hari) : null;
+    const diam = x.akhir ? selisihHari(hari, x.akhir) : null;
+    const tanda = !x.akhir ? '<span style="color:#d97706;font-weight:700">Belum mulai</span>'
+      : diam >= 5 ? `<span style="color:var(--r);font-weight:700">Tidak ada kegiatan ${diam} hari</span>` : `<span style="color:var(--t2)">Kegiatan terakhir ${fmtTgl(x.akhir)}</span>`;
+    const pct = t ? Math.min(100, Math.round(x.jahit / t * 100)) : 0;
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--b);font-size:12px">
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><div><b>${escH(o.orderNumber)}</b> · ${escH(o.customerName)} <span style="color:var(--t2)">· ${o.items.map(i => escH(i.name)).join(", ")} · ${t} pcs</span></div>
+        <div>${sisaHari === null ? "" : sisaHari < 0 ? `<span style="color:var(--r);font-weight:800">Lewat target ${-sisaHari} hari</span>` : `<span style="color:${sisaHari <= 3 ? "#d97706" : "var(--t2)"};font-weight:700">Target ${fmtTgl(o.dueDate)} (${sisaHari} hari)</span>`}</div></div>
+      <div style="height:6px;background:var(--b);border-radius:4px;margin:7px 0;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--g)"></div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${tahap.map(([k,l]) => `<span class="tag">${l}: <b>${x[k]}</b>${t ? "/" + t : ""}</span>`).join("")} ${tanda}</div>
+    </div>`;
+  }).join("") : '<div class="empty">Belum ada order Konveksi yang berjalan di Custom Order (atau gagal dimuat).</div>';
 }
 // ── SUBMIT GUNTING ────────────────────────────────────────────────────────────
 async function submitGunting() {
