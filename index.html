@@ -2639,6 +2639,9 @@ async function submitKainAmbil() {
     if((pcs||m) && uk) rows.push({ukuran:uk,pcs,meter:m});
   });
   if(!rows.length) return toast("Isi minimal 1 ukuran!","w");
+  // Meter wajib: tanpa meter stok kain tidak berkurang & rata-rata pemakaian kain jadi salah
+  const tanpaMeter = rows.filter(r=>r.pcs>0 && !(r.meter>0)).map(r=>r.ukuran);
+  if(tanpaMeter.length) return toast("Isi kolom Meter untuk ukuran: "+tanpaMeter.join(", ")+" — supaya stok kain berkurang & rata-rata kain benar","w");
   const totM = rows.reduce((s,r)=>s+r.meter,0);
   if(!await confirm2(`Ambil ${totM.toFixed(2)}m ${kain} untuk ${op}?`)) return;
   await fsAdd("kain_ambil",{tanggal:tgl,operator:op,kain,item,rows,totalMeter:totM,ket});
@@ -2665,7 +2668,7 @@ async function loadKainAmbilHist() {
 // ── MISC HELPERS ──────────────────────────────────────────────────────────────
 function addKaUkuranRow() {
   const el = document.getElementById("ka-ukuran-rows");
-  const idx = el.children.length;
+  const idx = (window._kaRowSeq = (window._kaRowSeq||0) + 1);  // selalu unik walau ada baris yang dihapus
   const div = document.createElement("div");
   div.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px";
   div.innerHTML = `<input type="text" id="kau-uk-${idx}" placeholder="Ukuran" style="width:70px">
