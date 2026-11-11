@@ -1962,6 +1962,7 @@ async function hitungProduksiOrder(orderId) {
   const jumlahPcs = arr => arr.reduce((t, d) => t + (+d.totalPcs || (d.items || []).reduce((s, i) => s + (+i.pcs || 0), 0)), 0);
   const [ka, tr, qc] = await Promise.all([fsQuery("kain_ambil", ["orderId", "==", orderId]), fsQuery("transaksi", ["orderId", "==", orderId]), fsQuery("qc", ["orderId", "==", orderId])]);
   return {
+    biaya: await hitungBiayaOrder(orderId, ka, tr),
     kain: ka.reduce((t, d) => t + (d.rows || []).reduce((s, r) => s + (+r.pcs || 0), 0), 0),
     gunting: jumlahPcs(tr.filter(d => d.type === "gunting")),
     ambil: jumlahPcs(tr.filter(d => d.type === "ambil")),
@@ -1969,13 +1970,31 @@ async function hitungProduksiOrder(orderId) {
     qc: qc.reduce((t, d) => t + (d.items || []).reduce((s, i) => s + (+i.ok || 0), 0), 0),
   };
 }
+// Biaya produksi aktual satu order: kain (meter diambil − sisa kembali) × harga/m + upah gunting & jahit
+async function hitungBiayaOrder(orderId, ka, tr) {
+  const km = await fsAll("kain_masuk");
+  const harga = kain => {
+    const rata = arr => { const m = arr.reduce((t,d) => t + (+d.meter||0), 0); return m ? arr.reduce((t,d) => t + (+d.hargaMeter||0) * (+d.meter||0), 0) / m : 0; };
+    const untukOrder = km.filter(d => d.kain === kain && d.orderId === orderId && d.hargaMeter > 0);
+    if (untukOrder.length) return rata(untukOrder);
+    const terakhir = km.filter(d => d.kain === kain && d.hargaMeter > 0).sort((a,b) => String(b.tanggal).localeCompare(String(a.tanggal)))[0];
+    return terakhir ? +terakhir.hargaMeter : 0;
+  };
+  const meter = {};
+  ka.forEach(d => { const mpk = d.meterPerKain && Object.keys(d.meterPerKain).length ? d.meterPerKain : { [d.kain]: +d.totalMeter||0 }; Object.entries(mpk).forEach(([k,m]) => { meter[k] = (meter[k]||0) + (+m||0); }); });
+  tr.filter(d => d.type === "gunting").forEach(d => Object.entries(d.sisaPerKain || {}).forEach(([k,m]) => { meter[k] = (meter[k]||0) - (+m||0); }));
+  let kain = 0; const tanpaHarga = [];
+  Object.entries(meter).forEach(([k,m]) => { if (m <= 0) return; const h = harga(k); if (h) kain += m * h; else tanpaHarga.push(k); });
+  const upah = t => tr.filter(d => d.type === t).reduce((s,d) => s + (+d.totalUpah||0), 0);
+  return { kain: Math.round(kain), upahGunting: Math.round(upah("gunting")), upahJahit: Math.round(upah("jahit")), kainTanpaHarga: tanpaHarga };
+}
 async function kirimProgresOrder(orderId) {
   orderId = idOrder(orderId);
   if (!orderId) return;
   try {
     const jumlah = await hitungProduksiOrder(orderId);
     const tok = await auth.currentUser?.getIdToken(); if (!tok) return;
-    const r = await fetch(CO_WORKER + "/yh/progress", { method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" }, body: JSON.stringify({ orderId, jumlah }) });
+    const r = await fetch(CO_WORKER + "/yh/progress", { method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" }, body: JSON.stringify({ orderId, jumlah: { kain: jumlah.kain, gunting: jumlah.gunting, ambil: jumlah.ambil, jahit: jumlah.jahit, qc: jumlah.qc }, biaya: jumlah.biaya }) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || r.status);
     const o = _ordersCO.find(x => x.id === orderId); if (o) o.progressPercentage = d.progressPercentage;
@@ -3121,6 +3140,7 @@ async function submitKainMasuk() {
   kStok[kain] = (kStok[kain]||0) + meter;
   await db.collection("config").doc("stok_kain").set(kStok);
   toast("Kain masuk disimpan!");
+  kirimProgresOrder(kmOrd);
   ["km-tgl","km-kain","km-meter","km-supplier","km-ket","km-ord","km-harga"].forEach(id=>document.getElementById(id).value="");
   await loadKainMasukHist();
 }
