@@ -394,7 +394,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
     <div class="nt" onclick="go('progress')" id="t-progress">📌 Progress</div>
     <div class="nt" onclick="go('kasbon')" id="t-kasbon">💰 Kasbon</div>
     <div class="nt" onclick="go('bayar')" id="t-bayar">💸 Pembayaran</div>
-    <div class="nt" onclick="go('setting')" id="t-setting">⚙️ Pengaturan</div>
+    <div class="nt hanya-admin" onclick="go('setting')" id="t-setting" style="display:none">⚙️ Pengaturan</div>
     <div class="nt" onclick="go('modal')" id="t-modal" style="display:none">💰 Dashboard Modal</div>
   </nav>
   <div class="sb-foot">
@@ -1390,7 +1390,7 @@ function loadKainList() {
 
 // ── ITEM MASTER ───────────────────────────────────────────────────────────────
 function getIM(n) { return itemMaster.find(i => i.nama.toLowerCase() === n.toLowerCase()); }
-async function saveIM() { settings.items = itemMaster; await saveSettings(); }
+async function saveIM() { if (role !== "admin") return; settings.items = itemMaster; await saveSettings(); }
 
 function renderItemTable() {
   const w = document.getElementById("item-tbl"); if (!w) return;
@@ -1436,6 +1436,8 @@ async function delItem(i) {
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
 const VALID_PAGES = ["kain-masuk","kain-ambil","gunting","ambil","jahit","qc","stok","keluar","ringkasan","riwayat","alihtgas","lacak","progress","kasbon","bayar","setting","modal"];
 function go(name) {
+  // Pengaturan (daftar item & upah, penjahit, petugas gudang) dan Dashboard Modal hanya untuk Admin
+  if ((name === "setting" || name === "modal") && role !== "admin") name = "kain-masuk";
   document.querySelectorAll(".sec").forEach(s => s.classList.remove("active"));
   document.querySelectorAll(".nt").forEach(t => t.classList.remove("active"));
   document.getElementById("s-"+name).classList.add("active");
@@ -1798,7 +1800,7 @@ function pilihDari(pre, item) {
       <input type="hidden" class="ibn" value="${escH(item)}">
       <div style="font-weight:700;flex:1">${escH(item)}</div>
       ${cfg.lembar?`<div class="fg" style="flex:0 0 95px"><input type="number" class="ibl" placeholder="Lembar" min="0" oninput="${cfg.fn}()" style="font-family:var(--m)"></div>`:""}
-      <div class="fg" style="flex:0 0 115px"><input type="text" inputmode="numeric" class="ibu" placeholder="Upah/pcs" value="${upah?fmt(upah):""}" oninput="fmtRpIn(this);${cfg.fn}()" style="font-family:var(--m)"></div>
+      <div class="fg" style="flex:0 0 115px"><input type="text" inputmode="numeric" class="ibu" placeholder="Upah/pcs" value="${upah?fmt(upah):""}" ${role!=="admin"?'readonly title="Upah diambil dari daftar upah (diatur Admin)"':""} oninput="fmtRpIn(this);${cfg.fn}()" style="font-family:var(--m)"></div>
       <button type="button" class="btnrm" onclick="this.closest('.iblock').remove();${cfg.fn}()">&#215;</button>
     </div>
     <div class="uksec"><div class="ukgl">Jumlah per Ukuran (tidak boleh melebihi yang tersedia)</div><div class="ukgrid">${Object.entries(uk).map(([u,q])=>`<div class="uki"><div class="ukl">${escH(u)}</div><input type="number" class="ukin" data-ukuran="${escH(u)}" min="0" max="${q}" value="${q}" oninput="${cfg.fn}()"><div style="font-size:9px;color:var(--t2);text-align:center">maks ${q}</div></div>`).join("")}</div></div>
