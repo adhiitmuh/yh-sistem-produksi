@@ -441,19 +441,19 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="ka-tgl"></div>
       <div class="fg"><label>Operator</label><select id="ka-op"><option value="">— Pilih —</option></select></div>
-      <div class="fg"><label>Nama Kain</label><select id="ka-kain" onchange="updateKainInfo()"><option value="">— Pilih —</option></select></div>
-      <div class="fg"><label>Nama Item</label><input type="text" id="ka-item" placeholder="Korpri Pria, PDH..."></div>
+      <div class="fg"><label>Nama Item</label><input type="text" id="ka-item" placeholder="Korpri Pria, PDH..." onchange="if(!document.querySelector('#ka-ukuran-rows .ka-row'))buildKainUkuranRows()"></div>
+      <div class="fg" style="grid-column:1/-1"><label>Kain <span style="font-weight:500;color:var(--t2)">— bisa lebih dari satu untuk baju/celana kombinasi (2–3 warna)</span></label>
+        <div id="ka-kain-list"></div>
+        <button type="button" class="btsm" onclick="addKaKain()" style="margin-top:6px">+ Tambah kain kombinasi</button></div>
       <div class="fg" style="grid-column:1/-1"><label>Order (Custom Order)</label><select id="ka-ord" class="pilih-order" onchange="isiDariOrder()"><option value="">— Pilih order Custom Order —</option></select><div id="ka-ord-info" style="font-size:11px;color:var(--t2);margin-top:4px"></div></div>
     </div>
-    <div id="ka-stok-info" style="display:none;background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);padding:10px 13px;margin-bottom:11px;font-size:12px">
-      <span style="color:var(--t2)">Sisa stok </span><span id="ka-stok-nama" style="font-weight:700"></span><span style="color:var(--t2)">: </span>
-      <span id="ka-stok-sisa" style="font-family:var(--m);font-weight:800;color:var(--g)">0 meter</span>
-    </div>
-    <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Detail Per Ukuran</div>
+    <div id="ka-stok-info" style="display:none;background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);padding:10px 13px;margin-bottom:11px;font-size:12px"></div>
+    <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Detail Per Ukuran <span style="text-transform:none;font-weight:500">— isi meter untuk setiap kain</span></div>
+    <div id="ka-ukuran-head" style="display:flex;gap:8px;font-size:10px;font-weight:700;color:var(--t2);margin-bottom:4px"></div>
     <div id="ka-ukuran-rows"></div>
     <button class="btn btgh" onclick="addKaUkuranRow()">+ Tambah Ukuran</button>
     <div class="sb">
-      <div><div class="sil">Total Meter</div><div class="siv" style="color:var(--bl)" id="ka-tot-meter">0</div></div>
+      <div><div class="sil">Total Meter</div><div class="siv" style="color:var(--bl)" id="ka-tot-meter">0</div><div id="ka-tot-perkain" style="font-size:10px;color:var(--t2)"></div></div>
       <div><div class="sil">Total Pcs</div><div class="siv" style="color:var(--g)" id="ka-tot-pcs">0</div></div>
     </div>
     <div class="fg" style="margin-bottom:10px"><label>Keterangan</label><input type="text" id="ka-ket" placeholder="Opsional..."></div>
@@ -479,7 +479,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
       <div class="fg"><label>Order (Custom Order)</label><select id="g-ord" class="pilih-order"><option value="">— Pilih order Custom Order —</option></select></div>
       <div class="fg"><label>Jenis Kain</label><input type="text" id="g-kain" placeholder="Drill, TC..."></div>
       <div class="fg"><label>Meter kain terpakai <span style="font-weight:500;color:var(--t2)">(otomatis)</span></label><input type="number" id="g-meter" min="0" step="0.01" placeholder="terisi otomatis" readonly oninput="this.dataset.manual='1'"><div id="g-meter-info" style="font-size:10px;color:var(--t2);margin-top:3px"></div></div>
-      <div class="fg hanya-admin" style="display:none"><label>Sisa kain dikembalikan (m) — diisi Admin/gudang</label><input type="number" id="g-sisa" min="0" step="0.01" placeholder="0"><div style="font-size:10px;color:var(--t2);margin-top:3px">Diukur saat kain sisa diterima; masuk lagi ke stok kain</div></div>
+      <div class="fg hanya-admin" style="display:none"><label>Sisa kain dikembalikan (m) — diisi Admin/gudang</label><input type="number" id="g-sisa" min="0" step="0.01" placeholder="0"><div id="g-sisa-list"></div><div style="font-size:10px;color:var(--t2);margin-top:3px">Diukur saat kain sisa diterima; masuk lagi ke stok kain</div></div>
     </div>
     <div id="g-pending-wrap" style="display:none;margin-bottom:12px">
       <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">📋 Pilih dari kain yang diambil operator ini (belum disetor)</div>
@@ -1405,7 +1405,8 @@ async function delKainMaster(nama) {
 function loadKainList() {
   const list = settings.kain || [];
   const opts = "<option value=''>— Pilih —</option>" + list.map(k => `<option>${k.nama}</option>`).join("");
-  ["km-kain","ka-kain"].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = opts; });
+  ["km-kain"].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = opts; });
+  if (!document.querySelector("#ka-kain-list .ka-kr")) addKaKain(); else document.querySelectorAll("#ka-kain-list .ka-kain-sel").forEach(sel => { const v = sel.value; sel.innerHTML = opts; sel.value = v; });
 }
 
 // ── ITEM MASTER ───────────────────────────────────────────────────────────────
@@ -1604,15 +1605,17 @@ function calcG() {
   document.getElementById("g-tp").textContent=p;
   document.getElementById("g-tl").textContent=l;
   // Perkiraan meter terpakai = pcs × meter/pcs dari pengambilan kain (per ukuran)
-  let est=0, adaMpp=false;
+  // mpp per blok: {kain: {ukuran: meter/pcs, "*": rata-rata}} — kain kombinasi dihitung masing-masing
+  let est=0, adaMpp=false; const perKain={};
   document.querySelectorAll("#g-blocks .iblock[data-mpp]").forEach(b=>{
     let mpp={}; try{ mpp=JSON.parse(b.dataset.mpp); }catch(e){}
     adaMpp=true;
-    b.querySelectorAll(".ukin").forEach(inp=>{ est += (+inp.value||0) * (mpp[inp.dataset.ukuran] ?? mpp["*"] ?? 0); });
+    Object.entries(mpp).forEach(([k,m])=>{ b.querySelectorAll(".ukin").forEach(inp=>{ const v=(+inp.value||0)*(m[inp.dataset.ukuran] ?? m["*"] ?? 0); perKain[k]=(perKain[k]||0)+v; est+=v; }); });
   });
+  window._gEst = perKain;
   const gm=document.getElementById("g-meter"), gi=document.getElementById("g-meter-info");
   if(gm&&gi){
-    if(adaMpp){ if(!gm.dataset.manual) gm.value = est ? est.toFixed(2) : ""; gi.textContent = "Perkiraan dari pengambilan kain: "+est.toFixed(2)+" m"+(gm.dataset.manual?" (diubah manual)":""); }
+    if(adaMpp){ if(!gm.dataset.manual) gm.value = est ? est.toFixed(2) : ""; gi.textContent = "Perkiraan dari pengambilan kain: "+(Object.keys(perKain).length>1?Object.entries(perKain).map(([k,m])=>k+" "+m.toFixed(2)+" m").join(" + ")+" = ":"")+est.toFixed(2)+" m"+(gm.dataset.manual?" (diubah manual)":""); }
     else gi.textContent = "";
   }
   document.getElementById("g-tu").textContent="Rp "+fmt(u);
@@ -1936,8 +1939,10 @@ function isiDariOrder() {
     if (!km.length) { info.innerHTML += '<br><span style="color:#d97706">Belum ada kain yang dibeli khusus untuk order ini (pakai stok umum).</span>'; return; }
     const per = {}; km.forEach(d => { per[d.kain] = (per[d.kain] || 0) + (+d.meter || 0); });
     info.innerHTML += "<br>🧵 Kain dibeli untuk order ini: <b>" + Object.entries(per).map(([k, m]) => escH(k) + " " + m + " m").join(", ") + "</b>";
-    const sel = document.getElementById("ka-kain");
-    if (!sel.value && Object.keys(per).length === 1 && [...sel.options].some(op => op.value === Object.keys(per)[0])) { sel.value = Object.keys(per)[0]; updateKainInfo(); }
+    if (!kaKainDipilih().length) {
+      const kains = Object.keys(per).filter(k => (settings.kain || []).some(x => x.nama === k)).slice(0, 4);
+      if (kains.length) { document.getElementById("ka-kain-list").innerHTML = ""; kains.forEach(k => addKaKain(k)); }
+    }
   }).catch(() => {});
   const itemEl = document.getElementById("ka-item");
   if (!itemEl.value.trim() && o.items.length === 1) itemEl.value = o.items[0].name;
@@ -1982,18 +1987,31 @@ async function isiDariPengambilanKain(op, item) {
     .sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)));
   const d = ka[0]; if (!d) return;
   // Meter per pcs per ukuran dari semua pengambilan kain operator untuk item ini
-  const jm = {}, jp = {}; let tm = 0, tp = 0;
-  ka.forEach(x => (x.rows||[]).forEach(r => { if (r.pcs > 0 && r.meter > 0) { jm[r.ukuran] = (jm[r.ukuran]||0) + r.meter; jp[r.ukuran] = (jp[r.ukuran]||0) + r.pcs; tm += r.meter; tp += r.pcs; } }));
-  const mpp = { "*": tp ? tm / tp : 0 }; Object.keys(jm).forEach(u => { mpp[u] = jm[u] / jp[u]; });
+  // (data lama satu kain: meter baris = kain dokumen)
+  const jm = {}, jp = {}, tm = {}, tp = {};
+  ka.forEach(x => { const kains = x.kainList || [x.kain]; (x.rows||[]).forEach(r => { if (!(r.pcs > 0)) return;
+    const meters = r.meters && Object.keys(r.meters).length ? r.meters : { [kains[0]]: r.meter };
+    Object.entries(meters).forEach(([k, m]) => { if (!(m > 0)) return; (jm[k] = jm[k] || {}); (jp[k] = jp[k] || {});
+      jm[k][r.ukuran] = (jm[k][r.ukuran]||0) + m; jp[k][r.ukuran] = (jp[k][r.ukuran]||0) + r.pcs; tm[k] = (tm[k]||0) + m; tp[k] = (tp[k]||0) + r.pcs; }); }); });
+  const mpp = {}; Object.keys(jm).forEach(k => { mpp[k] = { "*": tm[k] / tp[k] }; Object.keys(jm[k]).forEach(u => { mpp[k][u] = jm[k][u] / jp[k][u]; }); });
   const blk = [...document.querySelectorAll("#g-blocks .iblock[data-dari]")].find(b => b.dataset.item === item);
-  if (blk && tp) { blk.dataset.mpp = JSON.stringify(mpp); calcG(); }
+  if (blk && Object.keys(mpp).length) { blk.dataset.mpp = JSON.stringify(mpp); calcG(); renderSisaKain(); }
   const kainEl = document.getElementById("g-kain"), ordEl = document.getElementById("g-ord");
-  if (!kainEl.value.trim()) kainEl.value = d.kain || "";
+  if (!kainEl.value.trim()) kainEl.value = (d.kainList || [d.kain]).join(" + ");
   if (!ordEl.value) {
     const v = d.orderId || (d.order === "STOK" ? STOK_ORDER : "");
     if (v && [...ordEl.options].some(o => o.value === v)) ordEl.value = v;
   }
   toast(`Kain ${d.kain} & order diisi dari pengambilan kain ${fmtTgl(d.tanggal)} (${(+d.totalMeter||0).toFixed(1)} m)`, "i");
+}
+// Sisa kain per kain (Admin/gudang) — muncul untuk kain yang dipakai di setoran ini
+function renderSisaKain() {
+  const list = document.getElementById("g-sisa-list"), single = document.getElementById("g-sisa"); if (!list) return;
+  const kains = Object.keys(window._gEst || {});
+  if (!kains.length) { list.innerHTML = ""; single.style.display = ""; return; }
+  const lama = {}; list.querySelectorAll(".g-sisa-k").forEach(i => { lama[i.dataset.kain] = i.value; });
+  single.style.display = "none";
+  list.innerHTML = kains.map(k => `<div style="display:flex;gap:6px;align-items:center;margin-top:4px"><span style="font-size:12px;min-width:90px">${escH(k)}</span><input type="number" class="g-sisa-k" data-kain="${escH(k)}" min="0" step="0.01" placeholder="0 m" value="${escH(lama[k]||"")}"></div>`).join("");
 }
 // Setor Jahitan: tebak order dari pengambilan jahitan terakhir penjahit untuk item itu
 async function tebakOrderJahit(pj, item) {
@@ -2169,7 +2187,18 @@ async function submitGunting() {
   if(!tgl||!op) return toast("Tanggal & operator wajib!");
   const it=colG(); if(!it.length) return toast("Minimal 1 item!");
   if(!wajibOrder("g-ord")) return;
-  const gMeter = +document.getElementById("g-meter").value || 0, gSisa = role === "admin" ? (+document.getElementById("g-sisa").value || 0) : 0;
+  const gMeter = +document.getElementById("g-meter").value || 0;
+  // Meter per kain: perkiraan per kain, diskalakan kalau Admin mengubah total
+  const est = window._gEst || {}, estTot = Object.values(est).reduce((a,b)=>a+b,0);
+  const meterPerKain = {}; if (estTot > 0) Object.entries(est).forEach(([k,m]) => { meterPerKain[k] = +(m * gMeter / estTot).toFixed(2); });
+  // Sisa kain kembali (hanya Admin): per kain, atau satu angka untuk Jenis Kain
+  const sisaPerKain = {};
+  if (role === "admin") {
+    const ks = document.querySelectorAll("#g-sisa-list .g-sisa-k");
+    if (ks.length) ks.forEach(i => { if (+i.value > 0) sisaPerKain[i.dataset.kain] = +i.value; });
+    else { const v = +document.getElementById("g-sisa").value || 0, k = document.getElementById("g-kain").value.trim(); if (v > 0 && k) sisaPerKain[k] = v; }
+  }
+  const gSisa = Object.values(sisaPerKain).reduce((a,b)=>a+b,0);
   if(!gMeter && document.querySelector("#g-blocks .iblock[data-dari]")) return toast("Isi Meter kain terpakai (perkiraan terisi otomatis dari pengambilan kain)","w");
   const sakCek = (await fsGet("config","stok_ambil_kain")) || {};
   const cekG = await cekTersedia("Guntingan melebihi kain yang diambil",it,sakCek[op]||{});
@@ -2188,7 +2217,7 @@ async function submitGunting() {
   if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
   try {
     const fotos = await uploadFotos(fF.g);
-    await fsAdd("transaksi",{type:"gunting",tanggal:tgl,orang:op,order:namaOrder(document.getElementById("g-ord").value),orderId:idOrder(document.getElementById("g-ord").value),meterTerpakai:gMeter,sisaKain:gSisa,kain:document.getElementById("g-kain").value,items:it,totalPcs:tp,totalLembar:tl,totalUpah:tu,...(cekG.catatan?{lebihStok:cekG.catatan}:{}),keterangan:document.getElementById("g-ket").value,fotos});
+    await fsAdd("transaksi",{type:"gunting",tanggal:tgl,orang:op,order:namaOrder(document.getElementById("g-ord").value),orderId:idOrder(document.getElementById("g-ord").value),meterTerpakai:gMeter,meterPerKain,sisaKain:gSisa,sisaPerKain,kain:document.getElementById("g-kain").value,items:it,totalPcs:tp,totalLembar:tl,totalUpah:tu,...(cekG.catatan?{lebihStok:cekG.catatan}:{}),keterangan:document.getElementById("g-ket").value,fotos});
     // Tambah stok guntingan
     const sg = (await fsGet("config","stok_guntingan")) || {};
     if(!sg[op]) sg[op]={};
@@ -2198,12 +2227,12 @@ async function submitGunting() {
     const sak = (await fsGet("config","stok_ambil_kain")) || {};
     if(sak[op]) { it.forEach(i=>{ const k=`${i.nama}||${i.ukuran}`; if(sak[op][k]!==undefined) sak[op][k]=Math.max(0,sak[op][k]-i.pcs); }); await fsSet("config","stok_ambil_kain",sak); }
     // Sisa kain dikembalikan → masuk lagi ke stok kain
-    const gKain = document.getElementById("g-kain").value.trim();
-    if(gSisa>0 && gKain){ const kStok=(await fsGet("config","stok_kain"))||{}; kStok[gKain]=(+kStok[gKain]||0)+gSisa; await fsSet("config","stok_kain",kStok); }
-    toast("✓ Setoran "+op+" disimpan! Stok guntingan diupdate."+(gSisa>0&&gKain?" Sisa "+gSisa+" m "+gKain+" kembali ke stok kain.":""));
+    if(gSisa>0){ const kStok=(await fsGet("config","stok_kain"))||{}; Object.entries(sisaPerKain).forEach(([k,v])=>{ kStok[k]=(+kStok[k]||0)+v; }); await fsSet("config","stok_kain",kStok); }
+    toast("✓ Setoran "+op+" disimpan! Stok guntingan diupdate."+(gSisa>0?" Sisa "+Object.entries(sisaPerKain).map(([k,v])=>v+" m "+k).join(", ")+" kembali ke stok kain.":""));
     kirimProgresOrder(document.getElementById("g-ord").value);
     ["g-op","g-ord","g-kain","g-ket","g-meter","g-sisa"].forEach(id=>document.getElementById(id).value="");
     delete document.getElementById("g-meter").dataset.manual; document.getElementById("g-meter-info").textContent="";
+    window._gEst = {}; renderSisaKain();
     document.getElementById("g-blocks").innerHTML=""; addGuntingBlock(); calcG(); clearF("g"); loadGuntingPending();
   } catch(e) {
     const msg = e.message||e.code||String(e);
@@ -3107,71 +3136,106 @@ async function loadKainMasukHist() {
 }
 
 // ── KAIN AMBIL ────────────────────────────────────────────────────────────────
-async function updateKainInfo() {
-  const kain = document.getElementById("ka-kain").value;
-  const info = document.getElementById("ka-stok-info");
-  if(!kain){info.style.display="none";return;}
-  const kStok = (await db.collection("config").doc("stok_kain").get()).data()||{};
-  document.getElementById("ka-stok-nama").textContent = kain;
-  document.getElementById("ka-stok-sisa").textContent = (kStok[kain]||0)+" meter";
-  info.style.display = "";
-  buildKainUkuranRows();
+// ── PENGAMBILAN KAIN: bisa beberapa kain (kombinasi 2–3 warna dalam satu baju/celana) ──
+function addKaKain(nama) {
+  const list = document.getElementById("ka-kain-list"); if (!list) return;
+  const opts = "<option value=''>— Pilih kain —</option>" + (settings.kain || []).map(k => `<option>${escH(k.nama)}</option>`).join("");
+  const n = list.querySelectorAll(".ka-kr").length;
+  if (n >= 4) return toast("Maksimal 4 kain per item", "w");
+  const div = document.createElement("div"); div.className = "ka-kr";
+  div.style.cssText = "display:flex;gap:6px;align-items:center;margin-bottom:5px";
+  div.innerHTML = `<select class="ka-kain-sel" ${n === 0 ? 'id="ka-kain"' : ""} onchange="updateKainInfo()" style="flex:1">${opts}</select>
+    <input type="text" class="ka-bagian" placeholder="${n === 0 ? "Bagian (cth: badan)" : "Bagian (cth: list, kerah)"}" style="flex:1">
+    ${n ? `<button type="button" onclick="this.parentElement.remove();updateKainInfo()" style="background:none;border:none;color:var(--r);cursor:pointer;font-size:16px">×</button>` : '<span style="width:22px"></span>'}`;
+  list.appendChild(div);
+  if (nama) { div.querySelector("select").value = nama; }
+  updateKainInfo();
 }
+const kaKainDipilih = () => [...new Set([...document.querySelectorAll("#ka-kain-list .ka-kain-sel")].map(s => s.value).filter(Boolean))];
+async function updateKainInfo() {
+  const kains = kaKainDipilih(), info = document.getElementById("ka-stok-info");
+  if (!kains.length) { info.style.display = "none"; } else {
+    const kStok = (await db.collection("config").doc("stok_kain").get()).data() || {};
+    info.innerHTML = '<span style="color:var(--t2)">Sisa stok: </span>' + kains.map(k => `<b>${escH(k)}</b> <span style="font-family:var(--m);font-weight:800;color:var(--g)">${+(kStok[k] || 0)} m</span>`).join(" · ");
+    info.style.display = "";
+  }
+  susunKolomMeter();
+}
+// Kolom meter per kain di setiap baris ukuran — nilai yang sudah diisi tetap dipertahankan
+function susunKolomMeter() {
+  const kains = kaKainDipilih(), head = document.getElementById("ka-ukuran-head");
+  const daftar = kains.length ? kains : [""];
+  if (head) head.innerHTML = document.querySelector("#ka-ukuran-rows .ka-row") ? `<span style="width:70px">Ukuran</span><span style="width:70px">Pcs</span>${daftar.map(k => `<span style="width:80px">Meter${k ? " " + escH(k) : ""}</span>`).join("")}` : "";
+  document.querySelectorAll("#ka-ukuran-rows .ka-row").forEach(row => {
+    const lama = {}; row.querySelectorAll(".ka-m").forEach(i => { lama[i.dataset.kain] = i.value; });
+    const wrap = row.querySelector(".ka-mwrap");
+    wrap.innerHTML = daftar.map(k => `<input type="number" class="ka-m" data-kain="${escH(k)}" placeholder="${k ? "m " + escH(k) : "Meter"}" min="0" step="0.1" style="width:80px" oninput="calcKainAmbil()" value="${escH(lama[k] ?? (daftar.length === 1 ? (Object.values(lama)[0] || "") : ""))}">`).join("");
+  });
+  calcKainAmbil();
+}
+function kaTambahBaris(uk, pcs, tetap) {
+  const el = document.getElementById("ka-ukuran-rows");
+  el.querySelector(".empty")?.remove();
+  const div = document.createElement("div"); div.className = "ka-row";
+  div.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;flex-wrap:wrap";
+  div.innerHTML = (tetap ? `<span style="width:70px">${escH(uk)}</span><input type="hidden" class="ka-uk" value="${escH(uk)}">` : `<input type="text" class="ka-uk" placeholder="Ukuran" value="${escH(uk || "")}" style="width:70px">`)
+    + `<input type="number" class="ka-pcs" placeholder="Pcs" min="0" style="width:70px" value="${pcs || ""}" oninput="calcKainAmbil()"><span class="ka-mwrap" style="display:contents"></span>`
+    + (tetap ? "" : `<button type="button" onclick="this.parentElement.remove();calcKainAmbil()" style="background:transparent;border:none;color:var(--r);cursor:pointer;font-size:16px">×</button>`);
+  el.appendChild(div);
+  return div;
+}
+
 function buildKainUkuranRows() {
   const item = document.getElementById("ka-item").value;
   const found = (settings.items||[]).find(i=>i.nama===item);
   const uks = found ? (UKURAN[found.type] || UKURAN.umum) : [];
   const el = document.getElementById("ka-ukuran-rows");
-  el.innerHTML = uks.map(uk=>`
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px">
-      <span style="min-width:40px">${uk}</span>
-      <input type="number" id="kau-pcs-${uk}" placeholder="Pcs" min="0" style="width:80px" oninput="calcKainAmbil()">
-      <input type="number" id="kau-m-${uk}" placeholder="Meter" min="0" step="0.1" style="width:80px" oninput="calcKainAmbil()">
-    </div>`).join("");
-  if(!el.innerHTML) el.innerHTML='<div class="empty" style="padding:10px 0;font-size:12px">Pilih item untuk melihat ukuran.</div>';
+  el.innerHTML = "";
+  uks.forEach(uk => kaTambahBaris(String(uk), "", true));
+  if(!uks.length) el.innerHTML='<div class="empty" style="padding:10px 0;font-size:12px">Pilih item (atau order) untuk melihat ukuran, atau tambah ukuran manual.</div>';
+  susunKolomMeter();
 }
+
 function calcKainAmbil() {
-  let totM=0, totP=0;
-  document.querySelectorAll("[id^='kau-pcs-']").forEach(el=>{totP+=+el.value||0;});
-  document.querySelectorAll("[id^='kau-m-']").forEach(el=>{totM+=+el.value||0;});
+  let totM=0, totP=0; const per={};
+  document.querySelectorAll("#ka-ukuran-rows .ka-pcs").forEach(el=>{totP+=+el.value||0;});
+  document.querySelectorAll("#ka-ukuran-rows .ka-m").forEach(el=>{const v=+el.value||0; totM+=v; if(el.dataset.kain) per[el.dataset.kain]=(per[el.dataset.kain]||0)+v;});
   document.getElementById("ka-tot-meter").textContent = totM.toFixed(2);
   document.getElementById("ka-tot-pcs").textContent = totP;
+  const pk=document.getElementById("ka-tot-perkain"); if(pk) pk.textContent = Object.keys(per).length>1 ? Object.entries(per).map(([k,m])=>k+" "+m.toFixed(2)+" m").join(" · ") : "";
 }
+
 async function submitKainAmbil() {
   if (!bolehGudang()) return toast("Pengambilan kain hanya dicatat Admin / petugas gudang", "w");
   const tgl  = document.getElementById("ka-tgl").value;
   const op   = document.getElementById("ka-op").value;
-  const kain = document.getElementById("ka-kain").value;
+  const kains = kaKainDipilih();
   const item = document.getElementById("ka-item").value.trim();
   const ket  = document.getElementById("ka-ket").value.trim();
-  if(!tgl||!op||!kain||!item) return toast("Tanggal, operator, kain, dan item wajib diisi!","w");
+  if(!tgl||!op||!kains.length||!item) return toast("Tanggal, operator, kain, dan item wajib diisi!","w");
   if(!wajibOrder("ka-ord")) return;
+  const bagian = {}; document.querySelectorAll("#ka-kain-list .ka-kr").forEach(r => { const k = r.querySelector(".ka-kain-sel").value, b = r.querySelector(".ka-bagian").value.trim(); if (k && b) bagian[k] = b; });
   const rows=[];
-  document.querySelectorAll("[id^='kau-pcs-']").forEach(el=>{
-    let uk;
-    if(el.id.startsWith("kau-pcs-custom-")) {
-      const idx = el.id.replace("kau-pcs-custom-","");
-      uk = document.getElementById("kau-uk-"+idx)?.value?.trim()||"";
-    } else {
-      uk = el.id.replace("kau-pcs-","");
-    }
-    const pcs=+el.value||0;
-    const mEl = document.getElementById(el.id.replace("kau-pcs-","kau-m-"));
-    const m=+(mEl?.value)||0;
-    if((pcs||m) && uk) rows.push({ukuran:uk,pcs,meter:m});
+  document.querySelectorAll("#ka-ukuran-rows .ka-row").forEach(row=>{
+    const uk = row.querySelector(".ka-uk")?.value?.trim()||"", pcs = +row.querySelector(".ka-pcs")?.value||0;
+    const meters = {}; row.querySelectorAll(".ka-m").forEach(i => { const v = +i.value||0; if (v) meters[i.dataset.kain || kains[0]] = v; });
+    const meter = Object.values(meters).reduce((a,b)=>a+b,0);
+    if((pcs||meter) && uk) rows.push({ukuran:uk,pcs,meter:+meter.toFixed(2),meters});
   });
   if(!rows.length) return toast("Isi minimal 1 ukuran!","w");
-  // Meter wajib: tanpa meter stok kain tidak berkurang & rata-rata pemakaian kain jadi salah
-  const tanpaMeter = rows.filter(r=>r.pcs>0 && !(r.meter>0)).map(r=>r.ukuran);
-  if(tanpaMeter.length) return toast("Isi kolom Meter untuk ukuran: "+tanpaMeter.join(", ")+" — supaya stok kain berkurang & rata-rata kain benar","w");
+  // Meter wajib untuk SETIAP kain di setiap ukuran yang ada pcs-nya
+  const kurang = [];
+  rows.filter(r=>r.pcs>0).forEach(r => kains.forEach(k => { if(!(r.meters[k]>0)) kurang.push(r.ukuran+(kains.length>1?" ("+k+")":"")); }));
+  if(kurang.length) return toast("Isi meter untuk: "+kurang.join(", ")+" — supaya stok kain berkurang & rata-rata kain benar","w");
+  const meterPerKain = {}; rows.forEach(r => Object.entries(r.meters).forEach(([k,v]) => { meterPerKain[k] = +((meterPerKain[k]||0) + v).toFixed(2); }));
   const totM = rows.reduce((s,r)=>s+r.meter,0);
   const kStok = (await db.collection("config").doc("stok_kain").get()).data()||{};
-  const cek = await cekTersedia("Stok kain tidak cukup",[{nama:kain,ukuran:"meter",pcs:+totM.toFixed(2)}],{[kain+"||meter"]:+(kStok[kain]||0)},"meter");
+  const cek = await cekTersedia("Stok kain tidak cukup", Object.entries(meterPerKain).map(([k,m])=>({nama:k,ukuran:"meter",pcs:m})), Object.fromEntries(kains.map(k=>[k+"||meter",+(kStok[k]||0)])),"meter");
   if(!cek.ok) return;
-  if(!await confirm2(`Ambil ${totM.toFixed(2)}m ${kain} untuk ${op}?`)) return;
+  if(!await confirm2(`Ambil ${Object.entries(meterPerKain).map(([k,m])=>m.toFixed(2)+"m "+k).join(" + ")} untuk ${op}?`)) return;
   const kaOrd = document.getElementById("ka-ord")?.value || "";
-  await fsAdd("kain_ambil",{tanggal:tgl,operator:op,kain,item,rows,totalMeter:totM,ket,orderId:idOrder(kaOrd),order:namaOrder(kaOrd),...(cek.catatan?{lebihStok:cek.catatan}:{})});
-  kStok[kain] = Math.max(0,(kStok[kain]||0)-totM);
+  await fsAdd("kain_ambil",{tanggal:tgl,operator:op,kain:kains.join(" + "),kainList:kains,bagian,meterPerKain,item,rows,totalMeter:+totM.toFixed(2),ket,orderId:idOrder(kaOrd),order:namaOrder(kaOrd),...(cek.catatan?{lebihStok:cek.catatan}:{})});
+  Object.entries(meterPerKain).forEach(([k,m]) => { kStok[k] = Math.max(0,(kStok[k]||0)-m); });
   await db.collection("config").doc("stok_kain").set(kStok);
   // Kain yang dipegang operator cutting (pcs per item & ukuran) → jadi pilihan di Setor Guntingan
   const sak = (await fsGet("config","stok_ambil_kain")) || {};
@@ -3182,16 +3246,18 @@ async function submitKainAmbil() {
   ["ka-tgl","ka-item","ka-ket","ka-ord"].forEach(id=>document.getElementById(id).value="");
   document.getElementById("ka-ord-info").textContent = "";
   kirimProgresOrder(kaOrd);
-  document.getElementById("ka-stok-info").style.display="none";
+  document.getElementById("ka-kain-list").innerHTML = ""; addKaKain();
   document.getElementById("ka-ukuran-rows").innerHTML="";
-  calcKainAmbil(); await loadKainAmbilHist();
+  susunKolomMeter(); await loadKainAmbilHist();
 }
+
 async function loadKainAmbilHist() {
   const docs = await fsAll("kain_ambil");
   renderHistList("ka-hist","ka-cnt",docs,d=>`
     <div class="card">
       <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.operator}</b> — ${d.kain} (${d.item})</div>
       <div>${(d.rows||[]).map(r=>`<span class="tag">${r.ukuran}: ${r.pcs}pcs ${r.meter}m</span>`).join(" ")}</div>
+      ${d.meterPerKain && Object.keys(d.meterPerKain).length>1 ? `<div style="font-size:11px;color:var(--t2);margin-top:4px">Kombinasi: ${Object.entries(d.meterPerKain).map(([k,m])=>escH(k)+(d.bagian&&d.bagian[k]?" ("+escH(d.bagian[k])+")":"")+" "+m+" m").join(" + ")}</div>` : ""}
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
       <div style="margin-top:6px">${mkDelBtn("kain_ambil",d._id)}</div>
     </div>`);
@@ -3199,51 +3265,41 @@ async function loadKainAmbilHist() {
 
 // ── MISC HELPERS ──────────────────────────────────────────────────────────────
 function addKaUkuranRow() {
-  const el = document.getElementById("ka-ukuran-rows");
-  const idx = (window._kaRowSeq = (window._kaRowSeq||0) + 1);  // selalu unik walau ada baris yang dihapus
-  const div = document.createElement("div");
-  div.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px";
-  div.innerHTML = `<input type="text" id="kau-uk-${idx}" placeholder="Ukuran" style="width:70px">
-    <input type="number" id="kau-pcs-custom-${idx}" placeholder="Pcs" min="0" style="width:70px" oninput="calcKainAmbil()">
-    <input type="number" id="kau-m-custom-${idx}" placeholder="Meter" min="0" step="0.1" style="width:70px" oninput="calcKainAmbil()">
-    <button type="button" onclick="this.parentElement.remove();calcKainAmbil()" style="background:transparent;border:none;color:var(--r);cursor:pointer;font-size:16px">×</button>`;
-  el.appendChild(div);
+  kaTambahBaris("", "", false); susunKolomMeter();
 }
-
 async function toggleRataRata() {
   const content = document.getElementById("rr-content");
   const toggle = document.getElementById("rr-toggle");
   if(content.style.display!=="none"){ content.style.display="none"; toggle.textContent="▼ Lihat"; return; }
   toggle.textContent="▲ Tutup"; content.style.display="";
-  const docs = await fsAll("kain_ambil");
-  const map = {};
-  // Aktual dari Setor Guntingan: meter terpakai ÷ pcs digunting
-  const akt = {};
+  // Rencana (pengambilan kain) & aktual (penggunting) — meter/pcs per item per kain (kain kombinasi terpisah)
+  const rencana = {}, aktual = {};
+  const tambah = (peta, item, kain, m, p) => { const x = (peta[item] = peta[item] || {})[kain] = (peta[item] || {})[kain] || { m:0, p:0 }; x.m += m; x.p += p; };
+  (await fsAll("kain_ambil")).forEach(d => {
+    if (!d.item) return;
+    const pcs = (d.rows||[]).reduce((s,r)=>s+(+r.pcs||0),0); if (!pcs) return;
+    const mpk = d.meterPerKain && Object.keys(d.meterPerKain).length ? d.meterPerKain : { [d.kain || "?"]: +d.totalMeter||0 };
+    Object.entries(mpk).forEach(([k, m]) => tambah(rencana, d.item, k, +m||0, pcs));
+  });
   (await fsQuery("transaksi", ["type", "==", "gunting"])).forEach(d => {
     if (!(d.meterTerpakai > 0)) return;
     const per = {}; (d.items||[]).forEach(i => { per[i.nama] = (per[i.nama]||0) + (+i.pcs||0); });
     const tot = Object.values(per).reduce((a,b) => a+b, 0) || 1;
-    Object.entries(per).forEach(([n, q]) => { const x = akt[n] = akt[n] || { m:0, p:0 }; x.m += d.meterTerpakai * q / tot; x.p += q; });
+    const mpk = d.meterPerKain && Object.keys(d.meterPerKain).length ? d.meterPerKain : { [d.kain || "?"]: d.meterTerpakai };
+    Object.entries(per).forEach(([n, q]) => Object.entries(mpk).forEach(([k, m]) => tambah(aktual, n, k, m * q / tot, q)));
   });
-  docs.forEach(d=>{
-    if(!d.item||!d.rows) return;
-    if(!map[d.item]) map[d.item]={total_m:0,total_pcs:0,count:0};
-    map[d.item].total_m += d.totalMeter||0;
-    map[d.item].total_pcs += (d.rows||[]).reduce((s,r)=>s+r.pcs,0);
-    map[d.item].count++;
-  });
-  content.innerHTML = Object.keys(map).sort().map(it=>{
-    const r = map[it];
-    const avgM = r.count?r.total_m/r.count:0;
-    const avgP = r.count?r.total_pcs/r.count:0;
+  const items = Object.keys(rencana).sort();
+  content.innerHTML = items.map(it => {
+    const kains = [...new Set([...Object.keys(rencana[it]||{}), ...Object.keys(aktual[it]||{})])];
+    const r = k => rencana[it]?.[k], a = k => aktual[it]?.[k];
+    const tr = kains.reduce((t,k) => t + (r(k) && r(k).p ? r(k).m / r(k).p : 0), 0), ta = kains.reduce((t,k) => t + (a(k) && a(k).p ? a(k).m / a(k).p : 0), 0);
     return `<div class="card" style="margin-bottom:8px">
-      <div style="font-weight:700">${it}</div>
-      <div class="rcrow"><span>Rata-rata Meter/Order</span><span>${avgM.toFixed(2)}m</span></div>
-      <div class="rcrow"><span>Rata-rata Pcs/Order</span><span>${Math.round(avgP)} pcs</span></div>
-      <div class="rcrow"><span>Jumlah Order</span><span>${r.count}</span></div>
-      <div class="rcrow"><span>Rencana meter/pcs (pengambilan)</span><span>${r.total_pcs?(r.total_m/r.total_pcs).toFixed(2)+"m":"-"}</span></div>
-      <div class="rcrow"><span><b>Aktual meter/pcs (penggunting)</b></span><span><b>${akt[it]&&akt[it].p?(akt[it].m/akt[it].p).toFixed(2)+"m":"-"}</b></span></div>
-    </div>`;
+      <div style="font-weight:700">${escH(it)}${kains.length>1?' <span class="tag">kombinasi '+kains.length+' kain</span>':""}</div>
+      <table style="width:100%;font-size:12px;margin-top:6px;border-collapse:collapse"><tr style="color:var(--t2)"><td>Kain</td><td style="text-align:right">Rencana m/pcs</td><td style="text-align:right">Aktual m/pcs</td></tr>
+      ${kains.map(k => { const rv = r(k)&&r(k).p ? r(k).m/r(k).p : null, av = a(k)&&a(k).p ? a(k).m/a(k).p : null;
+        return `<tr><td>${escH(k)}</td><td style="text-align:right">${rv===null?"-":rv.toFixed(2)+" m"}</td><td style="text-align:right;font-weight:700;color:${av!==null&&rv!==null&&av>rv*1.05?"var(--r)":"inherit"}">${av===null?"-":av.toFixed(2)+" m"}</td></tr>`; }).join("")}
+      ${kains.length>1?`<tr style="border-top:1px solid var(--b)"><td><b>Total per pcs</b></td><td style="text-align:right"><b>${tr.toFixed(2)} m</b></td><td style="text-align:right"><b>${ta?ta.toFixed(2)+" m":"-"}</b></td></tr>`:""}
+      </table></div>`;
   }).join("") || '<div class="empty">Belum ada data.</div>';
 }
 
