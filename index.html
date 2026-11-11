@@ -474,8 +474,8 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
       <div class="fg"><label>Operator</label><select id="g-op" onchange="loadGuntingPending()"><option value="">— Pilih —</option></select></div>
       <div class="fg"><label>Order (Custom Order)</label><select id="g-ord" class="pilih-order"><option value="">— Pilih order Custom Order —</option></select></div>
       <div class="fg"><label>Jenis Kain</label><input type="text" id="g-kain" placeholder="Drill, TC..."></div>
-      <div class="fg"><label>Meter kain terpakai</label><input type="number" id="g-meter" min="0" step="0.01" placeholder="terisi otomatis" oninput="this.dataset.manual='1'"><div id="g-meter-info" style="font-size:10px;color:var(--t2);margin-top:3px"></div></div>
-      <div class="fg"><label>Sisa kain dikembalikan (m)</label><input type="number" id="g-sisa" min="0" step="0.01" placeholder="0"><div style="font-size:10px;color:var(--t2);margin-top:3px">Masuk lagi ke stok kain</div></div>
+      <div class="fg"><label>Meter kain terpakai <span style="font-weight:500;color:var(--t2)">(otomatis)</span></label><input type="number" id="g-meter" min="0" step="0.01" placeholder="terisi otomatis" readonly oninput="this.dataset.manual='1'"><div id="g-meter-info" style="font-size:10px;color:var(--t2);margin-top:3px"></div></div>
+      <div class="fg hanya-admin" style="display:none"><label>Sisa kain dikembalikan (m) — diisi Admin/gudang</label><input type="number" id="g-sisa" min="0" step="0.01" placeholder="0"><div style="font-size:10px;color:var(--t2);margin-top:3px">Diukur saat kain sisa diterima; masuk lagi ke stok kain</div></div>
     </div>
     <div id="g-pending-wrap" style="display:none;margin-bottom:12px">
       <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">📋 Pilih dari kain yang diambil operator ini (belum disetor)</div>
@@ -701,6 +701,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
 <div class="sec" id="s-lacak">
   <div class="ph"><div class="pt">🧭 Lacak Order & Deadline</div><div class="ps">Posisi tiap order Custom Order di produksi, dan penjahit yang terlambat</div></div>
   <div class="tw" style="margin-bottom:14px"><div class="th2"><span class="tt">⏰ Deadline Penjahit</span><span class="bdg" id="dl-cnt">0</span></div><div id="dl-list" style="padding:10px 14px"></div></div>
+  <div class="tw" style="margin-bottom:14px"><div class="th2"><span class="tt">✂️ Kontrol Kain per Penggunting</span><span class="bdg" id="kk-cnt">0</span></div><div id="kk-list" style="padding:10px 14px"></div></div>
   <div class="tw"><div class="th2"><span class="tt">📦 Order Konveksi Berjalan</span><span class="bdg" id="lo-cnt">0</span></div><div id="lo-list" style="padding:10px 14px"></div></div>
 </div>
 
@@ -1245,6 +1246,7 @@ function applyRole() {
   const bfc = document.getElementById("backfill-card");
   if (bfc) bfc.style.display = isAdmin ? "block" : "none";
   document.querySelectorAll(".hanya-admin").forEach(el => { el.style.display = isAdmin ? "" : "none"; });
+  const gmIn = document.getElementById("g-meter"); if (gmIn) gmIn.readOnly = !isAdmin;   // penggunting tidak bisa mengisi meter sendiri
   if (isAdmin) { ["j-blocks","g-blocks","a-blocks"].forEach(id => { const c=document.getElementById(id); if(!c) return;
     if(!c.children.length) ({"j-blocks":addJahitBlock,"g-blocks":addGuntingBlock,"a-blocks":addAmbilBlock})[id]();
     // cukup satu blok manual kosong
@@ -1942,6 +1944,27 @@ async function loadLacak() {
       <div><b>🪡 ${escH(d.orang)}</b> ${d.order?`· <span class="tag">${escH(d.order)}</span>`:""}<div style="color:var(--t2);margin-top:3px">Masih dipegang: ${sisa.map(x => escH(x.i.nama)+" "+escH(x.i.ukuran)+": "+x.n).join(" · ")}</div></div>
       <div style="text-align:right">${lbl}<div style="color:var(--t2);font-size:11px">target ${fmtTgl(d.deadline)}</div></div></div>`;
   }).join("") : '<div class="empty">Tidak ada penjahit yang terlambat atau jatuh tempo 3 hari ke depan. 👍</div>';
+  // Kontrol kain per penggunting: kain diambil vs hasil guntingan + sisa kembali
+  const sak = (await fsGet("config","stok_ambil_kain")) || {};
+  const ops = {};
+  ka.forEach(d => { const o = ops[d.operator] = ops[d.operator] || { m:0, p:0, gp:0, sisa:0, tertua:"" };
+    o.m += +d.totalMeter||0; o.p += (d.rows||[]).reduce((s,r) => s + (+r.pcs||0), 0); });
+  tr.filter(d => d.type === "gunting" && ops[d.orang]).forEach(d => { const o = ops[d.orang]; o.gp += +d.totalPcs || (d.items||[]).reduce((t,i) => t + (+i.pcs||0), 0); o.sisa += +d.sisaKain||0; });
+  const kk = Object.entries(ops).map(([op, o]) => {
+    const dipegang = Object.values(sak[op]||{}).reduce((a,b) => a + (+b||0), 0);
+    const mpp = o.p ? o.m / o.p : 0;
+    // pengambilan tertua yang masih menyisakan pcs → umur kain di tangan operator
+    const lama = ka.filter(d => d.operator === op).map(d => d.tanggal).sort()[0] || "";
+    const umur = dipegang > 0 && lama ? selisihHari(hari, lama) : 0;
+    return { op, ...o, dipegang, estM: dipegang * mpp, umur };
+  }).sort((a,b) => b.estM - a.estM);
+  document.getElementById("kk-cnt").textContent = kk.filter(x => x.dipegang > 0 && x.umur > 7).length;
+  document.getElementById("kk-list").innerHTML = kk.length ? kk.map(x => `<div style="padding:8px 0;border-bottom:1px solid var(--b);font-size:12px">
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>✂️ ${escH(x.op)}</b>
+        ${x.dipegang > 0 ? `<span style="color:${x.umur > 7 ? "var(--r)" : "#d97706"};font-weight:800">${x.umur > 7 ? "⚠ " : ""}Belum disetor: ${x.dipegang} pcs ≈ ${x.estM.toFixed(1)} m${x.umur > 7 ? " (sejak " + x.umur + " hari)" : ""}</span>` : '<span style="color:var(--g);font-weight:700">✓ Semua kain sudah jadi guntingan</span>'}</div>
+      <div style="color:var(--t2);margin-top:3px">Kain diambil ${x.m.toFixed(1)} m untuk ${x.p} pcs · sudah disetor ${x.gp} pcs · sisa kain kembali ${x.sisa.toFixed(1)} m</div></div>`).join("")
+    + '<div style="font-size:11px;color:var(--t2);padding-top:8px">Kain yang sudah diambil tapi pcs-nya tidak disetor dan tidak ada sisa kain yang kembali = tanda boros / hilang. Tanyakan ke penggunting, lalu Admin catat lewat Koreksi Stok (kain dipegang operator).</div>'
+    : '<div class="empty">Belum ada pengambilan kain.</div>';
   // Per order
   const per = {};
   const tambah = (id, k, n, tgl) => { if (!id) return; const x = per[id] = per[id] || { kain:0, gunting:0, ambil:0, jahit:0, qc:0, akhir:"" }; x[k] += n; if (tgl && tgl > x.akhir) x.akhir = tgl; };
@@ -2033,7 +2056,7 @@ async function submitGunting() {
   if(!tgl||!op) return toast("Tanggal & operator wajib!");
   const it=colG(); if(!it.length) return toast("Minimal 1 item!");
   if(!wajibOrder("g-ord")) return;
-  const gMeter = +document.getElementById("g-meter").value || 0, gSisa = +document.getElementById("g-sisa").value || 0;
+  const gMeter = +document.getElementById("g-meter").value || 0, gSisa = role === "admin" ? (+document.getElementById("g-sisa").value || 0) : 0;
   if(!gMeter && document.querySelector("#g-blocks .iblock[data-dari]")) return toast("Isi Meter kain terpakai (perkiraan terisi otomatis dari pengambilan kain)","w");
   const sakCek = (await fsGet("config","stok_ambil_kain")) || {};
   const cekG = await cekTersedia("Guntingan melebihi kain yang diambil",it,sakCek[op]||{});
