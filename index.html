@@ -1693,6 +1693,7 @@ async function submitJahit() {
   const tgl=document.getElementById("j-tgl").value, pj=document.getElementById("j-pjt").value;
   if(!tgl||!pj) return toast("Tanggal & penjahit wajib!");
   const it=colJ(); if(!it.length) return toast("Minimal 1 item dengan qty!");
+  if(!wajibOrder("j-ord")) return;
   const sjCek = (await fsGet("config","stok_jahitan")) || {};
   const cekJ = await cekTersedia("Setor melebihi bahan yang diambil penjahit",it,sjCek[pj]||{});
   if(!cekJ.ok) return;
@@ -1714,7 +1715,7 @@ async function submitJahit() {
     const pjStok = sj[pj] || {};
     const fotos = await uploadFotos(fF.j);
     const jOrd = document.getElementById("j-ord")?.value || "";
-    await fsAdd("transaksi",{type:"jahit",tanggal:tgl,orang:pj,orderId:jOrd,order:namaOrder(jOrd),items:it,totalPcs:tp,totalUpah:tu,...(cekJ.catatan?{lebihStok:cekJ.catatan}:{}),keterangan:document.getElementById("j-ket").value,fotos});
+    await fsAdd("transaksi",{type:"jahit",tanggal:tgl,orang:pj,orderId:idOrder(jOrd),order:namaOrder(jOrd),items:it,totalPcs:tp,totalUpah:tu,...(cekJ.catatan?{lebihStok:cekJ.catatan}:{}),keterangan:document.getElementById("j-ket").value,fotos});
     // Kurangi stok jahitan
     it.forEach(i => { const k=`${i.nama}||${i.ukuran}`; pjStok[k]=Math.max(0,(pjStok[k]||0)-i.pcs); });
     sj[pj]=pjStok; await fsSet("config","stok_jahitan",sj);
@@ -1776,6 +1777,7 @@ function pilihDari(pre, item) {
   c.appendChild(div);
   window[cfg.fn]();
   if (pre === "j") tebakOrderJahit(document.getElementById("j-pjt").value, item).catch(() => {});
+  if (pre === "g") isiDariPengambilanKain(document.getElementById("g-op").value, item).catch(() => {});
 }
 // Bandingkan jumlah yang diinput dengan yang tersedia. Staff: ditolak bila lebih. Admin: boleh dengan alasan.
 async function cekTersedia(judul, items, tersedia, satuan = "pcs") {
@@ -1806,7 +1808,16 @@ async function loadPilihJahit() {
 // per order dikirim balik ke Custom Order setiap ada setoran.
 const CO_WORKER = "https://harmoni-order-api.adhiitmuh.workers.dev";
 let _ordersCO = [], _ordersCOAt = 0;
-const namaOrder = id => { const o = _ordersCO.find(x => x.id === id); return o ? o.orderNumber : ""; };
+const STOK_ORDER = "__stok";  // pilihan "Untuk stok (bukan order customer)"
+const namaOrder = id => { if (id === STOK_ORDER) return "STOK"; const o = _ordersCO.find(x => x.id === id); return o ? o.orderNumber : ""; };
+const idOrder = v => v === STOK_ORDER ? "" : (v || "");
+// Order wajib dipilih (atau "Untuk stok") — supaya jelas pekerjaan untuk siapa
+function wajibOrder(selId) {
+  if (document.getElementById(selId)?.value) return true;
+  toast("Pilih order Custom Order dulu — atau pilih \"Untuk stok\" kalau bukan untuk customer", "w");
+  document.getElementById(selId)?.focus();
+  return false;
+}
 async function muatOrderCO(paksa) {
   if (!paksa && _ordersCO.length && Date.now() - _ordersCOAt < 120000) return _ordersCO;
   try {
@@ -1820,10 +1831,10 @@ async function muatOrderCO(paksa) {
 async function isiPilihanOrder() {
   const list = await muatOrderCO();
   const tgl = d => d ? new Date(d + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short" }) : "-";
-  const opsi = '<option value="">— Pilih order Custom Order —</option>' + list.map(o =>
+  const opsi = '<option value="">— Pilih order Custom Order —</option><option value="__stok">📦 Untuk stok (bukan order customer)</option>' + list.map(o =>
     `<option value="${escH(o.id)}">${escH(o.orderNumber)} · ${escH(o.customerName)} · ${o.totalQty} pcs · target ${tgl(o.dueDate)}${o.progressPercentage ? " · " + o.progressPercentage + "%" : ""}</option>`).join("");
   document.querySelectorAll("select.pilih-order").forEach(sel => { const v = sel.value; sel.innerHTML = opsi; if (v && list.some(o => o.id === v)) sel.value = v; });
-  if (!list.length) document.querySelectorAll("select.pilih-order").forEach(sel => sel.options[0].textContent = "— Belum ada order Konveksi yang berjalan —");
+  if (!list.length) document.querySelectorAll("select.pilih-order").forEach(sel => sel.options[0].textContent = "— Belum ada order Konveksi berjalan (atau gagal dimuat) —");
 }
 // Pengambilan Kain: pilih order → isi item & jumlah per ukuran dari order
 function isiDariOrder() {
@@ -1857,6 +1868,7 @@ async function hitungProduksiOrder(orderId) {
   };
 }
 async function kirimProgresOrder(orderId) {
+  orderId = idOrder(orderId);
   if (!orderId) return;
   try {
     const jumlah = await hitungProduksiOrder(orderId);
@@ -1867,12 +1879,26 @@ async function kirimProgresOrder(orderId) {
     const o = _ordersCO.find(x => x.id === orderId); if (o) o.progressPercentage = d.progressPercentage;
   } catch (e) { console.warn("Progres ke Custom Order gagal:", e); toast("Tersimpan, tapi progres ke Custom Order gagal terkirim (" + (e.message || e) + ")", "w"); }
 }
+// Setor Guntingan: Jenis Kain & Order diisi dari pengambilan kain terakhir operator untuk item itu
+async function isiDariPengambilanKain(op, item) {
+  const ka = (await fsQuery("kain_ambil", ["operator", "==", op])).filter(d => d.item === item)
+    .sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)));
+  const d = ka[0]; if (!d) return;
+  const kainEl = document.getElementById("g-kain"), ordEl = document.getElementById("g-ord");
+  if (!kainEl.value.trim()) kainEl.value = d.kain || "";
+  if (!ordEl.value) {
+    const v = d.orderId || (d.order === "STOK" ? STOK_ORDER : "");
+    if (v && [...ordEl.options].some(o => o.value === v)) ordEl.value = v;
+  }
+  toast(`Kain ${d.kain} & order diisi dari pengambilan kain ${fmtTgl(d.tanggal)} (${(+d.totalMeter||0).toFixed(1)} m)`, "i");
+}
 // Setor Jahitan: tebak order dari pengambilan jahitan terakhir penjahit untuk item itu
 async function tebakOrderJahit(pj, item) {
   const sel = document.getElementById("j-ord"); if (!sel || sel.value) return;
-  const tr = (await fsQuery("transaksi", ["orang", "==", pj])).filter(d => d.type === "ambil" && d.orderId && (d.items || []).some(i => i.nama === item));
+  const tr = (await fsQuery("transaksi", ["orang", "==", pj])).filter(d => d.type === "ambil" && (d.items || []).some(i => i.nama === item));
   tr.sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)));
-  if (tr[0] && [...sel.options].some(o => o.value === tr[0].orderId)) sel.value = tr[0].orderId;
+  const v = tr[0] ? (tr[0].orderId || (tr[0].order === "STOK" ? STOK_ORDER : "")) : "";
+  if (v && [...sel.options].some(o => o.value === v)) sel.value = v;
 }
 
 // ── LACAK ORDER & DEADLINE ───────────────────────────────────────────────────
@@ -1986,6 +2012,7 @@ async function submitGunting() {
   const tgl=document.getElementById("g-tgl").value, op=document.getElementById("g-op").value;
   if(!tgl||!op) return toast("Tanggal & operator wajib!");
   const it=colG(); if(!it.length) return toast("Minimal 1 item!");
+  if(!wajibOrder("g-ord")) return;
   const sakCek = (await fsGet("config","stok_ambil_kain")) || {};
   const cekG = await cekTersedia("Guntingan melebihi kain yang diambil",it,sakCek[op]||{});
   if(!cekG.ok) return;
@@ -2003,7 +2030,7 @@ async function submitGunting() {
   if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
   try {
     const fotos = await uploadFotos(fF.g);
-    await fsAdd("transaksi",{type:"gunting",tanggal:tgl,orang:op,order:namaOrder(document.getElementById("g-ord").value),orderId:document.getElementById("g-ord").value,kain:document.getElementById("g-kain").value,items:it,totalPcs:tp,totalLembar:tl,totalUpah:tu,...(cekG.catatan?{lebihStok:cekG.catatan}:{}),keterangan:document.getElementById("g-ket").value,fotos});
+    await fsAdd("transaksi",{type:"gunting",tanggal:tgl,orang:op,order:namaOrder(document.getElementById("g-ord").value),orderId:idOrder(document.getElementById("g-ord").value),kain:document.getElementById("g-kain").value,items:it,totalPcs:tp,totalLembar:tl,totalUpah:tu,...(cekG.catatan?{lebihStok:cekG.catatan}:{}),keterangan:document.getElementById("g-ket").value,fotos});
     // Tambah stok guntingan
     const sg = (await fsGet("config","stok_guntingan")) || {};
     if(!sg[op]) sg[op]={};
@@ -2030,6 +2057,7 @@ async function submitAmbil() {
   const tgl=document.getElementById("a-tgl").value, pj=document.getElementById("a-pjt").value;
   if(!tgl||!pj) return toast("Tanggal & penjahit wajib!");
   const it=colA(); if(!it.length) return toast("Minimal 1 item!");
+  if(!wajibOrder("a-ord")) return;
   const cekA = await cekTersedia("Melebihi stok guntingan",it,jumlahkanStok((await fsGet("config","stok_guntingan"))||{}));
   if(!cekA.ok) return;
   const tp=it.reduce((s,i)=>s+i.pcs,0), tu=it.reduce((s,i)=>s+i.pcs*i.upah,0);
@@ -2045,7 +2073,7 @@ async function submitAmbil() {
   if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
   try {
     const fotos = await uploadFotos(fF.a);
-    await fsAdd("transaksi",{type:"ambil",tanggal:tgl,orang:pj,order:namaOrder(document.getElementById("a-ord").value),orderId:document.getElementById("a-ord").value,deadline:document.getElementById("a-ddl").value,items:it,totalPcs:tp,totalUpah:tu,...(cekA.catatan?{lebihStok:cekA.catatan}:{}),keterangan:document.getElementById("a-ket").value,fotos});
+    await fsAdd("transaksi",{type:"ambil",tanggal:tgl,orang:pj,order:namaOrder(document.getElementById("a-ord").value),orderId:idOrder(document.getElementById("a-ord").value),deadline:document.getElementById("a-ddl").value,items:it,totalPcs:tp,totalUpah:tu,...(cekA.catatan?{lebihStok:cekA.catatan}:{}),keterangan:document.getElementById("a-ket").value,fotos});
     // Kurangi stok guntingan (FIFO), tambah stok jahitan
     const sg=(await fsGet("config","stok_guntingan"))||{};
     const sj=(await fsGet("config","stok_jahitan"))||{};
@@ -2145,7 +2173,7 @@ async function submitQC() {
   if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
   try {
     const fotos = await uploadFotos(fF["qc"]||[]);
-    await fsAdd("qc", {penjahit:pj, operator:op, order:ord, orderId:ordId, tanggal:tgl, ket, fotos, items});
+    await fsAdd("qc", {penjahit:pj, operator:op, order:ord, orderId:idOrder(ordId), tanggal:tgl, ket, fotos, items});
     kirimProgresOrder(ordId);
     // update stok: deduct from stok_jahitan, add ok to stok utama
     const sj = (await db.collection("config").doc("stok_jahitan").get()).data()||{};
@@ -2930,6 +2958,7 @@ async function submitKainAmbil() {
   const item = document.getElementById("ka-item").value.trim();
   const ket  = document.getElementById("ka-ket").value.trim();
   if(!tgl||!op||!kain||!item) return toast("Tanggal, operator, kain, dan item wajib diisi!","w");
+  if(!wajibOrder("ka-ord")) return;
   const rows=[];
   document.querySelectorAll("[id^='kau-pcs-']").forEach(el=>{
     let uk;
@@ -2954,7 +2983,7 @@ async function submitKainAmbil() {
   if(!cek.ok) return;
   if(!await confirm2(`Ambil ${totM.toFixed(2)}m ${kain} untuk ${op}?`)) return;
   const kaOrd = document.getElementById("ka-ord")?.value || "";
-  await fsAdd("kain_ambil",{tanggal:tgl,operator:op,kain,item,rows,totalMeter:totM,ket,orderId:kaOrd,order:namaOrder(kaOrd),...(cek.catatan?{lebihStok:cek.catatan}:{})});
+  await fsAdd("kain_ambil",{tanggal:tgl,operator:op,kain,item,rows,totalMeter:totM,ket,orderId:idOrder(kaOrd),order:namaOrder(kaOrd),...(cek.catatan?{lebihStok:cek.catatan}:{})});
   kStok[kain] = Math.max(0,(kStok[kain]||0)-totM);
   await db.collection("config").doc("stok_kain").set(kStok);
   // Kain yang dipegang operator cutting (pcs per item & ukuran) → jadi pilihan di Setor Guntingan
