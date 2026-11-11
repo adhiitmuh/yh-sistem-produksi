@@ -381,6 +381,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
   <nav>
     <div class="nt active" onclick="go('kain-masuk')" id="t-kain-masuk">🧵 Kain Masuk</div>
     <div class="nt" onclick="go('kain-ambil')" id="t-kain-ambil">📋 Pengambilan Kain</div>
+    <div class="nt" onclick="go('bahan')" id="t-bahan">🧷 Bahan Pendukung</div>
     <div class="nt" onclick="go('gunting')" id="t-gunting">✂️ Setor Guntingan</div>
     <div class="nt" onclick="go('ambil')" id="t-ambil">📦 Ambil Jahitan</div>
     <div class="nt" onclick="go('jahit')" id="t-jahit">🪡 Setor Jahitan</div>
@@ -467,6 +468,49 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
     <div id="rr-content" style="display:none"></div>
   </div>
   <div class="tw"><div class="th2"><span class="tt">Riwayat Pengambilan Kain</span><span class="bdg" id="ka-cnt">0</span></div><div id="ka-hist"></div></div>
+</div>
+
+<!-- BAHAN PENDUKUNG -->
+<div class="sec" id="s-bahan">
+  <div class="ph"><div class="pt">🧷 Bahan Pendukung</div><div class="ps">Kancing, puring, resleting, kain keras, dll — stok masuk & keluar per order</div></div>
+  <div id="bp-stok" style="margin-bottom:14px"></div>
+  <div class="card khusus-gudang-info" style="display:none;font-size:12px;color:var(--t2)">🔒 Bahan masuk & keluar hanya dicatat oleh <b>Admin</b> atau <b>petugas gudang</b>. Stok & riwayat tetap bisa dilihat.</div>
+  <div class="card khusus-gudang">
+    <div class="ct">📥 Bahan Masuk</div>
+    <div class="g2" style="margin-bottom:10px">
+      <div class="fg"><label>Tanggal</label><input type="date" id="bm-tgl"></div>
+      <div class="fg"><label>Bahan</label><select id="bm-bahan" class="pilih-bahan"></select></div>
+      <div class="fg"><label>Jumlah</label><input type="number" id="bm-qty" min="0" step="any" placeholder="0"></div>
+      <div class="fg"><label>Harga per satuan</label><input type="text" inputmode="numeric" id="bm-harga" placeholder="Rp 0" oninput="fmtRpIn(this)"></div>
+      <div class="fg"><label>Untuk order (Custom Order)</label><select id="bm-ord" class="pilih-order"><option value="">— Pilih order Custom Order —</option></select></div>
+      <div class="fg"><label>Supplier</label><input type="text" id="bm-sup" placeholder="Opsional"></div>
+    </div>
+    <button class="btn btg" onclick="submitBahanMasuk()">✓ Simpan Bahan Masuk</button>
+  </div>
+  <div class="card khusus-gudang">
+    <div class="ct">📤 Bahan Keluar (dipakai untuk order)</div>
+    <div class="g2" style="margin-bottom:10px">
+      <div class="fg"><label>Tanggal</label><input type="date" id="bk-tgl"></div>
+      <div class="fg"><label>Bahan</label><select id="bk-bahan" class="pilih-bahan" onchange="infoBahanKeluar()"></select><div id="bk-info" style="font-size:11px;color:var(--t2);margin-top:3px"></div></div>
+      <div class="fg"><label>Jumlah</label><input type="number" id="bk-qty" min="0" step="any" placeholder="0"></div>
+      <div class="fg"><label>Diambil oleh</label><select id="bk-oleh"></select></div>
+      <div class="fg" style="grid-column:1/-1"><label>Untuk order (Custom Order)</label><select id="bk-ord" class="pilih-order"><option value="">— Pilih order Custom Order —</option></select></div>
+    </div>
+    <div class="fg" style="margin-bottom:10px"><label>Keterangan</label><input type="text" id="bk-ket" placeholder="Opsional"></div>
+    <button class="btn btg" onclick="submitBahanKeluar()">✓ Simpan Bahan Keluar</button>
+  </div>
+  <div class="card hanya-admin" style="display:none">
+    <div class="ct">📋 Daftar Bahan (Admin)</div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:8px">Kategori dipakai untuk menggantikan standar bahan per pcs (Dashboard Modal) dengan biaya aktual. Pilih "Lainnya" untuk bahan yang tidak ada standarnya (mis. resleting).</div>
+    <div class="tglist" id="bp-master"></div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      <input type="text" id="bp-nama" placeholder="Nama bahan (cth: Kancing PDH 18mm)" style="flex:2;min-width:160px">
+      <input type="text" id="bp-satuan" placeholder="Satuan (pcs, m, gross)" style="flex:1;min-width:90px">
+      <select id="bp-kat" style="flex:1;min-width:120px"><option value="kancing">Kancing</option><option value="puring">Puring</option><option value="kain_keras">Kain keras</option><option value="lobang_kancing">Lobang kancing</option><option value="setrika">Setrika</option><option value="bordiran">Bordiran</option><option value="lainnya">Lainnya</option></select>
+      <button class="btsm" onclick="addBahanMaster()">+ Tambah</button>
+    </div>
+  </div>
+  <div class="tw"><div class="th2"><span class="tt">Riwayat Bahan</span><span class="bdg" id="bp-cnt">0</span></div><div id="bp-hist"></div></div>
 </div>
 
 <!-- SETOR GUNTINGAN -->
@@ -1455,7 +1499,7 @@ async function delItem(i) {
 }
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
-const VALID_PAGES = ["kain-masuk","kain-ambil","gunting","ambil","jahit","qc","stok","keluar","ringkasan","riwayat","alihtgas","lacak","progress","kasbon","bayar","setting","modal"];
+const VALID_PAGES = ["kain-masuk","kain-ambil","bahan","gunting","ambil","jahit","qc","stok","keluar","ringkasan","riwayat","alihtgas","lacak","progress","kasbon","bayar","setting","modal"];
 function go(name) {
   // Pengaturan (daftar item & upah, penjahit, petugas gudang) dan Dashboard Modal hanya untuk Admin
   if ((name === "setting" || name === "modal") && role !== "admin") name = "kain-masuk";
@@ -1475,7 +1519,8 @@ function go(name) {
   if (name==="modal")      loadModalDashboard();
   if (name==="kain-masuk") { loadKainList(); loadKainMasukHist(); loadStokKain(); }
   if (name==="kain-ambil") { loadKainList(); loadKainAmbilHist(); loadStokKain(); }
-  if (["kain-masuk","kain-ambil","gunting","ambil","jahit","qc"].includes(name)) isiPilihanOrder();
+  if (["kain-masuk","kain-ambil","bahan","gunting","ambil","jahit","qc"].includes(name)) isiPilihanOrder();
+  if (name==="bahan")      loadBahan();
   if (name==="gunting")    loadGuntingPending();
   if (name==="ambil")      loadPilihAmbil();
   if (name==="jahit")      loadPilihJahit();
@@ -1986,7 +2031,8 @@ async function hitungBiayaOrder(orderId, ka, tr) {
   let kain = 0; const tanpaHarga = [];
   Object.entries(meter).forEach(([k,m]) => { if (m <= 0) return; const h = harga(k); if (h) kain += m * h; else tanpaHarga.push(k); });
   const upah = t => tr.filter(d => d.type === t).reduce((s,d) => s + (+d.totalUpah||0), 0);
-  return { kain: Math.round(kain), upahGunting: Math.round(upah("gunting")), upahJahit: Math.round(upah("jahit")), kainTanpaHarga: tanpaHarga };
+  const bahan = await hitungBiayaBahan(orderId, tr);
+  return { kain: Math.round(kain), upahGunting: Math.round(upah("gunting")), upahJahit: Math.round(upah("jahit")), kainTanpaHarga: tanpaHarga, bahanAktual: bahan.aktual, bahanStandar: bahan.standar };
 }
 async function kirimProgresOrder(orderId) {
   orderId = idOrder(orderId);
@@ -2199,6 +2245,98 @@ async function addGudang() {
 }
 async function delGudang(i) {
   settings.gudang.splice(i, 1); await saveSettings(); renderGudangTags(); terapkanGudang();
+}
+
+// ── BAHAN PENDUKUNG: master (settings.bahan), stok (config/stok_bahan), bahan_masuk & bahan_keluar ──
+const KAT_BAHAN = { kancing:"Kancing", puring:"Puring", kain_keras:"Kain keras", lobang_kancing:"Lobang kancing", setrika:"Setrika", bordiran:"Bordiran", lainnya:"Lainnya" };
+const bahanMaster = () => settings.bahan || [];
+function isiPilihanBahan() {
+  const opts = '<option value="">— Pilih bahan —</option>' + bahanMaster().map(b => `<option value="${escH(b.nama)}">${escH(b.nama)} (${escH(b.satuan||"")})</option>`).join("");
+  document.querySelectorAll("select.pilih-bahan").forEach(sel => { const v = sel.value; sel.innerHTML = opts; sel.value = v; });
+  const oleh = document.getElementById("bk-oleh");
+  if (oleh) oleh.innerHTML = '<option value="">— Pilih —</option>' + [...(settings.penjahit||[]).map(n => "🪡 " + n), ...(settings.operator||[]).map(n => "✂️ " + n), "📦 Finishing / packing"].map(n => `<option>${escH(n)}</option>`).join("");
+  const m = document.getElementById("bp-master");
+  if (m) m.innerHTML = bahanMaster().map((b, i) => `<div class="tg">${escH(b.nama)} · ${escH(b.satuan||"")} · ${KAT_BAHAN[b.kategori]||b.kategori}<span class="tgd" onclick="delBahanMaster(${i})">&#215;</span></div>`).join("") || '<span style="font-size:12px;color:var(--t2)">Belum ada bahan.</span>';
+}
+async function addBahanMaster() {
+  if (role !== "admin") return toast("Hanya Admin", "w");
+  const nama = document.getElementById("bp-nama").value.trim(), satuan = document.getElementById("bp-satuan").value.trim() || "pcs", kategori = document.getElementById("bp-kat").value;
+  if (!nama) return toast("Isi nama bahan", "w");
+  if (bahanMaster().some(b => b.nama.toLowerCase() === nama.toLowerCase())) return toast("Bahan sudah ada", "w");
+  settings.bahan = [...bahanMaster(), { nama, satuan, kategori }]; await saveSettings();
+  document.getElementById("bp-nama").value = ""; document.getElementById("bp-satuan").value = ""; isiPilihanBahan(); toast("Bahan ditambahkan");
+}
+async function delBahanMaster(i) {
+  if (role !== "admin") return;
+  if (!await confirm2("Hapus " + bahanMaster()[i].nama + " dari daftar? (riwayat tetap ada)")) return;
+  settings.bahan = bahanMaster().filter((_, j) => j !== i); await saveSettings(); isiPilihanBahan();
+}
+// Harga satuan: rata-rata pembelian untuk order itu, kalau tidak ada pakai pembelian terakhir
+function hargaBahan(bm, nama, orderId) {
+  const cocok = bm.filter(d => d.bahan === nama && d.harga > 0);
+  const order = cocok.filter(d => orderId && d.orderId === orderId);
+  const pakai = order.length ? order : cocok.sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal))).slice(0, 1);
+  const q = pakai.reduce((t, d) => t + (+d.qty||0), 0);
+  return q ? pakai.reduce((t, d) => t + (+d.harga||0) * (+d.qty||0), 0) / q : 0;
+}
+async function loadBahan() {
+  isiPilihanBahan(); terapkanGudang();
+  const [stok, bm, bk] = await Promise.all([fsGet("config","stok_bahan"), fsAll("bahan_masuk"), fsAll("bahan_keluar")]);
+  const st = stok || {};
+  document.getElementById("bp-stok").innerHTML = bahanMaster().length ? `<div class="sgrid">${bahanMaster().map(b => `<div class="sc"><div class="scl">${escH(b.nama)}</div><div class="scv" style="color:${(st[b.nama]||0) > 0 ? "var(--g)" : "var(--r)"}">${+(st[b.nama]||0)} <span style="font-size:11px">${escH(b.satuan||"")}</span></div></div>`).join("")}</div>` : '<div class="card" style="font-size:12px;color:var(--t2)">Belum ada bahan. Admin menambahkan daftar bahan di bawah.</div>';
+  const semua = [...bm.map(d => ({ ...d, _j: "masuk" })), ...bk.map(d => ({ ...d, _j: "keluar" }))];
+  renderHistList("bp-hist", "bp-cnt", semua, d => `<div class="card">
+      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> ${d._j === "masuk" ? "📥" : "📤"} <b>${escH(d.bahan)}</b> — ${d.qty} ${escH(d.satuan||"")}${d._j === "keluar" ? " · " + escH(d.oleh||"") : (d.supplier ? " dari " + escH(d.supplier) : "")}</div>
+      <div style="font-size:11px;color:var(--t2);margin-top:3px">${d.order ? (d.order === "STOK" ? "📦 Stok umum" : "Order <b>" + escH(d.order) + "</b>") : ""}${d.harga ? " · Rp " + fmt(d.harga) + "/" + escH(d.satuan||"satuan") + " = Rp " + fmt(Math.round(d.harga * d.qty)) : ""}${d.ket ? " · " + escH(d.ket) : ""}</div>
+      <div style="margin-top:6px">${mkDelBtn(d._j === "masuk" ? "bahan_masuk" : "bahan_keluar", d._id, "loadBahan")}</div></div>`);
+}
+async function infoBahanKeluar() {
+  const nama = document.getElementById("bk-bahan").value, el = document.getElementById("bk-info");
+  if (!nama) { el.textContent = ""; return; }
+  const st = (await fsGet("config","stok_bahan")) || {}, b = bahanMaster().find(x => x.nama === nama) || {};
+  el.textContent = "Stok: " + (+(st[nama]||0)) + " " + (b.satuan||"");
+}
+async function submitBahanMasuk() {
+  if (!bolehGudang()) return toast("Hanya Admin / petugas gudang", "w");
+  const tgl = document.getElementById("bm-tgl").value, nama = document.getElementById("bm-bahan").value, qty = +document.getElementById("bm-qty").value || 0;
+  if (!tgl || !nama || !(qty > 0)) return toast("Tanggal, bahan & jumlah wajib diisi", "w");
+  if (!wajibOrder("bm-ord")) return;
+  const ord = document.getElementById("bm-ord").value, harga = parseRpIn(document.getElementById("bm-harga").value), b = bahanMaster().find(x => x.nama === nama) || {};
+  if (!await confirm2(`Simpan masuk ${qty} ${b.satuan||""} ${nama}?`)) return;
+  await fsAdd("bahan_masuk", { tanggal: tgl, bahan: nama, kategori: b.kategori || "lainnya", satuan: b.satuan || "", qty, harga, supplier: document.getElementById("bm-sup").value.trim(), orderId: idOrder(ord), order: namaOrder(ord) });
+  const st = (await fsGet("config","stok_bahan")) || {}; st[nama] = (+st[nama]||0) + qty; await fsSet("config","stok_bahan", st);
+  toast("Bahan masuk disimpan"); kirimProgresOrder(ord);
+  ["bm-qty","bm-harga","bm-sup","bm-ord"].forEach(id => document.getElementById(id).value = ""); loadBahan();
+}
+async function submitBahanKeluar() {
+  if (!bolehGudang()) return toast("Hanya Admin / petugas gudang", "w");
+  const tgl = document.getElementById("bk-tgl").value, nama = document.getElementById("bk-bahan").value, qty = +document.getElementById("bk-qty").value || 0, oleh = document.getElementById("bk-oleh").value;
+  if (!tgl || !nama || !(qty > 0) || !oleh) return toast("Tanggal, bahan, jumlah & diambil oleh wajib diisi", "w");
+  if (!wajibOrder("bk-ord")) return;
+  const ord = document.getElementById("bk-ord").value, b = bahanMaster().find(x => x.nama === nama) || {};
+  const st = (await fsGet("config","stok_bahan")) || {};
+  const cek = await cekTersedia("Stok bahan tidak cukup", [{ nama, ukuran: "stok", pcs: qty }], { [nama + "||stok"]: +(st[nama]||0) }, b.satuan || "");
+  if (!cek.ok) return;
+  const harga = hargaBahan(await fsAll("bahan_masuk"), nama, idOrder(ord));
+  if (!await confirm2(`Keluarkan ${qty} ${b.satuan||""} ${nama} untuk ${oleh}?`)) return;
+  await fsAdd("bahan_keluar", { tanggal: tgl, bahan: nama, kategori: b.kategori || "lainnya", satuan: b.satuan || "", qty, oleh, harga: Math.round(harga), nilai: Math.round(harga * qty), ket: document.getElementById("bk-ket").value.trim(), orderId: idOrder(ord), order: namaOrder(ord), ...(cek.catatan ? { lebihStok: cek.catatan } : {}) });
+  st[nama] = Math.max(0, (+st[nama]||0) - qty); await fsSet("config","stok_bahan", st);
+  toast("Bahan keluar disimpan"); kirimProgresOrder(ord);
+  ["bk-qty","bk-ket","bk-ord"].forEach(id => document.getElementById(id).value = ""); document.getElementById("bk-info").textContent = ""; loadBahan();
+}
+// Biaya bahan per order: aktual dari Bahan Keluar per kategori; kategori tanpa catatan aktual pakai standar per pcs (Dashboard Modal) × pcs dijahit
+async function hitungBiayaBahan(orderId, tr) {
+  const [bk, md] = await Promise.all([fsQuery("bahan_keluar", ["orderId", "==", orderId]), fsGet("config", "modal_data")]);
+  const aktualPerKat = {}; let aktual = 0;
+  bk.forEach(d => { const k = d.kategori || "lainnya"; aktualPerKat[k] = (aktualPerKat[k]||0) + (+d.nilai||0); aktual += +d.nilai||0; });
+  const pcsPerItem = {};
+  tr.filter(d => d.type === "jahit").forEach(d => (d.items||[]).forEach(i => { pcsPerItem[i.nama] = (pcsPerItem[i.nama]||0) + (+i.pcs||0); }));
+  let standar = 0;
+  Object.entries(pcsPerItem).forEach(([item, pcs]) => {
+    const bl = (md || {})[item]?.bahan_lain || {};
+    BAHAN_LAIN.filter(f => f !== "upah_gunting" && !(aktualPerKat[f] > 0)).forEach(f => { standar += (+bl[f]||0) * pcs; });
+  });
+  return { aktual: Math.round(aktual), standar: Math.round(standar) };
 }
 // ── SUBMIT GUNTING ────────────────────────────────────────────────────────────
 async function submitGunting() {
