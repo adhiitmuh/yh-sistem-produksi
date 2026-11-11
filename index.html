@@ -474,12 +474,12 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
       <div class="fg"><label>Jenis Kain</label><input type="text" id="g-kain" placeholder="Drill, TC..."></div>
     </div>
     <div id="g-pending-wrap" style="display:none;margin-bottom:12px">
-      <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">📋 Dari Pengambilan Kain</div>
+      <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">📋 Pilih dari kain yang diambil operator ini (belum disetor)</div>
       <div id="g-pending-list"></div>
     </div>
     <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Item Guntingan</div>
     <div id="g-blocks"></div>
-    <button class="btn btgh" onclick="addGuntingBlock()">+ Tambah Item Manual</button>
+    <button class="btn btgh hanya-admin" onclick="addGuntingBlock(event)">+ Tambah Item Manual (Admin)</button>
     <div class="sb">
       <div><div class="sil">Total Pcs</div><div class="siv" style="color:var(--g)" id="g-tp">0</div></div>
       <div><div class="sil">Total Lembar</div><div class="siv" style="color:var(--g)" id="g-tl">0</div></div>
@@ -507,9 +507,13 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
       <div class="fg"><label>No. Order</label><input type="text" id="a-ord" placeholder="ORD-001"></div>
       <div class="fg"><label>Target Selesai</label><input type="date" id="a-ddl"></div>
     </div>
+    <div id="a-pil-wrap" style="margin-bottom:12px">
+      <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">📋 Pilih dari stok guntingan</div>
+      <div id="a-pil-list"></div>
+    </div>
     <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Item Diambil</div>
     <div id="a-blocks"></div>
-    <button class="btn btgh" onclick="addAmbilBlock()">+ Tambah Item</button>
+    <button class="btn btgh hanya-admin" onclick="addAmbilBlock(event)">+ Tambah Item Manual (Admin)</button>
     <div class="sb">
       <div><div class="sil">Total Pcs</div><div class="siv" style="color:var(--p)" id="a-tp">0</div></div>
       <div><div class="sil">Est. Upah</div><div class="siv" style="color:var(--p)" id="a-tu">Rp 0</div></div>
@@ -532,11 +536,15 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
   <div class="card">
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="j-tgl"></div>
-      <div class="fg"><label>Penjahit</label><select id="j-pjt"><option value="">— Pilih —</option></select></div>
+      <div class="fg"><label>Penjahit</label><select id="j-pjt" onchange="loadPilihJahit()"><option value="">— Pilih —</option></select></div>
+    </div>
+    <div id="j-pil-wrap" style="margin-bottom:12px;display:none">
+      <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">📋 Pilih dari bahan yang diambil penjahit ini</div>
+      <div id="j-pil-list"></div>
     </div>
     <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Item Jahitan</div>
     <div id="j-blocks"></div>
-    <button class="btn btgh" onclick="addJahitBlock()">+ Tambah Item</button>
+    <button class="btn btgh hanya-admin" onclick="addJahitBlock(event)">+ Tambah Item Manual (Admin)</button>
     <div class="sb">
       <div><div class="sil">Total Pcs</div><div class="siv" style="color:var(--a)" id="j-tp">0</div></div>
       <div><div class="sil">Total Upah</div><div class="siv" style="color:var(--a)" id="j-tu">Rp 0</div></div>
@@ -1209,6 +1217,12 @@ function applyRole() {
   if (tmt) tmt.style.display = isAdmin ? "block" : "none";
   const bfc = document.getElementById("backfill-card");
   if (bfc) bfc.style.display = isAdmin ? "block" : "none";
+  document.querySelectorAll(".hanya-admin").forEach(el => { el.style.display = isAdmin ? "" : "none"; });
+  if (isAdmin) { ["j-blocks","g-blocks","a-blocks"].forEach(id => { const c=document.getElementById(id); if(!c) return;
+    if(!c.children.length) ({"j-blocks":addJahitBlock,"g-blocks":addGuntingBlock,"a-blocks":addAmbilBlock})[id]();
+    // cukup satu blok manual kosong
+    [...c.querySelectorAll(".iblock:not([data-dari])")].filter(bl=>!bl.querySelector(".ibn")?.value?.trim()).slice(1).forEach(bl=>bl.remove()); }); }
+  else document.querySelectorAll("#j-blocks .iblock:not([data-dari]),#g-blocks .iblock:not([data-dari]),#a-blocks .iblock:not([data-dari])").forEach(b => b.remove());
 
   document.querySelectorAll(".btp,.btg,.btr,.btp2").forEach(b => b.classList.toggle("locked", !loggedIn));
   document.querySelectorAll(".farea").forEach(el => { el.style.pointerEvents = loggedIn ? "all" : "none"; el.style.opacity = loggedIn ? "1" : "0.4"; });
@@ -1397,6 +1411,9 @@ function go(name) {
   if (name==="modal")      loadModalDashboard();
   if (name==="kain-masuk") { loadKainList(); loadKainMasukHist(); loadStokKain(); }
   if (name==="kain-ambil") { loadKainList(); loadKainAmbilHist(); loadStokKain(); }
+  if (name==="gunting")    loadGuntingPending();
+  if (name==="ambil")      loadPilihAmbil();
+  if (name==="jahit")      loadPilihJahit();
   if (name==="alihtgas")   loadAlihTugasHist();
   if (name==="progress")   loadProgress();
 }
@@ -1493,9 +1510,11 @@ function mkBlock(cid, fn, hasU, exf) {
   div.innerHTML=`<div class="ibhdr"><div class="acw" style="flex:1"><input type="text" class="ibn" placeholder="Nama item..." oninput="acShow(this,'${bid}',${hasU});${fn}()" onblur="setTimeout(()=>acHide('${bid}'),180)" onkeydown="acKey(event,'${bid}')"><div class="acdd" id="ac-${bid}" style="display:none"></div></div>${uf}${ef}${tsf}<button onclick="document.getElementById('ib-${bid}').remove();${fn}()" class="btnrm">&#215;</button></div><div class="ukw" data-fn="${fn}">${buildUK(bid,"umum",fn)}</div><div style="margin-top:5px;font-size:11px;font-family:var(--m);font-weight:700;color:var(--g)" id="ibt-${bid}"></div>`;
   c.appendChild(div);
 }
-function addJahitBlock()   { mkBlock("j-blocks","calcJ",true,null); }
-function addGuntingBlock() { mkBlock("g-blocks","calcG",true,{cls:"ibl",ph:"Lembar"}); }
-function addAmbilBlock()   { mkBlock("a-blocks","calcA",true,null); }
+// Item manual (diketik bebas) hanya untuk Admin; staff memilih dari tahap sebelumnya
+const adaManualKosong = cid => [...document.querySelectorAll("#"+cid+" .iblock:not([data-dari])")].some(bl=>!bl.querySelector(".ibn")?.value?.trim());
+function addJahitBlock(ev)   { if(role!=="admin"||(!ev&&adaManualKosong("j-blocks"))) return; mkBlock("j-blocks","calcJ",true,null); }
+function addGuntingBlock(ev) { if(role!=="admin"||(!ev&&adaManualKosong("g-blocks"))) return; mkBlock("g-blocks","calcG",true,{cls:"ibl",ph:"Lembar"}); }
+function addAmbilBlock(ev)   { if(role!=="admin"||(!ev&&adaManualKosong("a-blocks"))) return; mkBlock("a-blocks","calcA",true,null); }
 function addKeluarBlock()  { mkBlock("ke-blocks","calcK",false,null); }
 
 function calcJ() {
@@ -1647,6 +1666,9 @@ async function submitJahit() {
   const tgl=document.getElementById("j-tgl").value, pj=document.getElementById("j-pjt").value;
   if(!tgl||!pj) return toast("Tanggal & penjahit wajib!");
   const it=colJ(); if(!it.length) return toast("Minimal 1 item dengan qty!");
+  const sjCek = (await fsGet("config","stok_jahitan")) || {};
+  const cekJ = await cekTersedia("Setor melebihi bahan yang diambil penjahit",it,sjCek[pj]||{});
+  if(!cekJ.ok) return;
   const tp=it.reduce((s,i)=>s+i.pcs,0), tu=it.reduce((s,i)=>s+i.subtotal,0);
   const ok = await new Promise(resolve=>{
     showConfirm("Konfirmasi Setoran Jahitan",[
@@ -1663,20 +1685,14 @@ async function submitJahit() {
     // Cek stok jahitan penjahit
     const sj = (await fsGet("config","stok_jahitan")) || {};
     const pjStok = sj[pj] || {};
-    const warnings = [];
-    it.forEach(i => {
-      const key=`${i.nama}||${i.ukuran}`, ambil=pjStok[key]||0;
-      if(i.pcs>ambil) warnings.push(`${i.nama} ${i.ukuran}: setor ${i.pcs} pcs tapi ambil ${ambil} pcs`);
-    });
-    if(warnings.length) { if(!confirm("Perhatian:\n"+warnings.join("\n")+"\n\nLanjutkan?")) return; }
     const fotos = await uploadFotos(fF.j);
-    await fsAdd("transaksi",{type:"jahit",tanggal:tgl,orang:pj,items:it,totalPcs:tp,totalUpah:tu,keterangan:document.getElementById("j-ket").value,fotos});
+    await fsAdd("transaksi",{type:"jahit",tanggal:tgl,orang:pj,items:it,totalPcs:tp,totalUpah:tu,...(cekJ.catatan?{lebihStok:cekJ.catatan}:{}),keterangan:document.getElementById("j-ket").value,fotos});
     // Kurangi stok jahitan
     it.forEach(i => { const k=`${i.nama}||${i.ukuran}`; pjStok[k]=Math.max(0,(pjStok[k]||0)-i.pcs); });
     sj[pj]=pjStok; await fsSet("config","stok_jahitan",sj);
     toast("✓ Setoran "+pj+" disimpan!");
     document.getElementById("j-pjt").value=""; document.getElementById("j-ket").value="";
-    document.getElementById("j-blocks").innerHTML=""; addJahitBlock(); calcJ(); clearF("j");
+    document.getElementById("j-blocks").innerHTML=""; addJahitBlock(); calcJ(); clearF("j"); loadPilihJahit();
   } catch(e) {
     const msg = e.message||e.code||String(e);
     console.error("submitJahit error:", e);
@@ -1686,11 +1702,82 @@ async function submitJahit() {
   }
 }
 
+
+// ── ALUR BERSAMBUNG: Kain Masuk → Pengambilan Kain → Setor Guntingan → Ambil Jahitan → Setor Jahitan ──
+// Stok per tahap: config/stok_kain (meter) → config/stok_ambil_kain {operator:{item||ukuran:pcs}}
+// → config/stok_guntingan {operator:{...}} → config/stok_jahitan {penjahit:{...}}.
+// Staff hanya memilih dari stok tahap sebelumnya & tidak bisa melebihi; Admin bisa, dengan alasan (tercatat).
+const escH = t => String(t ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+const _pil = {};  // sumber pilihan per form: {g|a|j: {item: {ukuran: qty}}}
+function kelompokStok(map) {
+  const out = {};
+  Object.entries(map||{}).forEach(([k,q]) => { if(!(q>0)) return; const [item,uk] = k.split("||"); (out[item]=out[item]||{})[uk]=q; });
+  return out;
+}
+function renderPilihan(pre, listId, wrapId, data, kosong) {
+  _pil[pre] = data;
+  const list = document.getElementById(listId), wrap = document.getElementById(wrapId);
+  if (!list) return;
+  const items = Object.keys(data).sort();
+  if (wrap) wrap.style.display = "";
+  list.innerHTML = items.length ? items.map(it => `<div style="margin-bottom:6px;background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);padding:8px 11px;font-size:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div style="flex:1;min-width:140px"><b>${escH(it)}</b><div style="color:var(--t2);margin-top:2px">${Object.entries(data[it]).map(([u,q])=>`${escH(u)}: <b>${q}</b>`).join(" · ")}</div></div>
+      <button type="button" class="btn-s" onclick="pilihDari('${pre}', decodeURIComponent('${encodeURIComponent(it)}'))">➕ Pakai</button>
+    </div>`).join("") : `<div class="empty" style="padding:8px 0;font-size:12px">${kosong}</div>`;
+}
+const _cfgPil = { g:{cid:"g-blocks",fn:"calcG",upah:"upah_gunting",lembar:true}, a:{cid:"a-blocks",fn:"calcA",upah:"upah"}, j:{cid:"j-blocks",fn:"calcJ",upah:"upah"} };
+function pilihDari(pre, item) {
+  const cfg = _cfgPil[pre], uk = (_pil[pre]||{})[item]; if(!cfg||!uk) return;
+  const c = document.getElementById(cfg.cid);
+  if ([...c.querySelectorAll(".iblock[data-dari]")].some(b => b.dataset.item === item)) return toast(item+" sudah ada di daftar","w");
+  c.querySelectorAll(".iblock:not([data-dari])").forEach(b => { if(!b.querySelector(".ibn")?.value?.trim()) b.remove(); });  // buang blok manual kosong
+  const im = (settings.items||[]).find(i => i.nama.toLowerCase() === item.toLowerCase()) || {};
+  const upah = im[cfg.upah] || 0, bid = pre+"p"+Date.now();
+  const div = document.createElement("div");
+  div.className = "iblock"; div.id = "ib-"+bid; div.dataset.dari = "1"; div.dataset.item = item;
+  div.innerHTML = `<div class="ibhdr">
+      <input type="hidden" class="ibn" value="${escH(item)}">
+      <div style="font-weight:700;flex:1">${escH(item)}</div>
+      ${cfg.lembar?`<div class="fg" style="flex:0 0 95px"><input type="number" class="ibl" placeholder="Lembar" min="0" oninput="${cfg.fn}()" style="font-family:var(--m)"></div>`:""}
+      <div class="fg" style="flex:0 0 115px"><input type="text" inputmode="numeric" class="ibu" placeholder="Upah/pcs" value="${upah?fmt(upah):""}" oninput="fmtRpIn(this);${cfg.fn}()" style="font-family:var(--m)"></div>
+      <button type="button" class="btnrm" onclick="this.closest('.iblock').remove();${cfg.fn}()">&#215;</button>
+    </div>
+    <div class="uksec"><div class="ukgl">Jumlah per Ukuran (tidak boleh melebihi yang tersedia)</div><div class="ukgrid">${Object.entries(uk).map(([u,q])=>`<div class="uki"><div class="ukl">${escH(u)}</div><input type="number" class="ukin" data-ukuran="${escH(u)}" min="0" max="${q}" value="${q}" oninput="${cfg.fn}()"><div style="font-size:9px;color:var(--t2);text-align:center">maks ${q}</div></div>`).join("")}</div></div>
+    <div style="margin-top:5px;font-size:11px;font-family:var(--m);font-weight:700;color:var(--g)" id="ibt-${bid}"></div>`;
+  c.appendChild(div);
+  window[cfg.fn]();
+}
+// Bandingkan jumlah yang diinput dengan yang tersedia. Staff: ditolak bila lebih. Admin: boleh dengan alasan.
+async function cekTersedia(judul, items, tersedia, satuan = "pcs") {
+  const per = {};
+  items.forEach(i => { const k = i.nama+"||"+i.ukuran; per[k] = (per[k]||0) + i.pcs; });
+  const lebih = Object.entries(per).filter(([k,q]) => q > (tersedia[k]||0)).map(([k,q]) => `${k.replace("||meter","").replace("||"," ")}: ${q} ${satuan}, tersedia ${tersedia[k]||0} ${satuan}`);
+  if (!lebih.length) return { ok:true };
+  if (role !== "admin") { showAlert(judul, "Melebihi yang tersedia:\n• "+lebih.join("\n• ")+"\n\nPeriksa jumlahnya. Kalau memang benar, minta Admin yang menyimpan."); return { ok:false }; }
+  const alasan = prompt("Melebihi yang tersedia:\n• "+lebih.join("\n• ")+"\n\nAnda Admin dan tetap bisa menyimpan. Tulis alasannya:");
+  if (!alasan || !alasan.trim()) return { ok:false };
+  return { ok:true, catatan:{ lebih, alasan:alasan.trim(), oleh:unama||uname||"admin" } };
+}
+const jumlahkanStok = obj => { const t = {}; Object.values(obj||{}).forEach(m => Object.entries(m||{}).forEach(([k,q]) => { t[k] = (t[k]||0) + (+q||0); })); return t; };
+async function loadPilihAmbil() {
+  const sg = (await fsGet("config","stok_guntingan")) || {};
+  renderPilihan("a","a-pil-list","a-pil-wrap",kelompokStok(jumlahkanStok(sg)),"Belum ada stok guntingan. Setor guntingan dulu.");
+}
+async function loadPilihJahit() {
+  const pj = document.getElementById("j-pjt")?.value, wrap = document.getElementById("j-pil-wrap");
+  document.querySelectorAll("#j-blocks .iblock[data-dari]").forEach(b => b.remove()); calcJ();
+  if (!pj) { if(wrap) wrap.style.display="none"; return; }
+  const sj = (await fsGet("config","stok_jahitan")) || {};
+  renderPilihan("j","j-pil-list","j-pil-wrap",kelompokStok(sj[pj]),"Penjahit ini tidak sedang memegang bahan. Catat dulu di Ambil Jahitan.");
+}
 // ── SUBMIT GUNTING ────────────────────────────────────────────────────────────
 async function submitGunting() {
   const tgl=document.getElementById("g-tgl").value, op=document.getElementById("g-op").value;
   if(!tgl||!op) return toast("Tanggal & operator wajib!");
   const it=colG(); if(!it.length) return toast("Minimal 1 item!");
+  const sakCek = (await fsGet("config","stok_ambil_kain")) || {};
+  const cekG = await cekTersedia("Guntingan melebihi kain yang diambil",it,sakCek[op]||{});
+  if(!cekG.ok) return;
   const tp=it.reduce((s,i)=>s+i.pcs,0), tl=it.reduce((s,i)=>s+i.lembar,0), tu=it.reduce((s,i)=>s+(i.subtotal||0),0);
   const ok = await new Promise(resolve=>{
     showConfirm("Konfirmasi Setoran Guntingan",[
@@ -1705,15 +1792,18 @@ async function submitGunting() {
   if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
   try {
     const fotos = await uploadFotos(fF.g);
-    await fsAdd("transaksi",{type:"gunting",tanggal:tgl,orang:op,order:document.getElementById("g-ord").value,kain:document.getElementById("g-kain").value,items:it,totalPcs:tp,totalLembar:tl,totalUpah:tu,keterangan:document.getElementById("g-ket").value,fotos});
+    await fsAdd("transaksi",{type:"gunting",tanggal:tgl,orang:op,order:document.getElementById("g-ord").value,kain:document.getElementById("g-kain").value,items:it,totalPcs:tp,totalLembar:tl,totalUpah:tu,...(cekG.catatan?{lebihStok:cekG.catatan}:{}),keterangan:document.getElementById("g-ket").value,fotos});
     // Tambah stok guntingan
     const sg = (await fsGet("config","stok_guntingan")) || {};
     if(!sg[op]) sg[op]={};
     it.forEach(i=>{ const k=`${i.nama}||${i.ukuran}`; sg[op][k]=(sg[op][k]||0)+i.pcs; });
     await fsSet("config","stok_guntingan",sg);
+    // Kurangi kain yang dipegang operator
+    const sak = (await fsGet("config","stok_ambil_kain")) || {};
+    if(sak[op]) { it.forEach(i=>{ const k=`${i.nama}||${i.ukuran}`; if(sak[op][k]!==undefined) sak[op][k]=Math.max(0,sak[op][k]-i.pcs); }); await fsSet("config","stok_ambil_kain",sak); }
     toast("✓ Setoran "+op+" disimpan! Stok guntingan diupdate.");
     ["g-op","g-ord","g-kain","g-ket"].forEach(id=>document.getElementById(id).value="");
-    document.getElementById("g-blocks").innerHTML=""; addGuntingBlock(); calcG(); clearF("g");
+    document.getElementById("g-blocks").innerHTML=""; addGuntingBlock(); calcG(); clearF("g"); loadGuntingPending();
   } catch(e) {
     const msg = e.message||e.code||String(e);
     console.error("submitGunting error:", e);
@@ -1728,6 +1818,8 @@ async function submitAmbil() {
   const tgl=document.getElementById("a-tgl").value, pj=document.getElementById("a-pjt").value;
   if(!tgl||!pj) return toast("Tanggal & penjahit wajib!");
   const it=colA(); if(!it.length) return toast("Minimal 1 item!");
+  const cekA = await cekTersedia("Melebihi stok guntingan",it,jumlahkanStok((await fsGet("config","stok_guntingan"))||{}));
+  if(!cekA.ok) return;
   const tp=it.reduce((s,i)=>s+i.pcs,0), tu=it.reduce((s,i)=>s+i.pcs*i.upah,0);
   const ok = await new Promise(resolve=>{
     showConfirm("Konfirmasi Pengambilan",[
@@ -1741,7 +1833,7 @@ async function submitAmbil() {
   if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
   try {
     const fotos = await uploadFotos(fF.a);
-    await fsAdd("transaksi",{type:"ambil",tanggal:tgl,orang:pj,order:document.getElementById("a-ord").value,deadline:document.getElementById("a-ddl").value,items:it,totalPcs:tp,totalUpah:tu,keterangan:document.getElementById("a-ket").value,fotos});
+    await fsAdd("transaksi",{type:"ambil",tanggal:tgl,orang:pj,order:document.getElementById("a-ord").value,deadline:document.getElementById("a-ddl").value,items:it,totalPcs:tp,totalUpah:tu,...(cekA.catatan?{lebihStok:cekA.catatan}:{}),keterangan:document.getElementById("a-ket").value,fotos});
     // Kurangi stok guntingan (FIFO), tambah stok jahitan
     const sg=(await fsGet("config","stok_guntingan"))||{};
     const sj=(await fsGet("config","stok_jahitan"))||{};
@@ -1758,7 +1850,7 @@ async function submitAmbil() {
     await fsSet("config","stok_jahitan",sj);
     toast("✓ Pengambilan "+pj+" disimpan!");
     ["a-pjt","a-ord","a-ddl","a-ket"].forEach(id=>document.getElementById(id).value="");
-    document.getElementById("a-blocks").innerHTML=""; addAmbilBlock(); calcA(); clearF("a");
+    document.getElementById("a-blocks").innerHTML=""; addAmbilBlock(); calcA(); clearF("a"); loadPilihAmbil();
   } catch(e) {
     const msg = e.message||e.code||String(e);
     console.error("submitAmbil error:", e);
@@ -2643,11 +2735,18 @@ async function submitKainAmbil() {
   const tanpaMeter = rows.filter(r=>r.pcs>0 && !(r.meter>0)).map(r=>r.ukuran);
   if(tanpaMeter.length) return toast("Isi kolom Meter untuk ukuran: "+tanpaMeter.join(", ")+" — supaya stok kain berkurang & rata-rata kain benar","w");
   const totM = rows.reduce((s,r)=>s+r.meter,0);
-  if(!await confirm2(`Ambil ${totM.toFixed(2)}m ${kain} untuk ${op}?`)) return;
-  await fsAdd("kain_ambil",{tanggal:tgl,operator:op,kain,item,rows,totalMeter:totM,ket});
   const kStok = (await db.collection("config").doc("stok_kain").get()).data()||{};
+  const cek = await cekTersedia("Stok kain tidak cukup",[{nama:kain,ukuran:"meter",pcs:+totM.toFixed(2)}],{[kain+"||meter"]:+(kStok[kain]||0)},"meter");
+  if(!cek.ok) return;
+  if(!await confirm2(`Ambil ${totM.toFixed(2)}m ${kain} untuk ${op}?`)) return;
+  await fsAdd("kain_ambil",{tanggal:tgl,operator:op,kain,item,rows,totalMeter:totM,ket,...(cek.catatan?{lebihStok:cek.catatan}:{})});
   kStok[kain] = Math.max(0,(kStok[kain]||0)-totM);
   await db.collection("config").doc("stok_kain").set(kStok);
+  // Kain yang dipegang operator cutting (pcs per item & ukuran) → jadi pilihan di Setor Guntingan
+  const sak = (await fsGet("config","stok_ambil_kain")) || {};
+  sak[op] = sak[op] || {};
+  rows.forEach(r => { if(r.pcs>0){ const k=item+"||"+r.ukuran; sak[op][k]=(sak[op][k]||0)+r.pcs; } });
+  await fsSet("config","stok_ambil_kain",sak);
   toast("Pengambilan kain disimpan!");
   ["ka-tgl","ka-item","ka-ket"].forEach(id=>document.getElementById(id).value="");
   document.getElementById("ka-stok-info").style.display="none";
@@ -2708,21 +2807,10 @@ async function toggleRataRata() {
 async function loadGuntingPending() {
   const op = document.getElementById("g-op")?.value;
   const wrap = document.getElementById("g-pending-wrap");
-  const list = document.getElementById("g-pending-list");
-  if(!op||!wrap||!list){if(wrap)wrap.style.display="none";return;}
-  const docs = await fsAll("kain_ambil");
-  const opDocs = docs.filter(d=>d.operator===op);
-  list.innerHTML="";
-  let found=false;
-  opDocs.slice(-5).forEach(d=>{
-    if(!d.rows||!d.rows.length) return;
-    found=true;
-    const div=document.createElement("div"); div.style.cssText="margin-bottom:6px;background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);padding:8px 11px;font-size:12px";
-    div.innerHTML=`<div style="font-weight:700;margin-bottom:5px">${fmtTgl(d.tanggal)} — ${d.kain} (${d.item})</div>
-      <div style="display:flex;flex-wrap:wrap;gap:4px">${(d.rows||[]).map(r=>`<button type="button" class="btn-s" onclick="addGuntingFromKain('${d.item}','${r.ukuran}',${r.pcs},this)">${r.ukuran}: ${r.pcs}pcs</button>`).join("")}</div>`;
-    list.appendChild(div);
-  });
-  wrap.style.display = found?"":"none";
+  document.querySelectorAll("#g-blocks .iblock[data-dari]").forEach(b => b.remove()); calcG();
+  if (!op) { if(wrap) wrap.style.display="none"; return; }
+  const sak = (await fsGet("config","stok_ambil_kain")) || {};
+  renderPilihan("g","g-pending-list","g-pending-wrap",kelompokStok(sak[op]),"Belum ada kain yang diambil operator ini (atau semua sudah disetor). Catat dulu di Pengambilan Kain.");
 }
 function addGuntingFromKain(item, ukuran, qty, btn) {
   btn.disabled=true; btn.style.opacity=".4";
@@ -2898,7 +2986,7 @@ async function downloadBackup() {
   const backup = { exportDate: new Date().toISOString(), collections:{} };
   for(const col of cols) backup.collections[col] = await fsAll(col);
   const cfg = {};
-  for(const d of ["settings","stok","stok_guntingan","stok_jahitan","stok_kain"]) {
+  for(const d of ["settings","stok","stok_guntingan","stok_jahitan","stok_kain","stok_ambil_kain"]) {
     const snap = await db.collection("config").doc(d).get();
     cfg[d] = snap.exists ? snap.data() : {};
   }
