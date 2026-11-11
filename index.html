@@ -590,6 +590,24 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
       <div><div class="sil">Lolos</div><div class="siv" style="color:var(--g)" id="qc-l">0</div></div>
       <div><div class="sil">Reject</div><div class="siv" style="color:var(--r)" id="qc-r">0</div></div>
     </div>
+    <div id="qc-reject-wrap" style="display:none;margin-bottom:10px;padding:10px 12px;border:1px solid var(--r);border-radius:var(--rads);background:var(--rdim)">
+      <div style="font-size:12px;font-weight:700;color:var(--r);margin-bottom:8px">⚠ Ada reject — wajib foto bukti & alasan</div>
+      <div class="g2">
+        <div class="fg"><label>Alasan reject</label><select id="qc-alasan"><option value="">— Pilih —</option>
+          <option>Jahitan miring / tidak rapi</option><option>Jahitan lepas / bolong</option><option>Kain cacat / noda / sobek</option>
+          <option>Ukuran tidak sesuai</option><option>Bordir / sablon / atribut salah</option><option>Kancing / resleting bermasalah</option><option>Lainnya (tulis di keterangan)</option></select></div>
+        <div class="fg"><label>Barang reject</label><select id="qc-nasib">
+          <option value="perbaiki">Dikembalikan ke penjahit untuk diperbaiki</option>
+          <option value="rusak">Rusak / tidak bisa diperbaiki (afkir)</option></select></div>
+      </div>
+    </div>
+    <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📸 Foto Bukti <span id="qc-foto-wajib" style="color:var(--r);display:none">(wajib — ada reject)</span></div>
+    <div class="fgrid" id="qc-fg"></div>
+    <div class="farea" onclick="document.getElementById('qc-fi').click()">
+      <input type="file" accept="image/*" multiple style="display:none" id="qc-fi" onchange="onFoto('qc',this)">
+      <div style="font-size:18px;margin-bottom:3px">📷</div>
+      <div style="font-size:11px;font-weight:600;color:var(--t2)">Foto hasil QC / barang reject</div>
+    </div>
     <div class="fg" style="margin-bottom:10px"><label>Keterangan</label><textarea id="qc-ket" placeholder="Catatan QC..."></textarea></div>
     <button class="btn btg" onclick="submitQC()">✅ Simpan Hasil QC</button>
   </div>
@@ -2228,6 +2246,7 @@ function calcQCRow(i) {
   document.getElementById("qc-m").textContent = tm;
   document.getElementById("qc-l").textContent = tl;
   document.getElementById("qc-r").textContent = tr;
+  tampilReject(tr);
 }
 async function loadQCPending() {
   const pj = document.getElementById("qc-pjt").value; if(!pj) return;
@@ -2253,6 +2272,12 @@ async function loadQCPending() {
   });
   wrap.style.display = found ? "" : "none";
 }
+
+function tampilReject(n) {
+  const w = document.getElementById("qc-reject-wrap"), f = document.getElementById("qc-foto-wajib");
+  if (w) w.style.display = n > 0 ? "" : "none";
+  if (f) f.style.display = n > 0 ? "" : "none";
+}
 async function submitQC() {
   const pj  = document.getElementById("qc-pjt").value;
   const tgl = document.getElementById("qc-tgl").value;
@@ -2261,14 +2286,23 @@ async function submitQC() {
   const ket = document.getElementById("qc-ket").value.trim();
   if(!pj||!tgl) return toast("Pilih penjahit dan tanggal!","w");
   if(!qcRows.length) return toast("Tambah item QC dulu!","w");
+  if(!wajibOrder("qc-ord")) return;
   const items = qcRows.map(r=>({nama:r.nm,ukuran:r.uk,masuk:r.masuk,ok:r.ok,reject:r.reject}));
+  const totReject = items.reduce((t,i)=>t+(+i.reject||0),0);
+  const alasan = document.getElementById("qc-alasan").value, nasib = document.getElementById("qc-nasib").value;
+  if(totReject>0){
+    if(!alasan) return toast("Ada "+totReject+" pcs reject — pilih alasan reject","w");
+    if(!(fF.qc||[]).length) return toast("Ada reject — wajib foto bukti barang yang rusak","w");
+    if(alasan.startsWith("Lainnya") && !ket) return toast("Tulis alasan reject di Keterangan","w");
+  }
   if(!await confirm2("Simpan data QC?")) return;
   const btn = document.querySelector("#s-qc .btg");
   const origTxt = btn ? btn.textContent : "";
   if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
   try {
     const fotos = await uploadFotos(fF["qc"]||[]);
-    await fsAdd("qc", {penjahit:pj, operator:op, order:ord, orderId:idOrder(ordId), tanggal:tgl, ket, fotos, items});
+    await fsAdd("qc", {penjahit:pj, operator:op, order:ord, orderId:idOrder(ordId), tanggal:tgl, ket, fotos, items,
+      ...(totReject>0?{totalReject:totReject, alasanReject:alasan, nasibReject:nasib}:{})});
     kirimProgresOrder(ordId);
     // update stok: deduct from stok_jahitan, add ok to stok utama
     const sj = (await db.collection("config").doc("stok_jahitan").get()).data()||{};
@@ -2276,7 +2310,8 @@ async function submitQC() {
     const sm = (await db.collection("config").doc("stok").get()).data()||{};
     items.forEach(it => {
       const key = it.nama+"||"+it.ukuran;
-      pjStok[key] = Math.max(0,(pjStok[key]||0)-(it.ok+it.reject));
+      // reject yang dikembalikan untuk diperbaiki tetap tercatat di tangan penjahit
+      pjStok[key] = Math.max(0,(pjStok[key]||0)-it.ok-(totReject>0&&nasib==="perbaiki"?0:it.reject));
       sm[key] = (sm[key]||0) + it.ok;
     });
     sj[pj] = pjStok;
@@ -2284,7 +2319,8 @@ async function submitQC() {
     await db.collection("config").doc("stok").set(sm);
     toast("✓ QC disimpan!");
     document.getElementById("qc-rows").innerHTML=""; qcRows=[];
-    ["qc-pjt","qc-op","qc-ord","qc-ket"].forEach(id=>document.getElementById(id).value="");
+    ["qc-pjt","qc-op","qc-ord","qc-ket","qc-alasan"].forEach(id=>document.getElementById(id).value="");
+    document.getElementById("qc-nasib").value="perbaiki"; tampilReject(0);
     document.getElementById("qc-pending-wrap").style.display="none";
     clearF("qc");
     await loadQCHist();
@@ -2460,6 +2496,8 @@ async function loadQCHist() {
     <div class="card">
       <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.penjahit}</b>${d.operator?" — "+d.operator:""}</div>
       <div>${itemsBadge(d.items.map(i=>({nama:i.nama,ukuran:i.ukuran,qty:"✔"+i.ok+" ✘"+i.reject})))}</div>
+      ${d.order?`<div style="font-size:11px;color:var(--t2);margin-top:4px">Order: ${escH(d.order)}</div>`:""}
+      ${d.totalReject?`<div style="font-size:12px;color:var(--r);font-weight:700;margin-top:4px">✘ ${d.totalReject} reject — ${escH(d.alasanReject||"")} · ${d.nasibReject==="rusak"?"afkir":"dikembalikan ke penjahit"}</div>`:""}
       ${fotoThumb(d.fotos)}
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
       <div style="margin-top:6px">${mkDelBtn("qc",d._id)}</div>
