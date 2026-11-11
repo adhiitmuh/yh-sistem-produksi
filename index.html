@@ -595,6 +595,22 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
 <!-- STOK -->
 <div class="sec" id="s-stok">
   <div class="ph"><div class="pt">📊 Stok</div><div class="ps">Monitor stok dari guntingan, jahitan, hingga barang jadi</div></div>
+  <div class="card hanya-admin" style="display:none;margin-bottom:14px">
+    <div class="ct">🛠 Koreksi Stok (Admin) — tercatat siapa & alasannya</div>
+    <div class="g2" style="margin-bottom:10px">
+      <div class="fg"><label>Jenis stok</label><select id="ks-jenis" onchange="ksIsi()">
+        <option value="">— Pilih —</option><option value="kain">Stok kain (meter)</option><option value="ambil_kain">Kain dipegang operator cutting (pcs)</option>
+        <option value="guntingan">Stok guntingan per operator (pcs)</option><option value="jahitan">Bahan dipegang penjahit (pcs)</option><option value="jadi">Barang jadi (pcs)</option></select></div>
+      <div class="fg" id="ks-orang-wrap" style="display:none"><label id="ks-orang-lbl">Operator / Penjahit</label><select id="ks-orang" onchange="ksIsiBarang()"></select></div>
+      <div class="fg"><label>Barang</label><select id="ks-barang" onchange="ksTampil()"></select></div>
+      <div class="fg" id="ks-baru-wrap" style="display:none"><label>Item baru (nama & ukuran)</label><div style="display:flex;gap:6px"><input type="text" id="ks-nama" placeholder="Nama item / kain"><input type="text" id="ks-uk" placeholder="Ukuran" style="max-width:90px"></div></div>
+      <div class="fg"><label>Angka sekarang</label><div id="ks-skrg" style="font-family:var(--m);font-weight:800;padding:9px 0">—</div></div>
+      <div class="fg"><label>Angka yang benar</label><input type="number" id="ks-baru" min="0" step="any" placeholder="0"></div>
+    </div>
+    <div class="fg" style="margin-bottom:10px"><label>Alasan (wajib)</label><input type="text" id="ks-alasan" placeholder="cth: hitung fisik 11 Nov, salah input setoran Lina"></div>
+    <button class="btn btg" onclick="simpanKoreksiStok()">💾 Simpan Koreksi</button>
+    <div style="margin-top:12px;font-size:11px;font-weight:700;color:var(--t2)">RIWAYAT KOREKSI</div><div id="ks-log" style="font-size:12px"></div>
+  </div>
   <div style="display:flex;gap:4px;margin-bottom:14px;background:var(--s2);padding:4px;border-radius:10px;border:1px solid var(--b)">
     <button id="stab-gunting" onclick="switchStokTab('gunting')" style="flex:1;padding:8px;border:none;border-radius:8px;font-family:var(--f);font-size:12px;font-weight:700;cursor:pointer;background:var(--a);color:#0a0a0a;transition:all .15s">✂️ Guntingan</button>
     <button id="stab-jahitan" onclick="switchStokTab('jahitan')" style="flex:1;padding:8px;border:none;border-radius:8px;font-family:var(--f);font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--t2);transition:all .15s">🪡 Jahitan</button>
@@ -1413,7 +1429,7 @@ function go(name) {
   if (name==="kasbon")     loadKasbonHist();
   if (name==="bayar")      loadBayarHist();
   if (name==="qc")         loadQCHist();
-  if (name==="stok")       switchStokTab("gunting");
+  if (name==="stok")       { switchStokTab("gunting"); loadKoreksiLog(); }
   if (name==="keluar")     loadKeluarHist();
   if (name==="ringkasan")  loadRingkasan();
   if (name==="setting")    { renderItemTable(); renderKainTags(); }
@@ -1903,6 +1919,67 @@ async function loadLacak() {
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${tahap.map(([k,l]) => `<span class="tag">${l}: <b>${x[k]}</b>${t ? "/" + t : ""}</span>`).join("")} ${tanda}</div>
     </div>`;
   }).join("") : '<div class="empty">Belum ada order Konveksi yang berjalan di Custom Order (atau gagal dimuat).</div>';
+}
+
+// ── KOREKSI STOK (Admin) — setiap perubahan dicatat di koleksi koreksi_stok ──
+const KS = { kain:{doc:"stok_kain",nested:false}, ambil_kain:{doc:"stok_ambil_kain",nested:true,orang:"operator"}, guntingan:{doc:"stok_guntingan",nested:true,orang:"operator"}, jahitan:{doc:"stok_jahitan",nested:true,orang:"penjahit"}, jadi:{doc:"stok",nested:false} };
+let _ksData = {};
+async function ksIsi() {
+  const j = document.getElementById("ks-jenis").value, cfg = KS[j];
+  const ow = document.getElementById("ks-orang-wrap");
+  document.getElementById("ks-skrg").textContent = "—";
+  if (!cfg) { ow.style.display = "none"; document.getElementById("ks-barang").innerHTML = ""; return; }
+  _ksData = (await fsGet("config", cfg.doc)) || {};
+  if (cfg.nested) {
+    const daftar = [...new Set([...(settings[cfg.orang] || []), ...Object.keys(_ksData)])].sort();
+    document.getElementById("ks-orang-lbl").textContent = cfg.orang === "operator" ? "Operator cutting" : "Penjahit";
+    document.getElementById("ks-orang").innerHTML = '<option value="">— Pilih —</option>' + daftar.map(o => `<option>${escH(o)}</option>`).join("");
+    ow.style.display = "";
+  } else ow.style.display = "none";
+  ksIsiBarang();
+}
+function ksPeta() { const j = document.getElementById("ks-jenis").value, cfg = KS[j]; if (!cfg) return {}; return cfg.nested ? (_ksData[document.getElementById("ks-orang").value] || {}) : _ksData; }
+function ksIsiBarang() {
+  const j = document.getElementById("ks-jenis").value, peta = ksPeta();
+  let kunci = Object.keys(peta).sort();
+  if (j === "kain") kunci = [...new Set([...(settings.kain || []).map(k => k.nama), ...kunci])].sort();
+  document.getElementById("ks-barang").innerHTML = '<option value="">— Pilih —</option>' + kunci.map(k => `<option value="${escH(k)}">${escH(k.replace("||", " · "))} (sekarang ${peta[k] || 0})</option>`).join("") + (j && j !== "kain" ? '<option value="__baru">➕ Item lain…</option>' : "");
+  ksTampil();
+}
+function ksKunci() {
+  const v = document.getElementById("ks-barang").value;
+  if (v !== "__baru") return v;
+  const n = document.getElementById("ks-nama").value.trim(), u = document.getElementById("ks-uk").value.trim();
+  return n && u ? n + "||" + u : "";
+}
+function ksTampil() {
+  document.getElementById("ks-baru-wrap").style.display = document.getElementById("ks-barang").value === "__baru" ? "" : "none";
+  const k = ksKunci(); document.getElementById("ks-skrg").textContent = k ? (ksPeta()[k] || 0) : "—";
+}
+async function simpanKoreksiStok() {
+  if (role !== "admin") return toast("Hanya Admin", "w");
+  const j = document.getElementById("ks-jenis").value, cfg = KS[j], orang = document.getElementById("ks-orang").value;
+  const kunci = ksKunci(), baruStr = document.getElementById("ks-baru").value, alasan = document.getElementById("ks-alasan").value.trim();
+  if (!cfg || (cfg.nested && !orang) || !kunci || baruStr === "") return toast("Lengkapi jenis stok, pemegang, barang & angka yang benar", "w");
+  if (!alasan) return toast("Alasan wajib diisi", "w");
+  const baru = Math.max(0, +baruStr);
+  const data = (await fsGet("config", cfg.doc)) || {};   // baca ulang supaya tidak menimpa perubahan orang lain
+  const peta = cfg.nested ? (data[orang] = data[orang] || {}) : data;
+  const dari = +(peta[kunci] || 0);
+  if (dari === baru) return toast("Angkanya sama, tidak ada yang diubah", "w");
+  if (!await confirm2(`Ubah ${kunci.replace("||", " ")}${cfg.nested ? " (" + orang + ")" : ""} dari ${dari} menjadi ${baru}?`)) return;
+  peta[kunci] = baru;
+  await fsSet("config", cfg.doc, data);
+  await fsAdd("koreksi_stok", { jenis: j, pemegang: orang || "", kunci, dari, ke: baru, alasan, oleh: unama || uname || "admin", tanggal: hariIniISO() });
+  toast("Koreksi stok disimpan & tercatat");
+  ["ks-baru","ks-alasan","ks-nama","ks-uk"].forEach(id => document.getElementById(id).value = "");
+  await ksIsi(); loadKoreksiLog();
+}
+async function loadKoreksiLog() {
+  const el = document.getElementById("ks-log"); if (!el || role !== "admin") return;
+  const docs = (await fsAll("koreksi_stok")).sort((a, b) => String(b.createdAt?.seconds || b.tanggal).localeCompare(String(a.createdAt?.seconds || a.tanggal))).slice(0, 20);
+  const nm = { kain:"Kain", ambil_kain:"Kain dipegang operator", guntingan:"Guntingan", jahitan:"Dipegang penjahit", jadi:"Barang jadi" };
+  el.innerHTML = docs.length ? docs.map(d => `<div style="padding:6px 0;border-bottom:1px solid var(--b)">${fmtTgl(d.tanggal)} · <b>${escH(nm[d.jenis] || d.jenis)}</b>${d.pemegang ? " (" + escH(d.pemegang) + ")" : ""} · ${escH(String(d.kunci).replace("||", " "))}: ${d.dari} → <b>${d.ke}</b> <span style="color:var(--t2)">— ${escH(d.alasan)} · ${escH(d.oleh)}</span></div>`).join("") : '<div class="empty" style="padding:8px">Belum ada koreksi.</div>';
 }
 // ── SUBMIT GUNTING ────────────────────────────────────────────────────────────
 async function submitGunting() {
