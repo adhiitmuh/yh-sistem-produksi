@@ -438,6 +438,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
       <div class="fg"><label>Operator</label><select id="ka-op"><option value="">— Pilih —</option></select></div>
       <div class="fg"><label>Nama Kain</label><select id="ka-kain" onchange="updateKainInfo()"><option value="">— Pilih —</option></select></div>
       <div class="fg"><label>Nama Item</label><input type="text" id="ka-item" placeholder="Korpri Pria, PDH..."></div>
+      <div class="fg" style="grid-column:1/-1"><label>Order (Custom Order)</label><select id="ka-ord" class="pilih-order" onchange="isiDariOrder()"><option value="">— Pilih order Custom Order —</option></select><div id="ka-ord-info" style="font-size:11px;color:var(--t2);margin-top:4px"></div></div>
     </div>
     <div id="ka-stok-info" style="display:none;background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);padding:10px 13px;margin-bottom:11px;font-size:12px">
       <span style="color:var(--t2)">Sisa stok </span><span id="ka-stok-nama" style="font-weight:700"></span><span style="color:var(--t2)">: </span>
@@ -470,7 +471,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="g-tgl"></div>
       <div class="fg"><label>Operator</label><select id="g-op" onchange="loadGuntingPending()"><option value="">— Pilih —</option></select></div>
-      <div class="fg"><label>No. Order</label><input type="text" id="g-ord" placeholder="ORD-001"></div>
+      <div class="fg"><label>Order (Custom Order)</label><select id="g-ord" class="pilih-order"><option value="">— Pilih order Custom Order —</option></select></div>
       <div class="fg"><label>Jenis Kain</label><input type="text" id="g-kain" placeholder="Drill, TC..."></div>
     </div>
     <div id="g-pending-wrap" style="display:none;margin-bottom:12px">
@@ -504,7 +505,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="a-tgl"></div>
       <div class="fg"><label>Penjahit</label><select id="a-pjt"><option value="">— Pilih —</option></select></div>
-      <div class="fg"><label>No. Order</label><input type="text" id="a-ord" placeholder="ORD-001"></div>
+      <div class="fg"><label>Order (Custom Order)</label><select id="a-ord" class="pilih-order"><option value="">— Pilih order Custom Order —</option></select></div>
       <div class="fg"><label>Target Selesai</label><input type="date" id="a-ddl"></div>
     </div>
     <div id="a-pil-wrap" style="margin-bottom:12px">
@@ -537,6 +538,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="j-tgl"></div>
       <div class="fg"><label>Penjahit</label><select id="j-pjt" onchange="loadPilihJahit()"><option value="">— Pilih —</option></select></div>
+      <div class="fg" style="grid-column:1/-1"><label>Order (Custom Order)</label><select id="j-ord" class="pilih-order"><option value="">— Pilih order Custom Order —</option></select></div>
     </div>
     <div id="j-pil-wrap" style="margin-bottom:12px;display:none">
       <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">📋 Pilih dari bahan yang diambil penjahit ini</div>
@@ -569,7 +571,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
       <div class="fg"><label>Tanggal</label><input type="date" id="qc-tgl"></div>
       <div class="fg"><label>Penjahit (sumber)</label><select id="qc-pjt" onchange="loadQCPending()"><option value="">— Pilih —</option></select></div>
       <div class="fg"><label>Operator QC</label><input type="text" id="qc-op" placeholder="Nama operator..."></div>
-      <div class="fg"><label>No. Order</label><input type="text" id="qc-ord" placeholder="ORD-001"></div>
+      <div class="fg"><label>Order (Custom Order)</label><select id="qc-ord" class="pilih-order"><option value="">— Pilih order Custom Order —</option></select></div>
     </div>
     <div id="qc-pending-wrap" style="display:none">
       <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📋 Status Setoran Penjahit</div>
@@ -1411,6 +1413,7 @@ function go(name) {
   if (name==="modal")      loadModalDashboard();
   if (name==="kain-masuk") { loadKainList(); loadKainMasukHist(); loadStokKain(); }
   if (name==="kain-ambil") { loadKainList(); loadKainAmbilHist(); loadStokKain(); }
+  if (["kain-ambil","gunting","ambil","jahit","qc"].includes(name)) isiPilihanOrder();
   if (name==="gunting")    loadGuntingPending();
   if (name==="ambil")      loadPilihAmbil();
   if (name==="jahit")      loadPilihJahit();
@@ -1686,12 +1689,14 @@ async function submitJahit() {
     const sj = (await fsGet("config","stok_jahitan")) || {};
     const pjStok = sj[pj] || {};
     const fotos = await uploadFotos(fF.j);
-    await fsAdd("transaksi",{type:"jahit",tanggal:tgl,orang:pj,items:it,totalPcs:tp,totalUpah:tu,...(cekJ.catatan?{lebihStok:cekJ.catatan}:{}),keterangan:document.getElementById("j-ket").value,fotos});
+    const jOrd = document.getElementById("j-ord")?.value || "";
+    await fsAdd("transaksi",{type:"jahit",tanggal:tgl,orang:pj,orderId:jOrd,order:namaOrder(jOrd),items:it,totalPcs:tp,totalUpah:tu,...(cekJ.catatan?{lebihStok:cekJ.catatan}:{}),keterangan:document.getElementById("j-ket").value,fotos});
     // Kurangi stok jahitan
     it.forEach(i => { const k=`${i.nama}||${i.ukuran}`; pjStok[k]=Math.max(0,(pjStok[k]||0)-i.pcs); });
     sj[pj]=pjStok; await fsSet("config","stok_jahitan",sj);
     toast("✓ Setoran "+pj+" disimpan!");
-    document.getElementById("j-pjt").value=""; document.getElementById("j-ket").value="";
+    kirimProgresOrder(jOrd);
+    document.getElementById("j-pjt").value=""; document.getElementById("j-ket").value=""; document.getElementById("j-ord").value="";
     document.getElementById("j-blocks").innerHTML=""; addJahitBlock(); calcJ(); clearF("j"); loadPilihJahit();
   } catch(e) {
     const msg = e.message||e.code||String(e);
@@ -1746,6 +1751,7 @@ function pilihDari(pre, item) {
     <div style="margin-top:5px;font-size:11px;font-family:var(--m);font-weight:700;color:var(--g)" id="ibt-${bid}"></div>`;
   c.appendChild(div);
   window[cfg.fn]();
+  if (pre === "j") tebakOrderJahit(document.getElementById("j-pjt").value, item).catch(() => {});
 }
 // Bandingkan jumlah yang diinput dengan yang tersedia. Staff: ditolak bila lebih. Admin: boleh dengan alasan.
 async function cekTersedia(judul, items, tersedia, satuan = "pcs") {
@@ -1770,6 +1776,80 @@ async function loadPilihJahit() {
   const sj = (await fsGet("config","stok_jahitan")) || {};
   renderPilihan("j","j-pil-list","j-pil-wrap",kelompokStok(sj[pj]),"Penjahit ini tidak sedang memegang bahan. Catat dulu di Ambil Jahitan.");
 }
+
+// ── ORDER DARI CUSTOM ORDER (divisi Konveksi) ────────────────────────────────
+// Daftar order diambil lewat Worker Custom Order (kontak customer tidak ikut). Progres produksi
+// per order dikirim balik ke Custom Order setiap ada setoran.
+const CO_WORKER = "https://harmoni-order-api.adhiitmuh.workers.dev";
+let _ordersCO = [], _ordersCOAt = 0;
+const namaOrder = id => { const o = _ordersCO.find(x => x.id === id); return o ? o.orderNumber : ""; };
+async function muatOrderCO(paksa) {
+  if (!paksa && _ordersCO.length && Date.now() - _ordersCOAt < 120000) return _ordersCO;
+  try {
+    const tok = await auth.currentUser?.getIdToken(); if (!tok) return _ordersCO;
+    const r = await fetch(CO_WORKER + "/yh/orders", { headers: { Authorization: "Bearer " + tok } });
+    const d = await r.json(); if (!r.ok) throw new Error(d.error || r.status);
+    _ordersCO = d.orders || []; _ordersCOAt = Date.now();
+  } catch (e) { console.warn("Order Custom Order tidak termuat:", e); }
+  return _ordersCO;
+}
+async function isiPilihanOrder() {
+  const list = await muatOrderCO();
+  const tgl = d => d ? new Date(d + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short" }) : "-";
+  const opsi = '<option value="">— Pilih order Custom Order —</option>' + list.map(o =>
+    `<option value="${escH(o.id)}">${escH(o.orderNumber)} · ${escH(o.customerName)} · ${o.totalQty} pcs · target ${tgl(o.dueDate)}${o.progressPercentage ? " · " + o.progressPercentage + "%" : ""}</option>`).join("");
+  document.querySelectorAll("select.pilih-order").forEach(sel => { const v = sel.value; sel.innerHTML = opsi; if (v && list.some(o => o.id === v)) sel.value = v; });
+  if (!list.length) document.querySelectorAll("select.pilih-order").forEach(sel => sel.options[0].textContent = "— Belum ada order Konveksi yang berjalan —");
+}
+// Pengambilan Kain: pilih order → isi item & jumlah per ukuran dari order
+function isiDariOrder() {
+  const o = _ordersCO.find(x => x.id === document.getElementById("ka-ord").value);
+  const info = document.getElementById("ka-ord-info");
+  if (!o) { info.textContent = ""; return; }
+  info.innerHTML = `${escH(o.customerName)} — ${o.items.map(i => escH(i.name) + " " + i.qty + " pcs").join(", ")}${o.sizeBreakdown ? "<br>Ukuran: " + Object.entries(o.sizeBreakdown).map(([u, q]) => escH(u) + " " + q).join(" · ") : ""}`;
+  const itemEl = document.getElementById("ka-item");
+  if (!itemEl.value.trim() && o.items.length === 1) itemEl.value = o.items[0].name;
+  if (o.sizeBreakdown && Object.keys(o.sizeBreakdown).length) {
+    document.getElementById("ka-ukuran-rows").innerHTML = "";
+    Object.entries(o.sizeBreakdown).forEach(([u, q]) => {
+      addKaUkuranRow();
+      const row = document.getElementById("ka-ukuran-rows").lastElementChild, inp = row.querySelectorAll("input");
+      inp[0].value = u; inp[1].value = +q || 0;
+    });
+    calcKainAmbil();
+    toast("Ukuran & jumlah diisi dari order — tinggal isi meter", "i");
+  }
+}
+// Hitung posisi produksi satu order dari semua catatan YH, lalu kirim ke Custom Order
+async function hitungProduksiOrder(orderId) {
+  const jumlahPcs = arr => arr.reduce((t, d) => t + (+d.totalPcs || (d.items || []).reduce((s, i) => s + (+i.pcs || 0), 0)), 0);
+  const [ka, tr, qc] = await Promise.all([fsQuery("kain_ambil", ["orderId", "==", orderId]), fsQuery("transaksi", ["orderId", "==", orderId]), fsQuery("qc", ["orderId", "==", orderId])]);
+  return {
+    kain: ka.reduce((t, d) => t + (d.rows || []).reduce((s, r) => s + (+r.pcs || 0), 0), 0),
+    gunting: jumlahPcs(tr.filter(d => d.type === "gunting")),
+    ambil: jumlahPcs(tr.filter(d => d.type === "ambil")),
+    jahit: jumlahPcs(tr.filter(d => d.type === "jahit")),
+    qc: qc.reduce((t, d) => t + (d.items || []).reduce((s, i) => s + (+i.ok || 0), 0), 0),
+  };
+}
+async function kirimProgresOrder(orderId) {
+  if (!orderId) return;
+  try {
+    const jumlah = await hitungProduksiOrder(orderId);
+    const tok = await auth.currentUser?.getIdToken(); if (!tok) return;
+    const r = await fetch(CO_WORKER + "/yh/progress", { method: "POST", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" }, body: JSON.stringify({ orderId, jumlah }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || r.status);
+    const o = _ordersCO.find(x => x.id === orderId); if (o) o.progressPercentage = d.progressPercentage;
+  } catch (e) { console.warn("Progres ke Custom Order gagal:", e); toast("Tersimpan, tapi progres ke Custom Order gagal terkirim (" + (e.message || e) + ")", "w"); }
+}
+// Setor Jahitan: tebak order dari pengambilan jahitan terakhir penjahit untuk item itu
+async function tebakOrderJahit(pj, item) {
+  const sel = document.getElementById("j-ord"); if (!sel || sel.value) return;
+  const tr = (await fsQuery("transaksi", ["orang", "==", pj])).filter(d => d.type === "ambil" && d.orderId && (d.items || []).some(i => i.nama === item));
+  tr.sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)));
+  if (tr[0] && [...sel.options].some(o => o.value === tr[0].orderId)) sel.value = tr[0].orderId;
+}
 // ── SUBMIT GUNTING ────────────────────────────────────────────────────────────
 async function submitGunting() {
   const tgl=document.getElementById("g-tgl").value, op=document.getElementById("g-op").value;
@@ -1792,7 +1872,7 @@ async function submitGunting() {
   if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
   try {
     const fotos = await uploadFotos(fF.g);
-    await fsAdd("transaksi",{type:"gunting",tanggal:tgl,orang:op,order:document.getElementById("g-ord").value,kain:document.getElementById("g-kain").value,items:it,totalPcs:tp,totalLembar:tl,totalUpah:tu,...(cekG.catatan?{lebihStok:cekG.catatan}:{}),keterangan:document.getElementById("g-ket").value,fotos});
+    await fsAdd("transaksi",{type:"gunting",tanggal:tgl,orang:op,order:namaOrder(document.getElementById("g-ord").value),orderId:document.getElementById("g-ord").value,kain:document.getElementById("g-kain").value,items:it,totalPcs:tp,totalLembar:tl,totalUpah:tu,...(cekG.catatan?{lebihStok:cekG.catatan}:{}),keterangan:document.getElementById("g-ket").value,fotos});
     // Tambah stok guntingan
     const sg = (await fsGet("config","stok_guntingan")) || {};
     if(!sg[op]) sg[op]={};
@@ -1802,6 +1882,7 @@ async function submitGunting() {
     const sak = (await fsGet("config","stok_ambil_kain")) || {};
     if(sak[op]) { it.forEach(i=>{ const k=`${i.nama}||${i.ukuran}`; if(sak[op][k]!==undefined) sak[op][k]=Math.max(0,sak[op][k]-i.pcs); }); await fsSet("config","stok_ambil_kain",sak); }
     toast("✓ Setoran "+op+" disimpan! Stok guntingan diupdate.");
+    kirimProgresOrder(document.getElementById("g-ord").value);
     ["g-op","g-ord","g-kain","g-ket"].forEach(id=>document.getElementById(id).value="");
     document.getElementById("g-blocks").innerHTML=""; addGuntingBlock(); calcG(); clearF("g"); loadGuntingPending();
   } catch(e) {
@@ -1833,7 +1914,7 @@ async function submitAmbil() {
   if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
   try {
     const fotos = await uploadFotos(fF.a);
-    await fsAdd("transaksi",{type:"ambil",tanggal:tgl,orang:pj,order:document.getElementById("a-ord").value,deadline:document.getElementById("a-ddl").value,items:it,totalPcs:tp,totalUpah:tu,...(cekA.catatan?{lebihStok:cekA.catatan}:{}),keterangan:document.getElementById("a-ket").value,fotos});
+    await fsAdd("transaksi",{type:"ambil",tanggal:tgl,orang:pj,order:namaOrder(document.getElementById("a-ord").value),orderId:document.getElementById("a-ord").value,deadline:document.getElementById("a-ddl").value,items:it,totalPcs:tp,totalUpah:tu,...(cekA.catatan?{lebihStok:cekA.catatan}:{}),keterangan:document.getElementById("a-ket").value,fotos});
     // Kurangi stok guntingan (FIFO), tambah stok jahitan
     const sg=(await fsGet("config","stok_guntingan"))||{};
     const sj=(await fsGet("config","stok_jahitan"))||{};
@@ -1849,6 +1930,7 @@ async function submitAmbil() {
     await fsSet("config","stok_guntingan",sg);
     await fsSet("config","stok_jahitan",sj);
     toast("✓ Pengambilan "+pj+" disimpan!");
+    kirimProgresOrder(document.getElementById("a-ord").value);
     ["a-pjt","a-ord","a-ddl","a-ket"].forEach(id=>document.getElementById(id).value="");
     document.getElementById("a-blocks").innerHTML=""; addAmbilBlock(); calcA(); clearF("a"); loadPilihAmbil();
   } catch(e) {
@@ -1921,7 +2003,7 @@ async function submitQC() {
   const pj  = document.getElementById("qc-pjt").value;
   const tgl = document.getElementById("qc-tgl").value;
   const op  = document.getElementById("qc-op").value.trim();
-  const ord = document.getElementById("qc-ord").value.trim();
+  const ordId = document.getElementById("qc-ord").value, ord = namaOrder(ordId);
   const ket = document.getElementById("qc-ket").value.trim();
   if(!pj||!tgl) return toast("Pilih penjahit dan tanggal!","w");
   if(!qcRows.length) return toast("Tambah item QC dulu!","w");
@@ -1932,7 +2014,8 @@ async function submitQC() {
   if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
   try {
     const fotos = await uploadFotos(fF["qc"]||[]);
-    await fsAdd("qc", {penjahit:pj, operator:op, order:ord, tanggal:tgl, ket, fotos, items});
+    await fsAdd("qc", {penjahit:pj, operator:op, order:ord, orderId:ordId, tanggal:tgl, ket, fotos, items});
+    kirimProgresOrder(ordId);
     // update stok: deduct from stok_jahitan, add ok to stok utama
     const sj = (await db.collection("config").doc("stok_jahitan").get()).data()||{};
     const pjStok = {...(sj[pj]||{})};
@@ -2739,7 +2822,8 @@ async function submitKainAmbil() {
   const cek = await cekTersedia("Stok kain tidak cukup",[{nama:kain,ukuran:"meter",pcs:+totM.toFixed(2)}],{[kain+"||meter"]:+(kStok[kain]||0)},"meter");
   if(!cek.ok) return;
   if(!await confirm2(`Ambil ${totM.toFixed(2)}m ${kain} untuk ${op}?`)) return;
-  await fsAdd("kain_ambil",{tanggal:tgl,operator:op,kain,item,rows,totalMeter:totM,ket,...(cek.catatan?{lebihStok:cek.catatan}:{})});
+  const kaOrd = document.getElementById("ka-ord")?.value || "";
+  await fsAdd("kain_ambil",{tanggal:tgl,operator:op,kain,item,rows,totalMeter:totM,ket,orderId:kaOrd,order:namaOrder(kaOrd),...(cek.catatan?{lebihStok:cek.catatan}:{})});
   kStok[kain] = Math.max(0,(kStok[kain]||0)-totM);
   await db.collection("config").doc("stok_kain").set(kStok);
   // Kain yang dipegang operator cutting (pcs per item & ukuran) → jadi pilihan di Setor Guntingan
@@ -2748,7 +2832,9 @@ async function submitKainAmbil() {
   rows.forEach(r => { if(r.pcs>0){ const k=item+"||"+r.ukuran; sak[op][k]=(sak[op][k]||0)+r.pcs; } });
   await fsSet("config","stok_ambil_kain",sak);
   toast("Pengambilan kain disimpan!");
-  ["ka-tgl","ka-item","ka-ket"].forEach(id=>document.getElementById(id).value="");
+  ["ka-tgl","ka-item","ka-ket","ka-ord"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("ka-ord-info").textContent = "";
+  kirimProgresOrder(kaOrd);
   document.getElementById("ka-stok-info").style.display="none";
   document.getElementById("ka-ukuran-rows").innerHTML="";
   calcKainAmbil(); await loadKainAmbilHist();
