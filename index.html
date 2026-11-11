@@ -423,6 +423,8 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
       <div class="fg"><label>Nama Kain</label><select id="km-kain"><option value="">— Pilih —</option></select></div>
       <div class="fg"><label>Jumlah (Meter)</label><input type="number" id="km-meter" placeholder="0" min="0" step="0.1"></div>
       <div class="fg"><label>Supplier</label><input type="text" id="km-supplier" placeholder="Nama supplier..."></div>
+      <div class="fg"><label>Untuk order (Custom Order)</label><select id="km-ord" class="pilih-order"><option value="">— Pilih order Custom Order —</option></select></div>
+      <div class="fg"><label>Harga per meter (opsional)</label><input type="text" inputmode="numeric" id="km-harga" placeholder="Rp 0" oninput="fmtRpIn(this)"><div style="font-size:10px;color:var(--t2);margin-top:3px">Untuk menghitung biaya kain per order</div></div>
     </div>
     <div class="fg" style="margin-bottom:10px"><label>Keterangan</label><input type="text" id="km-ket" placeholder="Opsional..."></div>
     <button class="btn btg" onclick="submitKainMasuk()">✓ Simpan Kain Masuk</button>
@@ -1472,7 +1474,7 @@ function go(name) {
   if (name==="modal")      loadModalDashboard();
   if (name==="kain-masuk") { loadKainList(); loadKainMasukHist(); loadStokKain(); }
   if (name==="kain-ambil") { loadKainList(); loadKainAmbilHist(); loadStokKain(); }
-  if (["kain-ambil","gunting","ambil","jahit","qc"].includes(name)) isiPilihanOrder();
+  if (["kain-masuk","kain-ambil","gunting","ambil","jahit","qc"].includes(name)) isiPilihanOrder();
   if (name==="gunting")    loadGuntingPending();
   if (name==="ambil")      loadPilihAmbil();
   if (name==="jahit")      loadPilihJahit();
@@ -1930,6 +1932,13 @@ function isiDariOrder() {
   const info = document.getElementById("ka-ord-info");
   if (!o) { info.textContent = ""; return; }
   info.innerHTML = `${escH(o.customerName)} — ${o.items.map(i => escH(i.name) + " " + i.qty + " pcs").join(", ")}${o.sizeBreakdown ? "<br>Ukuran: " + Object.entries(o.sizeBreakdown).map(([u, q]) => escH(u) + " " + q).join(" · ") : ""}`;
+  fsQuery("kain_masuk", ["orderId", "==", o.id]).then(km => {
+    if (!km.length) { info.innerHTML += '<br><span style="color:#d97706">Belum ada kain yang dibeli khusus untuk order ini (pakai stok umum).</span>'; return; }
+    const per = {}; km.forEach(d => { per[d.kain] = (per[d.kain] || 0) + (+d.meter || 0); });
+    info.innerHTML += "<br>🧵 Kain dibeli untuk order ini: <b>" + Object.entries(per).map(([k, m]) => escH(k) + " " + m + " m").join(", ") + "</b>";
+    const sel = document.getElementById("ka-kain");
+    if (!sel.value && Object.keys(per).length === 1 && [...sel.options].some(op => op.value === Object.keys(per)[0])) { sel.value = Object.keys(per)[0]; updateKainInfo(); }
+  }).catch(() => {});
   const itemEl = document.getElementById("ka-item");
   if (!itemEl.value.trim() && o.items.length === 1) itemEl.value = o.items[0].name;
   if (o.sizeBreakdown && Object.keys(o.sizeBreakdown).length) {
@@ -2001,7 +2010,8 @@ const selisihHari = (a, b) => Math.round((new Date(a+"T00:00:00") - new Date(b+"
 async function loadLacak() {
   const dl = document.getElementById("dl-list"), lo = document.getElementById("lo-list");
   dl.innerHTML = lo.innerHTML = '<div class="empty">Memuat…</div>';
-  const [orders, tr, ka, qc, sj] = await Promise.all([muatOrderCO(true), fsAll("transaksi"), fsAll("kain_ambil"), fsAll("qc"), fsGet("config","stok_jahitan")]);
+  const [orders, tr, ka, qc, sj, km] = await Promise.all([muatOrderCO(true), fsAll("transaksi"), fsAll("kain_ambil"), fsAll("qc"), fsGet("config","stok_jahitan"), fsAll("kain_masuk")]);
+  const beli = {}; km.forEach(d => { if (!d.orderId) return; const b = beli[d.orderId] = beli[d.orderId] || { m:0, rp:0 }; b.m += +d.meter||0; b.rp += +d.totalHarga||0; });
   const hari = hariIniISO();
   // Deadline: pengambilan jahitan bertarget yang bahannya masih dipegang penjahit
   const pegang = sj || {};
@@ -2057,7 +2067,7 @@ async function loadLacak() {
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><div><b>${escH(o.orderNumber)}</b> · ${escH(o.customerName)} <span style="color:var(--t2)">· ${o.items.map(i => escH(i.name)).join(", ")} · ${t} pcs</span></div>
         <div>${sisaHari === null ? "" : sisaHari < 0 ? `<span style="color:var(--r);font-weight:800">Lewat target ${-sisaHari} hari</span>` : `<span style="color:${sisaHari <= 3 ? "#d97706" : "var(--t2)"};font-weight:700">Target ${fmtTgl(o.dueDate)} (${sisaHari} hari)</span>`}</div></div>
       <div style="height:6px;background:var(--b);border-radius:4px;margin:7px 0;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--g)"></div></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${tahap.map(([k,l]) => `<span class="tag">${l}: <b>${x[k]}</b>${t ? "/" + t : ""}</span>`).join("")} ${tanda}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${beli[o.id] ? `<span class="tag">🧵 Kain dibeli: <b>${beli[o.id].m} m</b>${beli[o.id].rp ? " · Rp " + fmt(beli[o.id].rp) : ""}</span>` : ""}${tahap.map(([k,l]) => `<span class="tag">${l}: <b>${x[k]}</b>${t ? "/" + t : ""}</span>`).join("")} ${tanda}</div>
     </div>`;
   }).join("") : '<div class="empty">Belum ada order Konveksi yang berjalan di Custom Order (atau gagal dimuat).</div>';
 }
@@ -3073,14 +3083,16 @@ async function submitKainMasuk() {
   const sup   = document.getElementById("km-supplier").value.trim();
   const ket   = document.getElementById("km-ket").value.trim();
   if(!tgl||!kain||!meter) return toast("Tanggal, kain, dan jumlah wajib diisi!","w");
-  if(!await confirm2(`Simpan masuk ${meter}m ${kain}?`)) return;
-  await fsAdd("kain_masuk",{tanggal:tgl,kain,meter,supplier:sup,ket});
+  if(!wajibOrder("km-ord")) return;
+  const kmOrd = document.getElementById("km-ord").value, hargaMeter = parseRpIn(document.getElementById("km-harga").value);
+  if(!await confirm2(`Simpan masuk ${meter}m ${kain}${namaOrder(kmOrd)==="STOK"?" untuk stok umum":" untuk order "+namaOrder(kmOrd)}?`)) return;
+  await fsAdd("kain_masuk",{tanggal:tgl,kain,meter,supplier:sup,ket,orderId:idOrder(kmOrd),order:namaOrder(kmOrd),hargaMeter,totalHarga:Math.round(hargaMeter*meter)});
   // update stok kain
   const kStok = (await db.collection("config").doc("stok_kain").get()).data()||{};
   kStok[kain] = (kStok[kain]||0) + meter;
   await db.collection("config").doc("stok_kain").set(kStok);
   toast("Kain masuk disimpan!");
-  ["km-tgl","km-kain","km-meter","km-supplier","km-ket"].forEach(id=>document.getElementById(id).value="");
+  ["km-tgl","km-kain","km-meter","km-supplier","km-ket","km-ord","km-harga"].forEach(id=>document.getElementById(id).value="");
   await loadKainMasukHist();
 }
 async function loadKainMasukHist() {
@@ -3088,6 +3100,7 @@ async function loadKainMasukHist() {
   renderHistList("km-hist","km-cnt",docs,d=>`
     <div class="card">
       <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.kain}</b> — ${d.meter}m${d.supplier?" dari "+d.supplier:""}</div>
+      <div style="font-size:11px;color:var(--t2);margin-top:3px">${d.order?(d.order==="STOK"?"📦 Stok umum":"Untuk order <b>"+escH(d.order)+"</b>"):"Order belum dicatat"}${d.hargaMeter?" · Rp "+fmt(d.hargaMeter)+"/m = <b>Rp "+fmt(d.totalHarga||0)+"</b>":""}</div>
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
       <div style="margin-top:6px">${mkDelBtn("kain_masuk",d._id)}</div>
     </div>`);
