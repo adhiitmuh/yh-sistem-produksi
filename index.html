@@ -416,12 +416,13 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
 <div class="sec active" id="s-kain-masuk">
   <div class="ph"><div class="pt">🧵 Kain Masuk</div><div class="ps">Catat kain masuk dari supplier — stok kain otomatis bertambah</div></div>
   <div id="stok-kain-wrap" style="margin-bottom:14px"></div>
+  <div class="card" id="kain-usulan-wrap" style="display:none;margin-bottom:14px"></div>
   <div class="card khusus-gudang-info" data-izin="kainMasuk" style="display:none;font-size:12px;color:var(--t2)">🔒 Kain masuk hanya dicatat oleh <b>Admin</b> atau <b>petugas gudang</b> — supaya yang mengeluarkan kain berbeda dengan yang memakai kain. Riwayat & stok tetap bisa dilihat di bawah.</div>
   <div class="card khusus-gudang" data-izin="kainMasuk">
     <div class="ct">➕ Input Kain Masuk</div>
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="km-tgl"></div>
-      <div class="fg"><label>Nama Kain</label><select id="km-kain"><option value="">— Pilih —</option></select></div>
+      <div class="fg"><label>Nama Kain</label><select id="km-kain"><option value="">— Pilih —</option></select><div style="margin-top:4px"><a href="javascript:void(0)" onclick="usulkanKain()" id="km-usul-link" style="font-size:11px;color:var(--bl);text-decoration:none">+ Kain belum ada? Usulkan nama kain baru</a></div></div>
       <div class="fg"><label>Jumlah (Meter)</label><input type="number" id="km-meter" placeholder="0" min="0" step="0.1"></div>
       <div class="fg"><label>Supplier</label><input type="text" id="km-supplier" placeholder="Nama supplier..."></div>
       <div class="fg"><label>Untuk order (Custom Order)</label><select id="km-ord" class="pilih-order"><option value="">— Pilih order Custom Order —</option></select></div>
@@ -1325,6 +1326,7 @@ function applyRole() {
   if (bfc) bfc.style.display = isAdmin ? "block" : "none";
   document.querySelectorAll(".hanya-admin").forEach(el => { el.style.display = isAdmin ? "" : "none"; });
   const gmIn = document.getElementById("g-meter"); if (gmIn) gmIn.readOnly = !isAdmin;
+  const kuL = document.getElementById("km-usul-link"); if (kuL) kuL.textContent = isAdmin ? "+ Tambah nama kain baru" : "+ Kain belum ada? Usulkan nama kain baru";
   if (typeof settings !== "undefined" && settings) terapkanGudang();   // penggunting tidak bisa mengisi meter sendiri
   if (isAdmin) { ["j-blocks","g-blocks","a-blocks"].forEach(id => { const c=document.getElementById(id); if(!c) return;
     if(!c.children.length) ({"j-blocks":addJahitBlock,"g-blocks":addGuntingBlock,"a-blocks":addAmbilBlock})[id]();
@@ -1449,6 +1451,55 @@ async function delKainMaster(nama) {
   await saveSettings();
   toast("🗑️ Kain dihapus"); renderKainTags(); loadKainList();
 }
+// ── USULAN KAIN BARU: staff usulkan → admin setujui/tolak ──
+async function usulkanKain() {
+  if (role !== "admin" && role !== "staff") return toast("Login dulu");
+  const n = (prompt(role === "admin" ? "Nama kain baru:" : "Nama kain baru yang diusulkan (akan disetujui Admin):") || "").trim();
+  if (!n) return;
+  if ((settings.kain || []).find(k => k.nama.toLowerCase() === n.toLowerCase())) return toast("⚠ Kain itu sudah ada di daftar");
+  if (role === "admin") {
+    settings.kain = [...(settings.kain || []), {nama: n}];
+    await saveSettings();
+    toast("✅ Kain ditambahkan!"); renderKainTags(); loadKainList();
+    document.getElementById("km-kain").value = n;
+    return;
+  }
+  const ada = await fsAll("kain_usulan");
+  if (ada.find(u => (u.nama || "").toLowerCase() === n.toLowerCase())) return toast("⚠ Kain itu sudah diusulkan, tunggu persetujuan Admin");
+  await fsAdd("kain_usulan", {nama: n});
+  toast("📨 Usulan dikirim — menunggu persetujuan Admin");
+  loadKainUsulan();
+}
+async function loadKainUsulan() {
+  const wrap = document.getElementById("kain-usulan-wrap"); if (!wrap) return;
+  const list = await fsAll("kain_usulan");
+  if (!list.length) { wrap.style.display = "none"; wrap.innerHTML = ""; return; }
+  const isAdmin = role === "admin";
+  wrap.style.display = "block";
+  wrap.innerHTML = `<div class="ct">⏳ Usulan Nama Kain Baru (${list.length})</div>` + list.map(u => `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--bd,#333)">
+      <div><b>${escH(u.nama)}</b><div style="font-size:11px;color:var(--t2)">Diusulkan oleh ${escH(u.createdByNama || "—")}</div></div>
+      ${isAdmin
+        ? `<div style="display:flex;gap:6px"><button class="btn-del" style="background:var(--g);color:#0a0a0a" onclick="setujuiKain('${u._id}')">✓ Setujui</button><button class="btn-del" onclick="tolakKain('${u._id}')">✕ Tolak</button></div>`
+        : `<span style="font-size:11px;color:var(--t2)">Menunggu Admin</span>`}
+    </div>`).join("");
+}
+async function setujuiKain(id) {
+  if (role !== "admin") return;
+  const u = await fsGet("kain_usulan", id); if (!u) return loadKainUsulan();
+  if (!(settings.kain || []).find(k => k.nama.toLowerCase() === u.nama.toLowerCase())) {
+    settings.kain = [...(settings.kain || []), {nama: u.nama}];
+    await saveSettings();
+  }
+  await fsDel("kain_usulan", id);
+  toast("✅ Kain \"" + u.nama + "\" disetujui"); renderKainTags(); loadKainList(); loadKainUsulan();
+}
+async function tolakKain(id) {
+  if (role !== "admin") return;
+  if (!await confirm2("Tolak usulan kain ini?")) return;
+  await fsDel("kain_usulan", id);
+  toast("Usulan ditolak"); loadKainUsulan();
+}
 function loadKainList() {
   const list = settings.kain || [];
   const opts = "<option value=''>— Pilih —</option>" + list.map(k => `<option>${k.nama}</option>`).join("");
@@ -1520,7 +1571,7 @@ function go(name) {
   if (name==="ringkasan")  loadRingkasan();
   if (name==="setting")    { renderItemTable(); renderKainTags(); renderGudangTags(); isiPilihanGudang(); }
   if (name==="modal")      loadModalDashboard();
-  if (name==="kain-masuk") { loadKainList(); loadKainMasukHist(); loadStokKain(); }
+  if (name==="kain-masuk") { loadKainList(); loadKainMasukHist(); loadStokKain(); loadKainUsulan(); }
   if (name==="kain-ambil") { loadKainList(); loadKainAmbilHist(); loadStokKain(); }
   if (["kain-masuk","kain-ambil","bahan","gunting","ambil","jahit","qc"].includes(name)) isiPilihanOrder();
   if (name==="bahan")      loadBahan();
@@ -1554,7 +1605,7 @@ async function loadAll() {
     const el = document.getElementById(id); if (el) el.value = d;
   });
   addJahitBlock(); addGuntingBlock(); addAmbilBlock(); addKeluarBlock();
-  loadKainList(); loadKainMasukHist(); loadStokKain();
+  loadKainList(); loadKainMasukHist(); loadStokKain(); loadKainUsulan();
   const initHash = location.hash.slice(1);
   go(VALID_PAGES.includes(initHash) ? initHash : "kain-masuk");
   setTimeout(checkBackupReminder, 3000);

@@ -80,6 +80,10 @@ Aplikasi manajemen produksi konveksi untuk Young Harmoni. Single-file HTML + Fir
 - Modal detail Ringkasan tampilkan badge `PENDING` (warna gold) untuk entri belum verified
 - Backward compat: entri lama tanpa `status` field diperlakukan sebagai `verified`
 
+## Fitur Usulan Kain Baru
+- Link di bawah select `km-kain` → `usulkanKain()`. Admin: langsung tambah ke `settings.kain`. Staff: buat doc di collection `kain_usulan` (`{nama}` + stamp `createdByNama`)
+- Panel `#kain-usulan-wrap` di halaman Kain Masuk (`loadKainUsulan()`): admin lihat tombol Setujui (`setujuiKain` → push ke `settings.kain` + hapus usulan) / Tolak (`tolakKain`); staff lihat status baca-saja
+
 ## Role Permissions
 - `STAFF_DEL_ALLOW = ["transaksi"]` — staff hanya boleh hapus setoran (jahit/gunting/ambil), tidak boleh hapus `pembayaran`/`kasbon`/`qc`/`keluar`/`alih_tugas`/`kain_masuk`/`kain_ambil`
 - Staff boleh edit ringan transaksi (tanggal + keterangan) via modal Ringkasan atau halaman Riwayat
