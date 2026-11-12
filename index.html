@@ -416,8 +416,8 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
 <div class="sec active" id="s-kain-masuk">
   <div class="ph"><div class="pt">🧵 Kain Masuk</div><div class="ps">Catat kain masuk dari supplier — stok kain otomatis bertambah</div></div>
   <div id="stok-kain-wrap" style="margin-bottom:14px"></div>
-  <div class="card khusus-gudang-info" style="display:none;font-size:12px;color:var(--t2)">🔒 Kain masuk hanya dicatat oleh <b>Admin</b> atau <b>petugas gudang</b> — supaya yang mengeluarkan kain berbeda dengan yang memakai kain. Riwayat & stok tetap bisa dilihat di bawah.</div>
-  <div class="card khusus-gudang">
+  <div class="card khusus-gudang-info" data-izin="kainMasuk" style="display:none;font-size:12px;color:var(--t2)">🔒 Kain masuk hanya dicatat oleh <b>Admin</b> atau <b>petugas gudang</b> — supaya yang mengeluarkan kain berbeda dengan yang memakai kain. Riwayat & stok tetap bisa dilihat di bawah.</div>
+  <div class="card khusus-gudang" data-izin="kainMasuk">
     <div class="ct">➕ Input Kain Masuk</div>
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="km-tgl"></div>
@@ -436,8 +436,8 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
 <!-- PENGAMBILAN KAIN -->
 <div class="sec" id="s-kain-ambil">
   <div class="ph"><div class="pt">📋 Pengambilan Kain</div><div class="ps">Operator cutting ambil kain — catat per item & ukuran</div></div>
-  <div class="card khusus-gudang-info" style="display:none;font-size:12px;color:var(--t2)">🔒 Pengambilan kain hanya dicatat oleh <b>Admin</b> atau <b>petugas gudang</b> — supaya yang mengeluarkan kain berbeda dengan yang memakai kain. Riwayat & stok tetap bisa dilihat di bawah.</div>
-  <div class="card khusus-gudang">
+  <div class="card khusus-gudang-info" data-izin="ambilKain" style="display:none;font-size:12px;color:var(--t2)">🔒 Pengambilan kain hanya dicatat oleh <b>Admin</b> atau <b>petugas gudang</b> — supaya yang mengeluarkan kain berbeda dengan yang memakai kain. Riwayat & stok tetap bisa dilihat di bawah.</div>
+  <div class="card khusus-gudang" data-izin="ambilKain">
     <div class="ct">➕ Input Pengambilan Kain</div>
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="ka-tgl"></div>
@@ -474,8 +474,8 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
 <div class="sec" id="s-bahan">
   <div class="ph"><div class="pt">🧷 Bahan Pendukung</div><div class="ps">Kancing, puring, resleting, kain keras, dll — stok masuk & keluar per order</div></div>
   <div id="bp-stok" style="margin-bottom:14px"></div>
-  <div class="card khusus-gudang-info" style="display:none;font-size:12px;color:var(--t2)">🔒 Bahan masuk & keluar hanya dicatat oleh <b>Admin</b> atau <b>petugas gudang</b>. Stok & riwayat tetap bisa dilihat.</div>
-  <div class="card khusus-gudang">
+  <div class="card khusus-gudang-info" data-izin="bahan" style="display:none;font-size:12px;color:var(--t2)">🔒 Bahan masuk & keluar hanya dicatat oleh <b>Admin</b> atau <b>petugas gudang</b>. Stok & riwayat tetap bisa dilihat.</div>
+  <div class="card khusus-gudang" data-izin="bahan">
     <div class="ct">📥 Bahan Masuk</div>
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="bm-tgl"></div>
@@ -487,7 +487,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
     </div>
     <button class="btn btg" onclick="submitBahanMasuk()">✓ Simpan Bahan Masuk</button>
   </div>
-  <div class="card khusus-gudang">
+  <div class="card khusus-gudang" data-izin="bahan">
     <div class="ct">📤 Bahan Keluar (dipakai untuk order)</div>
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="bk-tgl"></div>
@@ -823,11 +823,14 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
 <div class="sec" id="s-setting">
   <div class="ph"><div class="pt">⚙️ Pengaturan</div><div class="ps">Konveksi, penjahit, item & pengguna</div></div>
   <div class="card hanya-admin" style="display:none">
-    <div class="ct">🏬 Petugas Gudang — boleh mencatat Kain Masuk & Pengambilan Kain</div>
-    <div style="font-size:12px;color:var(--t2);margin-bottom:8px">Selain Admin, hanya orang di daftar ini yang bisa mencatat kain keluar-masuk. Jangan masukkan penggunting.</div>
+    <div class="ct">🏬 Petugas Gudang — izin mencatat Kain Masuk, Pengambilan Kain & Bahan Pendukung</div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:8px">Selain Admin, hanya orang di daftar ini yang bisa mencatat — sesuai bagian yang dicentang. Jangan beri izin Pengambilan Kain ke penggunting.</div>
     <div class="tglist" id="gudang-tags"></div>
     <div style="display:flex;gap:7px">
-      <select id="s-gudang" style="flex:1"><option value="">— Pilih staff YH —</option></select>
+      <select id="s-gudang" style="flex:1;min-width:160px"><option value="">— Pilih staff YH —</option></select>
+      <label style="display:flex;gap:4px;align-items:center;font-size:12px"><input type="checkbox" id="s-gd-kainMasuk" checked> Kain Masuk</label>
+      <label style="display:flex;gap:4px;align-items:center;font-size:12px"><input type="checkbox" id="s-gd-ambilKain"> Pengambilan Kain</label>
+      <label style="display:flex;gap:4px;align-items:center;font-size:12px"><input type="checkbox" id="s-gd-bahan"> Bahan Pendukung</label>
       <button class="btsm" onclick="addGudang()">+ Tambah</button>
     </div>
   </div>
@@ -2217,15 +2220,28 @@ async function loadKoreksiLog() {
 }
 
 // ── PETUGAS GUDANG: hanya Admin & petugas gudang yang mencatat kain masuk / pengambilan kain ──
-const bolehGudang = () => role === "admin" || (settings.gudang || []).some(g => g.uid && g.uid === uid);
+// Izin per bagian: kainMasuk, ambilKain, bahan. Data lama tanpa izin = semua bagian.
+const IZIN_GUDANG = { kainMasuk: "Kain Masuk", ambilKain: "Pengambilan Kain", bahan: "Bahan Pendukung" };
+const bolehGudang = (bagian) => {
+  if (role === "admin") return true;
+  const g = (settings.gudang || []).find(x => x.uid && x.uid === uid); if (!g) return false;
+  return !bagian || !g.izin || g.izin[bagian] === true;
+};
 function terapkanGudang() {
-  const ok = bolehGudang();
-  document.querySelectorAll(".khusus-gudang").forEach(el => el.style.display = ok ? "" : "none");
-  document.querySelectorAll(".khusus-gudang-info").forEach(el => el.style.display = ok ? "none" : "");
+  document.querySelectorAll(".khusus-gudang").forEach(el => el.style.display = bolehGudang(el.dataset.izin) ? "" : "none");
+  document.querySelectorAll(".khusus-gudang-info").forEach(el => el.style.display = bolehGudang(el.dataset.izin) ? "none" : "");
 }
 function renderGudangTags() {
   const el = document.getElementById("gudang-tags"); if (!el) return;
-  el.innerHTML = (settings.gudang || []).map((g, i) => `<div class="tg">${escH(g.nama)}<span class="tgd" onclick="delGudang(${i})">&#215;</span></div>`).join("") || '<span style="font-size:12px;color:var(--t2)">Belum ada — hanya Admin.</span>';
+  el.innerHTML = (settings.gudang || []).map((g, i) => `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--b);font-size:12px">
+      <b style="min-width:110px">${escH(g.nama)}</b>
+      ${Object.entries(IZIN_GUDANG).map(([k, l]) => `<label style="display:flex;gap:4px;align-items:center;cursor:pointer"><input type="checkbox" ${!g.izin || g.izin[k] ? "checked" : ""} onchange="ubahIzinGudang(${i},'${k}',this.checked)"> ${l}</label>`).join("")}
+      <span class="tgd" style="cursor:pointer;color:var(--r);margin-left:auto" onclick="delGudang(${i})" title="Hapus">&#215;</span></div>`).join("") || '<span style="font-size:12px;color:var(--t2)">Belum ada — hanya Admin.</span>';
+}
+async function ubahIzinGudang(i, bagian, on) {
+  const g = settings.gudang[i]; if (!g) return;
+  g.izin = g.izin || { kainMasuk: true, ambilKain: true, bahan: true };
+  g.izin[bagian] = on; await saveSettings(); terapkanGudang(); toast(g.nama + ": " + IZIN_GUDANG[bagian] + (on ? " diizinkan" : " dicabut"));
 }
 async function isiPilihanGudang() {
   const sel = document.getElementById("s-gudang"); if (!sel || role !== "admin") return;
@@ -2240,7 +2256,9 @@ async function addGudang() {
   settings.gudang = settings.gudang || [];
   if (settings.gudang.some(g => g.uid === sel.value)) return toast("Sudah ada", "w");
   if (settings.operator?.some(o => o.toLowerCase() === sel.selectedOptions[0].textContent.toLowerCase()) && !await confirm2("Orang ini juga terdaftar sebagai operator cutting. Tetap jadikan petugas gudang?")) return;
-  settings.gudang.push({ uid: sel.value, nama: sel.selectedOptions[0].textContent });
+  const izin = Object.fromEntries(Object.keys(IZIN_GUDANG).map(k => [k, !!document.getElementById("s-gd-" + k)?.checked]));
+  if (!Object.values(izin).some(Boolean)) return toast("Centang minimal satu bagian", "w");
+  settings.gudang.push({ uid: sel.value, nama: sel.selectedOptions[0].textContent, izin });
   await saveSettings(); renderGudangTags(); terapkanGudang(); toast("Petugas gudang ditambahkan");
 }
 async function delGudang(i) {
@@ -2297,7 +2315,7 @@ async function infoBahanKeluar() {
   el.textContent = "Stok: " + (+(st[nama]||0)) + " " + (b.satuan||"");
 }
 async function submitBahanMasuk() {
-  if (!bolehGudang()) return toast("Hanya Admin / petugas gudang", "w");
+  if (!bolehGudang("bahan")) return toast("Bahan pendukung hanya dicatat Admin / petugas yang diberi izin", "w");
   const tgl = document.getElementById("bm-tgl").value, nama = document.getElementById("bm-bahan").value, qty = +document.getElementById("bm-qty").value || 0;
   if (!tgl || !nama || !(qty > 0)) return toast("Tanggal, bahan & jumlah wajib diisi", "w");
   if (!wajibOrder("bm-ord")) return;
@@ -2309,7 +2327,7 @@ async function submitBahanMasuk() {
   ["bm-qty","bm-harga","bm-sup","bm-ord"].forEach(id => document.getElementById(id).value = ""); loadBahan();
 }
 async function submitBahanKeluar() {
-  if (!bolehGudang()) return toast("Hanya Admin / petugas gudang", "w");
+  if (!bolehGudang("bahan")) return toast("Bahan pendukung hanya dicatat Admin / petugas yang diberi izin", "w");
   const tgl = document.getElementById("bk-tgl").value, nama = document.getElementById("bk-bahan").value, qty = +document.getElementById("bk-qty").value || 0, oleh = document.getElementById("bk-oleh").value;
   if (!tgl || !nama || !(qty > 0) || !oleh) return toast("Tanggal, bahan, jumlah & diambil oleh wajib diisi", "w");
   if (!wajibOrder("bk-ord")) return;
@@ -3262,7 +3280,7 @@ async function loadProgress() {
 
 // ── KAIN MASUK ────────────────────────────────────────────────────────────────
 async function submitKainMasuk() {
-  if (!bolehGudang()) return toast("Kain masuk hanya dicatat Admin / petugas gudang", "w");
+  if (!bolehGudang("kainMasuk")) return toast("Kain masuk hanya dicatat Admin / petugas yang diberi izin", "w");
   const tgl   = document.getElementById("km-tgl").value;
   const kain  = document.getElementById("km-kain").value;
   const meter = +document.getElementById("km-meter").value||0;
@@ -3364,7 +3382,7 @@ function calcKainAmbil() {
 }
 
 async function submitKainAmbil() {
-  if (!bolehGudang()) return toast("Pengambilan kain hanya dicatat Admin / petugas gudang", "w");
+  if (!bolehGudang("ambilKain")) return toast("Pengambilan kain hanya dicatat Admin / petugas yang diberi izin", "w");
   const tgl  = document.getElementById("ka-tgl").value;
   const op   = document.getElementById("ka-op").value;
   const kains = kaKainDipilih();
