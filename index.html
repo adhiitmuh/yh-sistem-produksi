@@ -2335,7 +2335,7 @@ async function loadKatalog() {
   if (bolehKatalog()) {
     alat.style.display = "flex"
     alat.innerHTML = `<button class="btsm" onclick="tambahJenisKain()">+ Jenis kain</button><button class="btsm" onclick="tambahWarnaKain()">+ Warna</button>`
-      + (katalog.jenis.some(j => j.nama.toUpperCase() === "UNIONE") ? "" : `<button class="btsm" style="background:var(--g);color:#0a0a0a" onclick="imporUnione()">⬇ Impor katalog UNIONE (348 warna)</button>`)
+      + KATALOG_SIAP.filter(k => !katalog.jenis.some(j => j.nama.toUpperCase() === k.nama)).map(k => `<button class="btsm" style="background:var(--g);color:#0a0a0a" onclick="imporKatalog('${k.nama}')">⬇ Impor katalog ${k.nama} (${k.jumlah} warna)</button>`).join("")
   } else alat.style.display = "none"
   renderKatalog()
 }
@@ -2349,7 +2349,7 @@ function renderKatalog() {
       if (q && !(`${j.nama} ${v.kode} ${v.ket || ""}`.toUpperCase().includes(q))) return
       daftar.push({ i, k, j, v, stok }) }) })
   document.getElementById("kt-tab").innerHTML = katalog.jenis.length > 0 ? [["", "Semua"], ...katalog.jenis.map((j, i) => [String(i), j.nama])].map(([v, l]) => `<button class="btsm" onclick="document.getElementById('kt-jenis').value='${v}';renderKatalog()" style="${String(ji ?? "") === v ? "background:var(--g);color:#0a0a0a;font-weight:800" : "opacity:.75"}">${escH(l)}${v !== "" ? " · " + (katalog.jenis[+v].varian || []).length : ""}</button>`).join("") : ""
-  document.getElementById("kt-info").textContent = katalog.jenis.length ? `${daftar.length} warna ditampilkan` + (bolehKatalog() ? " · ketuk warna untuk lihat/ubah" : " · ketuk warna untuk lihat detail") : (bolehKatalog() ? "Katalog masih kosong — tekan Impor katalog UNIONE atau + Jenis kain." : "Katalog belum diisi Admin.")
+  document.getElementById("kt-info").textContent = katalog.jenis.length ? `${daftar.length} warna ditampilkan` + (bolehKatalog() ? " · ketuk warna untuk lihat/ubah" : " · ketuk warna untuk lihat detail") : (bolehKatalog() ? "Katalog masih kosong — tekan tombol Impor katalog atau + Jenis kain." : "Katalog belum diisi Admin.")
   document.getElementById("kt-grid").innerHTML = daftar.slice(0, 600).map(x => `<div onclick="detailWarna(${x.i},${x.k})" style="cursor:pointer;border:1px solid var(--b);border-radius:10px;overflow:hidden;background:var(--s1,#fff)">
       <div style="height:54px;background:${escH(x.v.hex || "#ccc")}"></div>
       <div style="padding:5px 7px;font-size:11px;line-height:1.35">
@@ -2413,13 +2413,20 @@ async function tambahWarnaKain() {
   j.varian = j.varian || []; j.varian.push({ kode, ket: "", hex: "#cccccc" }); await simpanKatalog(); await loadKatalog()
   detailWarna(katalog.jenis.indexOf(j), j.varian.length - 1)
 }
-async function imporUnione() {
+// Katalog supplier yang sudah disiapkan (diekstrak dari PDF katalog)
+const KATALOG_SIAP = [
+  { nama: "UNIONE", file: "katalog/unione.json", ket: "Espero American Drill #1616", jumlah: 348 },
+  { nama: "PASSUKA", file: "katalog/passuka.json", ket: "Tropical Deluxe — 100% Full Mercerized & Sanforized", jumlah: 105 },
+]
+async function imporKatalog(nama) {
   if (!bolehKatalog()) return
-  const data = await fetch("katalog/unione.json").then(r => r.json()).catch(() => null)
+  const k = KATALOG_SIAP.find(x => x.nama === nama); if (!k) return
+  if (katalog.jenis.some(j => j.nama.toUpperCase() === k.nama)) return toast("Katalog " + k.nama + " sudah ada", "w")
+  const data = await fetch(k.file).then(r => r.json()).catch(() => null)
   if (!data) return toast("Gagal memuat data katalog", "w")
-  if (!await confirm2(`Impor ${data.length} warna UNIONE (Espero American Drill #1616) ke katalog?`)) return
-  katalog.jenis.push({ nama: "UNIONE", ket: "Espero American Drill #1616", varian: data.map(d => ({ kode: d.kode, ket: d.ket || "", hex: d.hex, hal: d.hal })) })
-  await simpanKatalog(); loadKatalog(); toast(`✅ ${data.length} warna UNIONE masuk katalog`)
+  if (!await confirm2(`Impor ${data.length} warna ${k.nama} (${k.ket}) ke katalog?`)) return
+  katalog.jenis.push({ nama: k.nama, ket: k.ket, varian: data.map(d => ({ kode: d.kode, ket: d.ket || "", hex: d.hex, hal: d.hal })) })
+  await simpanKatalog(); loadKatalog(); toast(`✅ ${data.length} warna ${k.nama} masuk katalog`)
 }
 // Pemilih kain dari katalog (dipakai di Kain Masuk)
 async function pilihDariKatalog(setelah) {
