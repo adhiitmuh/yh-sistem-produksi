@@ -2339,7 +2339,28 @@ async function muatKatalog(paksa) {
   katalog = d && Array.isArray(d.jenis) ? d : { jenis: [] }; _katalogDimuat = true
   return katalog
 }
-async function simpanKatalog() { await db.collection("config").doc("katalog_kain").set({ jenis: katalog.jenis, diubah: new Date().toISOString(), diubahOleh: unama || uname || "" }) }
+async function simpanKatalog() { await db.collection("config").doc("katalog_kain").set({ jenis: katalog.jenis.map(({ varian, ...j }) => ({ ...j, varian: (varian || []).map(({ _lab, ...v }) => v) })), waCS: katalog.waCS || "", diubah: new Date().toISOString(), diubahOleh: unama || uname || "" }) }
+const LINK_KATALOG_PUBLIK = "https://adhiitmuh.github.io/custom-order-harmoni/katalog-kain.html"
+async function bagikanKatalog() {
+  const bg = document.createElement("div"); bg.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;display:flex;align-items:center;justify-content:center;padding:14px"
+  const ji = document.getElementById("kt-jenis").value, merek = ji !== "" ? katalog.jenis[+ji]?.nama : ""
+  const link = LINK_KATALOG_PUBLIK + (merek ? "?merek=" + encodeURIComponent(merek) : "")
+  bg.innerHTML = `<div style="background:var(--s1,#fff);color:var(--t1,#111);border-radius:14px;max-width:440px;width:100%;padding:16px">
+    <div style="font-size:16px;font-weight:800;margin-bottom:6px">📤 Daftar Kain Harmoni Indonesia</div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:10px">Link untuk calon customer — hanya menampilkan kode, keterangan, contoh warna & foto (<b>stok tidak tampil</b>). Customer bisa memilih warna lalu mengirim pilihannya ke WA Harmoni.</div>
+    <input id="bk-link" readonly value="${escH(link)}" style="width:100%;font-size:12px;margin-bottom:8px">
+    <label style="display:flex;gap:6px;align-items:center;font-size:12px;margin-bottom:8px"><input type="checkbox" id="bk-semua" ${merek ? "" : "checked"}> Semua merek ${merek ? `(tidak dicentang = hanya ${escH(merek)})` : ""}</label>
+    ${role === "admin" || bolehKatalog() ? `<div class="fg" style="margin-bottom:8px"><label>No. WA tujuan pesan customer (CS Harmoni)</label><input type="tel" id="bk-wa" value="${escH(katalog.waCS || "")}" placeholder="08xx…"></div>` : ""}
+    <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btg" id="bk-salin" style="flex:1">📋 Salin link</button><button class="btn" id="bk-wa-kirim" style="flex:1;background:#25d366;color:#fff">📲 Kirim via WA</button><a class="btn" href="${escH(link)}" id="bk-buka" target="_blank" style="flex:1;text-align:center;text-decoration:none">👁 Lihat</a></div>
+    <button class="btn" id="bk-tutup" style="width:100%;margin-top:8px">Tutup</button></div>`
+  document.body.appendChild(bg)
+  const linkNow = () => bg.querySelector("#bk-semua").checked || !merek ? LINK_KATALOG_PUBLIK : link
+  bg.querySelector("#bk-semua").onchange = () => { bg.querySelector("#bk-link").value = linkNow(); bg.querySelector("#bk-buka").href = linkNow() }
+  const simpanWa = async () => { const el = bg.querySelector("#bk-wa"); if (el && el.value.trim() !== (katalog.waCS || "")) { katalog.waCS = el.value.trim(); await simpanKatalog() } }
+  bg.querySelector("#bk-tutup").onclick = async () => { await simpanWa(); bg.remove() }
+  bg.querySelector("#bk-salin").onclick = async () => { await simpanWa(); try { await navigator.clipboard.writeText(linkNow()); toast("✅ Link disalin") } catch (e) { bg.querySelector("#bk-link").select(); toast("Tekan lama lalu Salin", "w") } }
+  bg.querySelector("#bk-wa-kirim").onclick = async () => { await simpanWa(); window.open("https://api.whatsapp.com/send?text=" + encodeURIComponent("Halo Kak 👋 Ini daftar pilihan warna kain seragam Harmoni Indonesia. Silakan pilih warnanya, lalu tekan *Kirim ke Harmoni via WA*:\n" + linkNow()), "_blank") }
+}
 // Cari warna dari nama kain stok ("UNIONE 714")
 function warnaKain(nama) {
   const n = String(nama || "").trim().toUpperCase()
@@ -2360,9 +2381,9 @@ async function loadKatalog() {
   const alat = document.getElementById("kt-alat")
   if (bolehKatalog()) {
     alat.style.display = "flex"
-    alat.innerHTML = `<button class="btsm" style="background:var(--bl);color:#fff" onclick="cariWarnaFoto()">📷 Cari warna dari foto</button><button class="btsm" onclick="tambahJenisKain()">+ Jenis kain</button><button class="btsm" onclick="tambahWarnaKain()">+ Warna</button>`
+    alat.innerHTML = `<button class="btsm" style="background:var(--bl);color:#fff" onclick="cariWarnaFoto()">📷 Cari warna dari foto</button><button class="btsm" style="background:#25d366;color:#fff" onclick="bagikanKatalog()">📤 Link katalog untuk customer</button><button class="btsm" onclick="tambahJenisKain()">+ Jenis kain</button><button class="btsm" onclick="tambahWarnaKain()">+ Warna</button>`
       + KATALOG_SIAP.filter(k => !katalog.jenis.some(j => j.nama.toUpperCase() === k.nama)).map(k => `<button class="btsm" style="background:var(--g);color:#0a0a0a" onclick="imporKatalog('${k.nama}')">⬇ Impor katalog ${k.nama} (${k.jumlah} warna)</button>`).join("")
-  } else { alat.style.display = katalog.jenis.length ? "flex" : "none"; alat.innerHTML = `<button class="btsm" style="background:var(--bl);color:#fff" onclick="cariWarnaFoto()">📷 Cari warna dari foto</button>` }
+  } else { alat.style.display = katalog.jenis.length ? "flex" : "none"; alat.innerHTML = `<button class="btsm" style="background:var(--bl);color:#fff" onclick="cariWarnaFoto()">📷 Cari warna dari foto</button><button class="btsm" style="background:#25d366;color:#fff" onclick="bagikanKatalog()">📤 Link katalog untuk customer</button>` }
   renderKatalog()
 }
 function renderKatalog() {
