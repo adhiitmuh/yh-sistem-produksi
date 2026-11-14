@@ -894,7 +894,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
   </div>
   <div class="card"><div class="ct">🏭 Informasi Konveksi</div>
     <div class="fg" style="margin-bottom:10px"><label>Nama Konveksi</label><input type="text" id="s-nama"></div>
-    <div class="fg" style="margin-bottom:10px"><label>No. WA Admin (untuk tombol "Minta Admin isi" dari staff)</label><input type="tel" id="s-wa-admin" placeholder="08xx…"></div>
+    <div class="fg" style="margin-bottom:10px"><label>No. WA Pak Adi (untuk tombol "WA Adi untuk diisi" dari staff)</label><input type="tel" id="s-wa-admin" placeholder="08xx…"></div>
     <button class="btsm" onclick="saveNama()">Simpan</button>
   </div>
   <div class="card"><div class="ct">🪡 Daftar Penjahit</div>
@@ -2021,7 +2021,7 @@ function pilihDari(pre, item) {
     <div class="uksec"><div class="ukgl">Jumlah per Ukuran (tidak boleh melebihi yang tersedia)</div><div class="ukgrid">${Object.entries(uk).map(([u,q])=>`<div class="uki"><div class="ukl">${escH(u)}</div><input type="number" class="ukin" data-ukuran="${escH(u)}" min="0" max="${q}" value="${q}" oninput="${cfg.fn}()"><div style="font-size:9px;color:var(--t2);text-align:center">maks ${q}</div></div>`).join("")}</div></div>
     <div style="margin-top:5px;font-size:11px;font-family:var(--m);font-weight:700;color:var(--g)" id="ibt-${bid}"></div>
     ${upah ? (cari.mirip ? `<div style="font-size:10px;color:var(--t2);margin-top:3px">Upah memakai daftar "${escH(cari.im.nama)}"</div>` : "")
-      : `<div style="font-size:11px;color:#c2410c;background:#fff7ed;border-radius:6px;padding:5px 8px;margin-top:5px">⚠ Upah ${pre === "g" ? "gunting" : "jahit"} untuk <b>${escH(item)}</b> belum diatur Admin — setoran tetap tersimpan, upah dihitung setelah Admin mengisi daftar upah${role === "admin" ? " (isi di kolom Upah/pcs di atas, atau di Pengaturan → Daftar Item)" : ""}.<br>${tombolMintaAdmin(`Upah ${pre === "g" ? "GUNTING" : "JAHIT"} belum diatur untuk item: ${item}`, "", "setting", { isi: "upah", item })}</div>`}`;
+      : `<div style="font-size:11px;color:#c2410c;background:#fff7ed;border-radius:6px;padding:5px 8px;margin-top:5px">⚠ Upah ${pre === "g" ? "gunting" : "jahit"} untuk <b>${escH(item)}</b> belum diatur Pak Adi — setoran tetap tersimpan, upah dihitung setelah Pak Adi mengisi daftar upah${role === "admin" ? " (isi di kolom Upah/pcs di atas, atau di Pengaturan → Daftar Item)" : ""}.<br>${tombolMintaAdmin(`Upah ${pre === "g" ? "GUNTING" : "JAHIT"} belum diatur untuk item: ${item}`, "", "setting", { isi: "upah", item })}</div>`}`;
   c.appendChild(div);
   window[cfg.fn]();
   if (pre === "j") tebakOrderJahit(document.getElementById("j-pjt").value, item).catch(() => {});
@@ -2705,11 +2705,11 @@ const attrJ = v => JSON.stringify(v).replace(/&/g, "&amp;").replace(/'/g, "&#39;
 const linkIsi = (halaman, p) => location.origin + location.pathname + "#" + halaman + "?" + new URLSearchParams(p)
 function mintaAdmin(judul, rincian, halaman, p) {
   const no = String(settings.waAdmin || "").replace(/\D/g, "").replace(/^0/, "62")
-  const pesan = `🔔 *YH Sistem Produksi — perlu diisi Admin*\n\n${judul}${rincian ? "\n" + rincian : ""}\n\nDari: ${unama || uname || "staff"}\n\n👉 Ketuk link ini, langsung ke bagian yang harus diisi:\n${linkIsi(halaman, p)}`
+  const pesan = `🔔 *YH Sistem Produksi — perlu diisi Pak Adi*\n\n${judul}${rincian ? "\n" + rincian : ""}\n\nDari: ${unama || uname || "staff"}\n\n👉 Ketuk link ini, langsung ke bagian yang harus diisi:\n${linkIsi(halaman, p)}`
   window.open(`https://api.whatsapp.com/send?${no ? "phone=" + no + "&" : ""}text=${encodeURIComponent(pesan)}`, "_blank")
 }
 const tombolMintaAdmin = (judul, rincian, halaman, p) => role === "admin" ? "" :
-  `<button type="button" class="btsm" style="background:#25d366;color:#fff;margin-top:4px" onclick='mintaAdmin(${attrJ(judul)},${attrJ(rincian)},${attrJ(halaman)},${attrJ(p)})'>📲 Minta Admin isi via WA</button>`
+  `<button type="button" class="btsm" style="background:#25d366;color:#fff;margin-top:4px" onclick='mintaAdmin(${attrJ(judul)},${attrJ(rincian)},${attrJ(halaman)},${attrJ(p)})'>📲 WA Adi untuk diisi</button>`
 function bacaHash() { const [pg, q] = location.hash.slice(1).split("?"); return { pg, p: Object.fromEntries(new URLSearchParams(q || "")) } }
 function sorotBagian(id) {
   const el = document.getElementById(id); if (!el) return
@@ -2718,7 +2718,7 @@ function sorotBagian(id) {
 }
 async function jalankanLink(p) {
   if (!p || !p.isi) return
-  if (role !== "admin") { toast("Link ini untuk Admin — minta Admin yang membukanya", "w"); return }
+  if (role !== "admin") { toast("Link ini untuk Pak Adi", "w"); return }
   if (p.isi === "upah") { go("setting"); await loadUpahKosong(); sorotBagian("upah-kosong-card"); if (p.item) setTimeout(() => isiUpahItem(p.item), 600) }
   else if (p.isi === "opname") { go("kain-masuk"); await loadOpname(); sorotBagian("opname-card") }
   else if (p.isi === "usulan-kain") { go("kain-masuk"); await loadKainUsulan(); sorotBagian("kain-usulan-wrap") }
@@ -3911,7 +3911,7 @@ async function submitKainAmbil() {
   if(!tgl||!op||!kains.length||!item) return toast("Tanggal, operator, kain, dan item wajib diisi!","w");
   if (!itemDiDaftar(item)) {
     kaCekItem()
-    if (role !== "admin") return toast("Pilih nama item dari Daftar Item & Upah — kalau belum ada, tekan Minta Admin isi via WA", "w")
+    if (role !== "admin") return toast("Pilih nama item dari Daftar Item & Upah — kalau belum ada, tekan WA Adi untuk diisi", "w")
     if (!await confirm2(`"${item}" belum ada di Daftar Item & Upah — upah guntingan & jahitannya akan Rp 0. Tetap simpan?`)) return
   }
   if(!wajibOrder("ka-ord")) return;
