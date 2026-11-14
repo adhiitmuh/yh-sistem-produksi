@@ -1586,7 +1586,7 @@ async function delItem(i) {
 }
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
-const VALID_PAGES = ["kain-masuk","kain-ambil","bahan","gunting","ambil","jahit","qc","stok","keluar","ringkasan","riwayat","alihtgas","lacak","progress","kasbon","bayar","setting","modal"];
+const VALID_PAGES = ["kain-masuk","kain-ambil","katalog","bahan","gunting","ambil","jahit","qc","stok","keluar","ringkasan","riwayat","alihtgas","lacak","progress","kasbon","bayar","setting","modal"];
 function go(name) {
   // Pengaturan (daftar item & upah, penjahit, petugas gudang) dan Dashboard Modal hanya untuk Admin
   if ((name === "setting" || name === "modal") && role !== "admin") name = "kain-masuk";
@@ -2353,7 +2353,7 @@ function renderKatalog() {
       if (q && !(`${j.nama} ${v.kode} ${v.ket || ""}`.toUpperCase().includes(q))) return
       daftar.push({ i, k, j, v, stok }) }) })
   document.getElementById("kt-tab").innerHTML = katalog.jenis.length > 0 ? [["", "Semua"], ...katalog.jenis.map((j, i) => [String(i), j.nama])].map(([v, l]) => `<button class="btsm" onclick="document.getElementById('kt-jenis').value='${v}';renderKatalog()" style="${String(ji ?? "") === v ? "background:var(--g);color:#0a0a0a;font-weight:800" : "opacity:.75"}">${escH(l)}${v !== "" ? " · " + (katalog.jenis[+v].varian || []).length : ""}</button>`).join("") : ""
-  document.getElementById("kt-info").textContent = katalog.jenis.length ? `${daftar.length} warna ditampilkan` + (bolehKatalog() ? " · ketuk warna untuk lihat/ubah" : " · ketuk warna untuk lihat detail") : (bolehKatalog() ? "Katalog masih kosong — tekan tombol Impor katalog atau + Jenis kain." : "Katalog belum diisi Admin.")
+  document.getElementById("kt-info").textContent = katalog.jenis.length ? `${daftar.length} warna ditampilkan` + (bolehKatalog() ? " · ketuk warna untuk lihat/ubah" : " · ketuk warna untuk lihat detail") : (bolehKatalog() ? "Katalog masih kosong — tekan tombol Impor katalog atau + Jenis kain." : "Katalog belum diimpor — minta Admin membuka menu 🎨 Katalog Kain lalu menekan tombol ⬇ Impor katalog.")
   document.getElementById("kt-grid").innerHTML = daftar.slice(0, 600).map(x => `<div onclick="detailWarna(${x.i},${x.k})" style="cursor:pointer;border:1px solid var(--b);border-radius:10px;overflow:hidden;background:var(--s1,#fff)">
       <div style="height:54px;background:${escH(x.v.hex || "#ccc")}"></div>
       <div style="padding:5px 7px;font-size:11px;line-height:1.35">
