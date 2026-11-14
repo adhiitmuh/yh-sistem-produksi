@@ -2338,9 +2338,9 @@ async function loadKatalog() {
   const alat = document.getElementById("kt-alat")
   if (bolehKatalog()) {
     alat.style.display = "flex"
-    alat.innerHTML = `<button class="btsm" onclick="tambahJenisKain()">+ Jenis kain</button><button class="btsm" onclick="tambahWarnaKain()">+ Warna</button>`
+    alat.innerHTML = `<button class="btsm" style="background:var(--bl);color:#fff" onclick="cariWarnaFoto()">📷 Cari warna dari foto</button><button class="btsm" onclick="tambahJenisKain()">+ Jenis kain</button><button class="btsm" onclick="tambahWarnaKain()">+ Warna</button>`
       + KATALOG_SIAP.filter(k => !katalog.jenis.some(j => j.nama.toUpperCase() === k.nama)).map(k => `<button class="btsm" style="background:var(--g);color:#0a0a0a" onclick="imporKatalog('${k.nama}')">⬇ Impor katalog ${k.nama} (${k.jumlah} warna)</button>`).join("")
-  } else alat.style.display = "none"
+  } else { alat.style.display = katalog.jenis.length ? "flex" : "none"; alat.innerHTML = `<button class="btsm" style="background:var(--bl);color:#fff" onclick="cariWarnaFoto()">📷 Cari warna dari foto</button>` }
   renderKatalog()
 }
 function renderKatalog() {
@@ -2434,13 +2434,115 @@ async function imporKatalog(nama) {
   katalog.jenis.push({ nama: k.nama, ket: k.ket, varian: data.map(d => ({ kode: d.kode, ket: d.ket || "", hex: d.hex, hal: d.hal })) })
   await simpanKatalog(); loadKatalog(); toast(`✅ ${data.length} warna ${k.nama} masuk katalog`)
 }
+
+// ── CARI WARNA DARI FOTO: ketuk kain di foto → kode terdekat di katalog (CIE ΔE 2000) ──
+// Koreksi cahaya: ketuk kertas putih di foto → warna disesuaikan seperti di bawah cahaya netral.
+function rgbKeLab([r, g, b]) {
+  const f = c => { c /= 255; return c > 0.04045 ? Math.pow((c + 0.055) / 1.055, 2.4) : c / 12.92 }
+  const R = f(r), G = f(g), B = f(b)
+  let X = (R * 0.4124 + G * 0.3576 + B * 0.1805) / 0.95047, Y = R * 0.2126 + G * 0.7152 + B * 0.0722, Z = (R * 0.0193 + G * 0.1192 + B * 0.9505) / 1.08883
+  const t = v => v > 0.008856 ? Math.cbrt(v) : 7.787 * v + 16 / 116
+  X = t(X); Y = t(Y); Z = t(Z)
+  return [116 * Y - 16, 500 * (X - Y), 200 * (Y - Z)]
+}
+function deltaE00([L1, a1, b1], [L2, a2, b2]) {
+  const rad = Math.PI / 180, C1 = Math.hypot(a1, b1), C2 = Math.hypot(a2, b2), Cm = (C1 + C2) / 2
+  const G = 0.5 * (1 - Math.sqrt(Math.pow(Cm, 7) / (Math.pow(Cm, 7) + Math.pow(25, 7))))
+  const a1p = (1 + G) * a1, a2p = (1 + G) * a2, C1p = Math.hypot(a1p, b1), C2p = Math.hypot(a2p, b2)
+  const h = (a, b) => { const x = Math.atan2(b, a) / rad; return x < 0 ? x + 360 : x }
+  const h1p = h(a1p, b1), h2p = h(a2p, b2), dLp = L2 - L1, dCp = C2p - C1p
+  let dhp = 0; if (C1p * C2p) { dhp = h2p - h1p; if (dhp > 180) dhp -= 360; else if (dhp < -180) dhp += 360 }
+  const dHp = 2 * Math.sqrt(C1p * C2p) * Math.sin(dhp * rad / 2), Lm = (L1 + L2) / 2, Cmp = (C1p + C2p) / 2
+  let hm = h1p + h2p; if (C1p * C2p) { hm = Math.abs(h1p - h2p) > 180 ? (h1p + h2p + 360) / 2 : (h1p + h2p) / 2 }
+  const T = 1 - 0.17 * Math.cos((hm - 30) * rad) + 0.24 * Math.cos(2 * hm * rad) + 0.32 * Math.cos((3 * hm + 6) * rad) - 0.2 * Math.cos((4 * hm - 63) * rad)
+  const SL = 1 + 0.015 * Math.pow(Lm - 50, 2) / Math.sqrt(20 + Math.pow(Lm - 50, 2)), SC = 1 + 0.045 * Cmp, SH = 1 + 0.015 * Cmp * T
+  const RT = -2 * Math.sqrt(Math.pow(Cmp, 7) / (Math.pow(Cmp, 7) + Math.pow(25, 7))) * Math.sin(60 * Math.exp(-Math.pow((hm - 275) / 25, 2)) * rad)
+  return Math.sqrt(Math.pow(dLp / SL, 2) + Math.pow(dCp / SC, 2) + Math.pow(dHp / SH, 2) + RT * (dCp / SC) * (dHp / SH))
+}
+const hexKeRgb = h => { const x = String(h || "").replace("#", ""); return [0, 2, 4].map(i => parseInt(x.slice(i, i + 2), 16) || 0) }
+const rgbKeHex = c => "#" + c.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("")
+// Warna kertas putih pada scan katalog (acuan) — hasil koreksi foto disamakan ke sini
+const PUTIH_KATALOG = [240, 240, 236]
+function kodeTerdekat(rgb, jenisIdx, n = 6) {
+  const lab = rgbKeLab(rgb), out = []
+  katalog.jenis.forEach((j, i) => { if (jenisIdx !== "" && jenisIdx != null && +jenisIdx !== i) return
+    ;(j.varian || []).forEach((v, k) => { if (!v.hex) return; out.push({ i, k, j, v, d: deltaE00(lab, v._lab || (v._lab = rgbKeLab(hexKeRgb(v.hex)))) }) }) })
+  return out.sort((a, b) => a.d - b.d).slice(0, n)
+}
+const PANDUAN_FOTO = `<div style="font-size:12px;line-height:1.55">
+  <b>📸 Cara foto supaya hasilnya akurat:</b>
+  <ol style="margin:4px 0 0 18px;padding:0">
+    <li><b>Cahaya siang alami</b> (dekat jendela/teras), jangan di bawah lampu kuning. <b>Matikan flash.</b></li>
+    <li><b>Taruh kertas HVS putih di samping kain</b> — satu foto berisi kain + kertas.</li>
+    <li>Foto <b>lurus dari atas</b>, jarak ±30 cm, kain rata (tidak terlipat/berkerut), tidak ada bayangan HP.</li>
+    <li>Jangan pakai filter / mode kecantikan / HDR berlebihan; jangan zoom digital.</li>
+    <li>Setelah foto muncul: <b>ketuk kertas putih dulu</b>, lalu <b>ketuk bagian kain</b> (di tengah, bukan pinggir/jahitan).</li>
+    <li>Hasilnya <b>perkiraan</b> — cocokkan 2–3 kode teratas dengan buku katalog fisik sebelum dipakai.</li>
+  </ol></div>`
+async function cariWarnaFoto(setelah) {
+  await muatKatalog(); if (!katalog.jenis.length) return toast("Katalog masih kosong — impor katalog dulu di menu 🎨 Katalog Kain", "w")
+  _stokKatalog = (await db.collection("config").doc("stok_kain").get()).data() || {}
+  const bg = document.createElement("div"); bg.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;display:flex;align-items:center;justify-content:center;padding:10px"
+  bg.innerHTML = `<div style="background:var(--s1,#fff);color:var(--t1,#111);border-radius:14px;max-width:560px;width:100%;max-height:92vh;overflow:auto;padding:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:16px">📷 Cari warna dari foto</b><button class="btn" id="cw-tutup">Tutup</button></div>
+    <details id="cw-panduan" open style="margin:8px 0;background:var(--gdim,rgba(0,150,100,.07));border-radius:10px;padding:8px 10px"><summary style="cursor:pointer;font-weight:700;font-size:12px">Panduan foto</summary>${PANDUAN_FOTO}</details>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+      <label class="btn btg" style="cursor:pointer;margin:0">📷 Ambil / pilih foto<input type="file" id="cw-file" accept="image/*" capture="environment" style="display:none"></label>
+      <button class="btsm" id="cw-tempel" type="button">📋 Tempel foto</button>
+      <select id="cw-jenis" style="width:auto"><option value="">Semua katalog</option>${katalog.jenis.map((j, i) => `<option value="${i}">${escH(j.nama)}</option>`).join("")}</select>
+    </div>
+    <div id="cw-langkah" style="font-size:12px;font-weight:700;color:var(--bl);margin-bottom:6px">Ambil foto kain + kertas putih dulu</div>
+    <div style="position:relative"><canvas id="cw-canvas" style="width:100%;border-radius:10px;display:none;touch-action:none;cursor:crosshair"></canvas></div>
+    <div id="cw-sampel" style="display:flex;gap:10px;align-items:center;margin:8px 0;font-size:12px"></div>
+    <div id="cw-hasil"></div></div>`
+  document.body.appendChild(bg)
+  const cv = bg.querySelector("#cw-canvas"), ctx = cv.getContext("2d", { willReadFrequently: true })
+  let putih = null, kain = null, mode = "putih"
+  const langkah = t => bg.querySelector("#cw-langkah").textContent = t
+  bg.querySelector("#cw-tutup").onclick = () => bg.remove()
+  const muat = file => { if (!file) return; const img = new Image(); img.onload = () => {
+      const MAX = 1200, sc = Math.min(1, MAX / Math.max(img.width, img.height)); cv.width = Math.round(img.width * sc); cv.height = Math.round(img.height * sc)
+      ctx.drawImage(img, 0, 0, cv.width, cv.height); cv.style.display = ""; putih = kain = null; mode = "putih"; bg.querySelector("#cw-panduan").open = false
+      langkah("① Ketuk KERTAS PUTIH di foto (untuk koreksi cahaya) — atau lewati: ketuk langsung kain lalu tekan 'Tanpa kertas'"); tampil() }
+    img.src = URL.createObjectURL(file) }
+  bg.querySelector("#cw-file").onchange = e => muat(e.target.files[0])
+  bg.querySelector("#cw-tempel").onclick = async () => { try { for (const it of await navigator.clipboard.read()) { const t = it.types.find(x => x.startsWith("image/")); if (t) return muat(await it.getType(t)) } toast("Belum ada foto yang disalin", "w") } catch (e) { toast("Tempel tidak diizinkan — pakai Ambil / pilih foto", "w") } }
+  bg.querySelector("#cw-jenis").onchange = () => tampil()
+  // Ambil rata-rata warna area kecil di titik ketuk (abaikan piksel paling terang/gelap — serat & bayangan)
+  const sampel = (x, y) => { const r = Math.max(6, Math.round(Math.min(cv.width, cv.height) * 0.025)), x0 = Math.max(0, x - r), y0 = Math.max(0, y - r)
+    const d = ctx.getImageData(x0, y0, Math.min(r * 2, cv.width - x0), Math.min(r * 2, cv.height - y0)).data, px = []
+    for (let i = 0; i < d.length; i += 4) px.push([d[i], d[i + 1], d[i + 2]])
+    px.sort((a, b) => (a[0] + a[1] + a[2]) - (b[0] + b[1] + b[2])); const pot = px.slice(Math.floor(px.length * .15), Math.ceil(px.length * .85))
+    return [0, 1, 2].map(c => pot.reduce((t, p) => t + p[c], 0) / pot.length) }
+  cv.addEventListener("pointerdown", e => { const b = cv.getBoundingClientRect(), x = Math.round((e.clientX - b.left) * cv.width / b.width), y = Math.round((e.clientY - b.top) * cv.height / b.height), c = sampel(x, y)
+    if (mode === "putih") { if (c.reduce((a, v) => a + v, 0) / 3 < 120) return toast("Itu terlalu gelap untuk kertas putih — ketuk kertasnya, atau tekan 'Tanpa kertas'", "w"); putih = c; mode = "kain"; langkah("② Sekarang ketuk bagian KAIN (di tengah, bukan pinggir)") }
+    else { kain = c; langkah("✓ Ketuk bagian kain lain untuk mencoba lagi") }
+    tampil() })
+  const koreksi = c => putih ? c.map((v, i) => v * PUTIH_KATALOG[i] / Math.max(1, putih[i])) : c
+  const tampil = () => {
+    const sEl = bg.querySelector("#cw-sampel"), hEl = bg.querySelector("#cw-hasil")
+    sEl.innerHTML = (putih ? `<span>${kotakWarna(rgbKeHex(putih), 20)}kertas ✓</span>` : (cv.style.display ? `<button class="btsm" id="cw-tanpa">Tanpa kertas putih</button>` : ""))
+      + (kain ? `<span>${kotakWarna(rgbKeHex(kain), 20)}kain</span><span>→ dikoreksi ${kotakWarna(rgbKeHex(koreksi(kain)), 20)}</span>` : "")
+    bg.querySelector("#cw-tanpa")?.addEventListener("click", () => { putih = null; mode = "kain"; langkah("② Ketuk bagian KAIN (tanpa koreksi cahaya — hasil kurang akurat)"); tampil() })
+    if (!kain) { hEl.innerHTML = ""; return }
+    const hasil = kodeTerdekat(koreksi(kain), bg.querySelector("#cw-jenis").value)
+    const label = d => d < 5 ? ["sangat mirip", "var(--g)"] : d < 10 ? ["mirip", "var(--bl)"] : d < 18 ? ["agak beda", "#d97706"] : ["jauh", "var(--r)"]
+    hEl.innerHTML = `<div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;margin:6px 0">Kode terdekat${putih ? "" : " (tanpa koreksi cahaya)"}</div>` + hasil.map((x, n) => { const [l, w] = label(x.d), st = +(_stokKatalog[namaKainKatalog(x.j, x.v)] || 0)
+      return `<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--b)">
+        <span style="width:44px;height:44px;border-radius:8px;background:${escH(x.v.hex)};border:1px solid rgba(128,128,128,.4);flex:0 0 44px"></span>
+        <span style="flex:1;min-width:0;font-size:12px"><b style="font-size:14px">${n + 1}. ${escH(x.j.nama)} ${escH(x.v.kode)}</b> ${x.v.ket ? `<span style="color:var(--r);font-weight:700">${escH(x.v.ket)}</span>` : ""}<br><span style="color:${w};font-weight:700">${l}</span> <span style="color:var(--t2)">· selisih ${x.d.toFixed(1)} · stok ${+st.toFixed(1)} m</span></span>
+        <button class="btsm" data-i="${x.i}" data-k="${x.k}">${setelah ? "Pakai" : "Lihat"}</button></div>` }).join("")
+      + `<div style="font-size:11px;color:var(--t2);margin-top:6px">Selisih &lt; 5 = sangat mirip · 5–10 = mirip · &gt; 10 = cek lagi. Tetap cocokkan dengan buku katalog fisik.</div>`
+    hEl.querySelectorAll("[data-i]").forEach(b => b.onclick = () => { const j = katalog.jenis[+b.dataset.i], v = j.varian[+b.dataset.k]
+      if (setelah) { bg.remove(); setelah(namaKainKatalog(j, v)) } else detailWarna(+b.dataset.i, +b.dataset.k) }) }
+}
 // Pemilih kain dari katalog (dipakai di Kain Masuk)
 async function pilihDariKatalog(setelah) {
   await muatKatalog(); _stokKatalog = (await db.collection("config").doc("stok_kain").get()).data() || {}
   if (!katalog.jenis.length) return toast("Katalog kain masih kosong — isi di menu 🎨 Katalog Kain", "w")
   const bg = document.createElement("div"); bg.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8000;display:flex;align-items:center;justify-content:center;padding:12px"
   bg.innerHTML = `<div style="background:var(--s1,#fff);color:var(--t1,#111);border-radius:14px;max-width:640px;width:100%;max-height:88vh;display:flex;flex-direction:column;padding:12px">
-    <div style="display:flex;gap:8px;margin-bottom:8px"><input type="search" id="pk-cari" placeholder="Cari kode / keterangan…" style="flex:1"><button class="btn" id="pk-tutup">Tutup</button></div>
+    <div style="display:flex;gap:8px;margin-bottom:8px"><input type="search" id="pk-cari" placeholder="Cari kode / keterangan…" style="flex:1"><button class="btsm" id="pk-foto" style="background:var(--bl);color:#fff">📷 Dari foto</button><button class="btn" id="pk-tutup">Tutup</button></div>
     <div id="pk-tab" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
     <div id="pk-grid" style="overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px"></div></div>`
   document.body.appendChild(bg)
@@ -2452,6 +2554,7 @@ async function pilihDariKatalog(setelah) {
     bg.querySelector("#pk-grid").innerHTML = out.slice(0, 400).map(x => { const st = +(_stokKatalog[namaKainKatalog(x.j, x.v)] || 0)
       return `<div data-i="${x.i}" data-k="${x.k}" style="cursor:pointer;border:1px solid var(--b);border-radius:8px;overflow:hidden"><div style="height:40px;background:${escH(x.v.hex)}"></div><div style="padding:4px 6px;font-size:10px"><b style="font-size:11px">${escH(x.v.kode)}</b> ${escH(x.v.ket || "")}<div style="color:var(--t2)">${escH(x.j.nama)} · ${st > 0 ? +st.toFixed(1) + " m" : "stok 0"}</div></div></div>` }).join("")
     bg.querySelectorAll("[data-i]").forEach(el => el.onclick = () => { const j = katalog.jenis[+el.dataset.i], v = j.varian[+el.dataset.k]; bg.remove(); setelah(namaKainKatalog(j, v)) }) }
+  bg.querySelector("#pk-foto").onclick = () => { bg.remove(); cariWarnaFoto(setelah) }
   bg.querySelector("#pk-cari").oninput = isi; bg.querySelector("#pk-tutup").onclick = () => bg.remove(); isi(); bg.querySelector("#pk-cari").focus()
 }
 // Nama kain dari katalog otomatis masuk Daftar Nama Kain
