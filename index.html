@@ -501,7 +501,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
   </div>
   <div id="kt-tab" style="display:flex;gap:6px;flex-wrap:wrap;margin:2px 2px 8px"></div>
   <div id="kt-info" style="font-size:12px;color:var(--t2);margin:4px 2px 8px"></div>
-  <div id="kt-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px"></div>
+  <div id="kt-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));grid-auto-rows:max-content;gap:8px"></div>
 </div>
 
 <div class="sec" id="s-bahan">
@@ -2570,7 +2570,7 @@ async function pilihDariKatalog(setelah) {
   bg.innerHTML = `<div style="background:var(--s1,#fff);color:var(--t1,#111);border-radius:14px;max-width:640px;width:100%;max-height:88vh;display:flex;flex-direction:column;padding:12px">
     <div style="display:flex;gap:8px;margin-bottom:8px"><input type="search" id="pk-cari" placeholder="Cari kode / keterangan…" style="flex:1"><button class="btsm" id="pk-foto" style="background:var(--bl);color:#fff">📷 Dari foto</button><button class="btn" id="pk-tutup">Tutup</button></div>
     <div id="pk-tab" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
-    <div id="pk-grid" style="overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px"></div></div>`
+    <div id="pk-grid" style="overflow:auto;flex:1 1 auto;min-height:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));grid-auto-rows:max-content;align-content:start;gap:8px"></div></div>`
   document.body.appendChild(bg)
   let pkJ = 0
   const isi = () => { const q = bg.querySelector("#pk-cari").value.trim().toUpperCase(); const out = []
@@ -2578,7 +2578,7 @@ async function pilihDariKatalog(setelah) {
     bg.querySelectorAll("#pk-tab [data-j]").forEach(b => b.onclick = () => { pkJ = +b.dataset.j; isi() })
     katalog.jenis.forEach((j, i) => { if (i !== pkJ && !q) return; (j.varian || []).forEach((v, k) => { if (!q || `${j.nama} ${v.kode} ${v.ket || ""}`.toUpperCase().includes(q)) out.push({ i, k, j, v }) }) })
     bg.querySelector("#pk-grid").innerHTML = out.slice(0, 400).map(x => { const st = +(_stokKatalog[namaKainKatalog(x.j, x.v)] || 0)
-      return `<div data-i="${x.i}" data-k="${x.k}" style="cursor:pointer;border:1px solid var(--b);border-radius:8px;overflow:hidden"><div style="height:40px;background:${escH(x.v.hex)}"></div><div style="padding:4px 6px;font-size:10px"><b style="font-size:11px">${escH(x.v.kode)}</b> ${escH(x.v.ket || "")}<div style="color:var(--t2)">${escH(x.j.nama)} · ${st > 0 ? +st.toFixed(1) + " m" : "stok 0"}</div></div></div>` }).join("")
+      return `<div data-i="${x.i}" data-k="${x.k}" style="cursor:pointer;border:1px solid var(--b);border-radius:8px;overflow:hidden;min-height:96px;background:var(--s1,#fff)"><div style="height:52px;background:${escH(x.v.hex)}"></div><div style="padding:4px 6px;font-size:10px"><b style="font-size:11px">${escH(x.v.kode)}</b> ${escH(x.v.ket || "")}<div style="color:var(--t2)">${escH(x.j.nama)} · ${st > 0 ? +st.toFixed(1) + " m" : "stok 0"}</div></div></div>` }).join("")
     bg.querySelectorAll("[data-i]").forEach(el => el.onclick = () => { const j = katalog.jenis[+el.dataset.i], v = j.varian[+el.dataset.k]; bg.remove(); setelah(namaKainKatalog(j, v)) }) }
   bg.querySelector("#pk-foto").onclick = () => { bg.remove(); cariWarnaFoto(setelah) }
   bg.querySelector("#pk-cari").oninput = isi; bg.querySelector("#pk-tutup").onclick = () => bg.remove(); isi(); bg.querySelector("#pk-cari").focus()
