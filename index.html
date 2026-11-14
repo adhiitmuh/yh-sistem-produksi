@@ -894,6 +894,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
   </div>
   <div class="card"><div class="ct">🏭 Informasi Konveksi</div>
     <div class="fg" style="margin-bottom:10px"><label>Nama Konveksi</label><input type="text" id="s-nama"></div>
+    <div class="fg" style="margin-bottom:10px"><label>No. WA Admin (untuk tombol "Minta Admin isi" dari staff)</label><input type="tel" id="s-wa-admin" placeholder="08xx…"></div>
     <button class="btsm" onclick="saveNama()">Simpan</button>
   </div>
   <div class="card"><div class="ct">🪡 Daftar Penjahit</div>
@@ -1393,6 +1394,7 @@ async function loadSettings() {
   document.getElementById("namaK").textContent = nm;
   const lgn = document.getElementById("lg-nama"); if (lgn) lgn.textContent = nm;
   document.getElementById("s-nama").value = settings.nama_konveksi || "";
+  const wa = document.getElementById("s-wa-admin"); if (wa) wa.value = settings.waAdmin || "";
   renderPjtTags(); renderOpTags(); fillSelects(); renderItemTable(); renderKainTags();
 }
 
@@ -1430,6 +1432,7 @@ function fillSelects() {
 
 async function saveNama() {
   settings.nama_konveksi = document.getElementById("s-nama").value.trim() || "YHK";
+  settings.waAdmin = (document.getElementById("s-wa-admin")?.value || "").trim();
   await saveSettings();
   document.getElementById("namaK").textContent = settings.nama_konveksi;
   toast("✓ Disimpan!");
@@ -1520,7 +1523,7 @@ async function loadKainUsulan() {
       <div><b>${escH(u.nama)}</b><div style="font-size:11px;color:var(--t2)">Diusulkan oleh ${escH(u.createdByNama || "—")}</div></div>
       ${isAdmin
         ? `<div style="display:flex;gap:6px"><button class="btn-del" style="background:var(--g);color:#0a0a0a" onclick="setujuiKain('${u._id}')">✓ Setujui</button><button class="btn-del" onclick="tolakKain('${u._id}')">✕ Tolak</button></div>`
-        : `<span style="font-size:11px;color:var(--t2)">Menunggu Admin</span>`}
+        : `<span style="font-size:11px;color:var(--t2)">Menunggu Admin</span>${tombolMintaAdmin("Usulan nama kain baru menunggu persetujuan", u.nama, "kain-masuk", { isi: "usulan-kain" })}`}
     </div>`).join("");
 }
 async function setujuiKain(id) {
@@ -1646,8 +1649,9 @@ async function loadAll() {
   });
   addJahitBlock(); addGuntingBlock(); addAmbilBlock(); addKeluarBlock();
   loadKainList(); loadKainMasukHist(); loadStokKain(); loadKainUsulan();
-  const initHash = location.hash.slice(1);
+  const { pg: initHash, p: initP } = bacaHash();
   go(VALID_PAGES.includes(initHash) ? initHash : "kain-masuk");
+  jalankanLink(initP);
   setTimeout(checkBackupReminder, 3000);
 }
 
@@ -2017,7 +2021,7 @@ function pilihDari(pre, item) {
     <div class="uksec"><div class="ukgl">Jumlah per Ukuran (tidak boleh melebihi yang tersedia)</div><div class="ukgrid">${Object.entries(uk).map(([u,q])=>`<div class="uki"><div class="ukl">${escH(u)}</div><input type="number" class="ukin" data-ukuran="${escH(u)}" min="0" max="${q}" value="${q}" oninput="${cfg.fn}()"><div style="font-size:9px;color:var(--t2);text-align:center">maks ${q}</div></div>`).join("")}</div></div>
     <div style="margin-top:5px;font-size:11px;font-family:var(--m);font-weight:700;color:var(--g)" id="ibt-${bid}"></div>
     ${upah ? (cari.mirip ? `<div style="font-size:10px;color:var(--t2);margin-top:3px">Upah memakai daftar "${escH(cari.im.nama)}"</div>` : "")
-      : `<div style="font-size:11px;color:#c2410c;background:#fff7ed;border-radius:6px;padding:5px 8px;margin-top:5px">⚠ Upah ${pre === "g" ? "gunting" : "jahit"} untuk <b>${escH(item)}</b> belum diatur Admin — setoran tetap tersimpan, upah dihitung setelah Admin mengisi daftar upah${role === "admin" ? " (isi di kolom Upah/pcs di atas, atau di Pengaturan → Daftar Item)" : ""}.</div>`}`;
+      : `<div style="font-size:11px;color:#c2410c;background:#fff7ed;border-radius:6px;padding:5px 8px;margin-top:5px">⚠ Upah ${pre === "g" ? "gunting" : "jahit"} untuk <b>${escH(item)}</b> belum diatur Admin — setoran tetap tersimpan, upah dihitung setelah Admin mengisi daftar upah${role === "admin" ? " (isi di kolom Upah/pcs di atas, atau di Pengaturan → Daftar Item)" : ""}.<br>${tombolMintaAdmin(`Upah ${pre === "g" ? "GUNTING" : "JAHIT"} belum diatur untuk item: ${item}`, "", "setting", { isi: "upah", item })}</div>`}`;
   c.appendChild(div);
   window[cfg.fn]();
   if (pre === "j") tebakOrderJahit(document.getElementById("j-pjt").value, item).catch(() => {});
@@ -2597,6 +2601,7 @@ async function pilihDariKatalog(setelah) {
     katalog.jenis.forEach((j, i) => { if (i !== pkJ && !q) return; (j.varian || []).forEach((v, k) => { if (!q || `${j.nama} ${v.kode} ${v.ket || ""}`.toUpperCase().includes(q)) out.push({ i, k, j, v }) }) })
     bg.querySelector("#pk-grid").innerHTML = out.slice(0, 400).map(x => { const st = +(_stokKatalog[namaKainKatalog(x.j, x.v)] || 0)
       return `<div data-i="${x.i}" data-k="${x.k}" style="cursor:pointer;border:1px solid var(--b);border-radius:8px;overflow:hidden;min-height:96px;background:var(--s1,#fff)"><div style="height:52px;background:${escH(x.v.hex)}"></div><div style="padding:4px 6px;font-size:10px"><b style="font-size:11px">${escH(x.v.kode)}</b> ${escH(x.v.ket || "")}<div style="color:var(--t2)">${escH(x.j.nama)} · ${st > 0 ? +st.toFixed(1) + " m" : "stok 0"}</div></div></div>` }).join("")
+    if (role !== "admin") bg.querySelector("#pk-grid").insertAdjacentHTML("beforeend", `<div style="grid-column:1/-1;font-size:12px;color:var(--t2);padding:8px 2px">${out.length ? "Kode yang dicari tidak ada?" : "Kode tidak ditemukan di katalog."} ${tombolMintaAdmin("Kode kain belum ada di katalog", q ? "Yang dicari: " + q + " (katalog " + (katalog.jenis[pkJ]?.nama || "") + ")" : "", "katalog", { isi: "katalog", cari: q })}</div>`)
     bg.querySelectorAll("[data-i]").forEach(el => el.onclick = () => { const j = katalog.jenis[+el.dataset.i], v = j.varian[+el.dataset.k]; bg.remove(); setelah(namaKainKatalog(j, v)) }) }
   bg.querySelector("#pk-foto").onclick = () => { bg.remove(); cariWarnaFoto(setelah) }
   bg.querySelector("#pk-cari").oninput = isi; bg.querySelector("#pk-tutup").onclick = () => bg.remove(); isi(); bg.querySelector("#pk-cari").focus()
@@ -2646,7 +2651,7 @@ async function loadOpname() {
     + (menunggu.length ? `<div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;margin-bottom:4px">Menunggu persetujuan Admin (${menunggu.length})</div>` + menunggu.map(o => { const w = warnaKain(o.kain), sel = +(o.hitung - o.sistem).toFixed(2)
       return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--b);font-size:12px">
         <span style="flex:1;min-width:180px">${w ? kotakWarna(w.v.hex) : ""}<b>${escH(o.kain)}</b> · hitung <b>${o.hitung} m</b> · sistem ${o.sistem} m · <b style="color:${sel === 0 ? "var(--g)" : "var(--r)"}">selisih ${sel > 0 ? "+" : ""}${sel} m</b><br><span style="color:var(--t2)">${escH(o.oleh || "")} · ${fmtTgl(o.tanggal)}${o.ket ? " · " + escH(o.ket) : ""}</span></span>
-        ${role === "admin" ? `<button class="btsm" style="background:var(--g);color:#0a0a0a" onclick="putusOpname('${o._id}',true)">✓ Setujui & set stok</button><button class="btsm" onclick="putusOpname('${o._id}',false)">✕ Tolak</button>` : `<span style="color:var(--t2)">menunggu Admin</span>`}</div>` }).join("") : "")
+        ${role === "admin" ? `<button class="btsm" style="background:var(--g);color:#0a0a0a" onclick="putusOpname('${o._id}',true)">✓ Setujui & set stok</button><button class="btsm" onclick="putusOpname('${o._id}',false)">✕ Tolak</button>` : `<span style="color:var(--t2)">menunggu Admin</span>${tombolMintaAdmin("Hasil hitung kain menunggu persetujuan", `${o.kain}: hitung ${o.hitung} m`, "kain-masuk", { isi: "opname" })}`}</div>` }).join("") : "")
 }
 function opInfo() {
   const k = document.getElementById("op-kain").value, m = document.getElementById("op-meter").value, el = document.getElementById("op-info")
@@ -2678,6 +2683,33 @@ async function putusOpname(id, setuju) {
   await db.collection("opname_kain").doc(id).update({ status: setuju ? "disetujui" : "ditolak", diputusOleh: unama || uname || "admin", diputusTgl: hariIniISO() })
   toast(setuju ? "✅ Stok kain diperbarui" : "Hasil hitung ditolak"); loadOpname(); loadStokKain()
 }
+
+// ── MINTA ADMIN ISI: staff kirim WA ke Admin berisi link yang langsung membuka bagian yang harus diisi ──
+const attrJ = v => JSON.stringify(v).replace(/&/g, "&amp;").replace(/'/g, "&#39;").replace(/</g, "&lt;")
+const linkIsi = (halaman, p) => location.origin + location.pathname + "#" + halaman + "?" + new URLSearchParams(p)
+function mintaAdmin(judul, rincian, halaman, p) {
+  const no = String(settings.waAdmin || "").replace(/\D/g, "").replace(/^0/, "62")
+  const pesan = `🔔 *YH Sistem Produksi — perlu diisi Admin*\n\n${judul}${rincian ? "\n" + rincian : ""}\n\nDari: ${unama || uname || "staff"}\n\n👉 Ketuk link ini, langsung ke bagian yang harus diisi:\n${linkIsi(halaman, p)}`
+  window.open(`https://api.whatsapp.com/send?${no ? "phone=" + no + "&" : ""}text=${encodeURIComponent(pesan)}`, "_blank")
+}
+const tombolMintaAdmin = (judul, rincian, halaman, p) => role === "admin" ? "" :
+  `<button type="button" class="btsm" style="background:#25d366;color:#fff;margin-top:4px" onclick='mintaAdmin(${attrJ(judul)},${attrJ(rincian)},${attrJ(halaman)},${attrJ(p)})'>📲 Minta Admin isi via WA</button>`
+function bacaHash() { const [pg, q] = location.hash.slice(1).split("?"); return { pg, p: Object.fromEntries(new URLSearchParams(q || "")) } }
+function sorotBagian(id) {
+  const el = document.getElementById(id); if (!el) return
+  el.scrollIntoView({ behavior: "smooth", block: "center" }); el.style.outline = "3px solid #f59e0b"; el.style.outlineOffset = "3px"
+  setTimeout(() => { el.style.outline = "" }, 5000)
+}
+async function jalankanLink(p) {
+  if (!p || !p.isi) return
+  if (role !== "admin") { toast("Link ini untuk Admin — minta Admin yang membukanya", "w"); return }
+  if (p.isi === "upah") { go("setting"); await loadUpahKosong(); sorotBagian("upah-kosong-card"); if (p.item) setTimeout(() => isiUpahItem(p.item), 600) }
+  else if (p.isi === "opname") { go("kain-masuk"); await loadOpname(); sorotBagian("opname-card") }
+  else if (p.isi === "usulan-kain") { go("kain-masuk"); await loadKainUsulan(); sorotBagian("kain-usulan-wrap") }
+  else if (p.isi === "katalog") { go("katalog"); await loadKatalog(); if (p.cari) { document.getElementById("kt-cari").value = p.cari; renderKatalog() } sorotBagian("kt-alat"); toast(p.cari ? `Kode "${p.cari}" dicari staff — tambahkan lewat + Warna bila belum ada` : "Tambahkan kain/warna yang diminta staff") }
+  else if (p.isi === "stok") { go("stok"); sorotBagian("s-stok") }
+}
+window.addEventListener("hashchange", () => { const { p } = bacaHash(); if (p.isi) jalankanLink(p) })
 // ── PETUGAS GUDANG: hanya Admin & petugas gudang yang mencatat kain masuk / pengambilan kain ──
 // Izin per bagian: kainMasuk, ambilKain, bahan. Data lama tanpa izin = semua bagian.
 const IZIN_GUDANG = { kainMasuk: "Kain Masuk", ambilKain: "Pengambilan Kain", bahan: "Bahan Pendukung", katalog: "Atur Katalog Kain" };
