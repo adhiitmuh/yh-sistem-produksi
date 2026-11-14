@@ -450,7 +450,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
       <div class="fg" style="grid-column:1/-1"><label>Order (Custom Order)</label><select id="ka-ord" class="pilih-order" onchange="isiDariOrder()"><option value="">— Pilih order Custom Order —</option></select><div id="ka-ord-info" style="font-size:11px;color:var(--t2);margin-top:4px"></div></div>
     </div>
     <div id="ka-stok-info" style="display:none;background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);padding:10px 13px;margin-bottom:11px;font-size:12px"></div>
-    <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Detail Per Ukuran <span style="text-transform:none;font-weight:500">— isi meter untuk setiap kain</span></div>
+    <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Detail Per Ukuran <span style="text-transform:none;font-weight:500">— isi meter <b>per 1 lembar/pcs</b> untuk setiap kain, total dihitung otomatis (pcs × meter)</span></div>
     <div id="ka-ukuran-head" style="display:flex;gap:8px;font-size:10px;font-weight:700;color:var(--t2);margin-bottom:4px"></div>
     <div id="ka-ukuran-rows"></div>
     <button class="btn btgh" onclick="addKaUkuranRow()">+ Tambah Ukuran</button>
@@ -3392,11 +3392,11 @@ async function updateKainInfo() {
 function susunKolomMeter() {
   const kains = kaKainDipilih(), head = document.getElementById("ka-ukuran-head");
   const daftar = kains.length ? kains : [""];
-  if (head) head.innerHTML = document.querySelector("#ka-ukuran-rows .ka-row") ? `<span style="width:70px">Ukuran</span><span style="width:70px">Pcs</span>${daftar.map(k => `<span style="width:80px">Meter${k ? " " + escH(k) : ""}</span>`).join("")}` : "";
+  if (head) head.innerHTML = document.querySelector("#ka-ukuran-rows .ka-row") ? `<span style="width:70px">Ukuran</span><span style="width:70px">Pcs</span>${daftar.map(k => `<span style="width:80px">m/pcs${k ? " " + escH(k) : ""}</span>`).join("")}<span style="width:70px">Subtotal</span>` : "";
   document.querySelectorAll("#ka-ukuran-rows .ka-row").forEach(row => {
     const lama = {}; row.querySelectorAll(".ka-m").forEach(i => { lama[i.dataset.kain] = i.value; });
     const wrap = row.querySelector(".ka-mwrap");
-    wrap.innerHTML = daftar.map(k => `<input type="number" class="ka-m" data-kain="${escH(k)}" placeholder="${k ? "m " + escH(k) : "Meter"}" min="0" step="0.1" style="width:80px" oninput="calcKainAmbil()" value="${escH(lama[k] ?? (daftar.length === 1 ? (Object.values(lama)[0] || "") : ""))}">`).join("");
+    wrap.innerHTML = daftar.map(k => `<input type="number" class="ka-m" data-kain="${escH(k)}" placeholder="${k ? "m/pcs " + escH(k) : "m/pcs"}" min="0" step="0.01" style="width:80px" oninput="calcKainAmbil()" value="${escH(lama[k] ?? (daftar.length === 1 ? (Object.values(lama)[0] || "") : ""))}">`).join("");
   });
   calcKainAmbil();
 }
@@ -3406,7 +3406,7 @@ function kaTambahBaris(uk, pcs, tetap) {
   const div = document.createElement("div"); div.className = "ka-row";
   div.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;flex-wrap:wrap";
   div.innerHTML = (tetap ? `<span style="width:70px">${escH(uk)}</span><input type="hidden" class="ka-uk" value="${escH(uk)}">` : `<input type="text" class="ka-uk" placeholder="Ukuran" value="${escH(uk || "")}" style="width:70px">`)
-    + `<input type="number" class="ka-pcs" placeholder="Pcs" min="0" style="width:70px" value="${pcs || ""}" oninput="calcKainAmbil()"><span class="ka-mwrap" style="display:contents"></span>`
+    + `<input type="number" class="ka-pcs" placeholder="Pcs" min="0" style="width:70px" value="${pcs || ""}" oninput="calcKainAmbil()"><span class="ka-mwrap" style="display:contents"></span><span class="ka-sub" style="width:70px;font-size:11px;color:var(--t2)"></span>`
     + (tetap ? "" : `<button type="button" onclick="this.parentElement.remove();calcKainAmbil()" style="background:transparent;border:none;color:var(--r);cursor:pointer;font-size:16px">×</button>`);
   el.appendChild(div);
   return div;
@@ -3426,7 +3426,12 @@ function buildKainUkuranRows() {
 function calcKainAmbil() {
   let totM=0, totP=0; const per={};
   document.querySelectorAll("#ka-ukuran-rows .ka-pcs").forEach(el=>{totP+=+el.value||0;});
-  document.querySelectorAll("#ka-ukuran-rows .ka-m").forEach(el=>{const v=+el.value||0; totM+=v; if(el.dataset.kain) per[el.dataset.kain]=(per[el.dataset.kain]||0)+v;});
+  // Kolom meter = meter per 1 pcs → total baris = pcs × meter/pcs
+  document.querySelectorAll("#ka-ukuran-rows .ka-row").forEach(row=>{
+    const pcs = +row.querySelector(".ka-pcs")?.value||0; let sub = 0
+    row.querySelectorAll(".ka-m").forEach(el=>{const v=(+el.value||0)*pcs; sub+=v; totM+=v; if(el.dataset.kain) per[el.dataset.kain]=(per[el.dataset.kain]||0)+v;});
+    const sEl = row.querySelector(".ka-sub"); if (sEl) sEl.textContent = sub ? "= " + sub.toFixed(2) + " m" : "";
+  });
   document.getElementById("ka-tot-meter").textContent = totM.toFixed(2);
   document.getElementById("ka-tot-pcs").textContent = totP;
   const pk=document.getElementById("ka-tot-perkain"); if(pk) pk.textContent = Object.keys(per).length>1 ? Object.entries(per).map(([k,m])=>k+" "+m.toFixed(2)+" m").join(" · ") : "";
@@ -3445,14 +3450,15 @@ async function submitKainAmbil() {
   const rows=[];
   document.querySelectorAll("#ka-ukuran-rows .ka-row").forEach(row=>{
     const uk = row.querySelector(".ka-uk")?.value?.trim()||"", pcs = +row.querySelector(".ka-pcs")?.value||0;
-    const meters = {}; row.querySelectorAll(".ka-m").forEach(i => { const v = +i.value||0; if (v) meters[i.dataset.kain || kains[0]] = v; });
+    // Diisi meter per pcs → simpan total (pcs × m/pcs) supaya stok & rata-rata tetap benar
+    const meters = {}, meterPerPcs = {}; row.querySelectorAll(".ka-m").forEach(i => { const v = +i.value||0; if (v) { const k = i.dataset.kain || kains[0]; meterPerPcs[k] = v; meters[k] = +(v * pcs).toFixed(2); } });
     const meter = Object.values(meters).reduce((a,b)=>a+b,0);
-    if((pcs||meter) && uk) rows.push({ukuran:uk,pcs,meter:+meter.toFixed(2),meters});
+    if(pcs && uk) rows.push({ukuran:uk,pcs,meter:+meter.toFixed(2),meters,meterPerPcs});
   });
   if(!rows.length) return toast("Isi minimal 1 ukuran!","w");
   // Meter wajib untuk SETIAP kain di setiap ukuran yang ada pcs-nya
   const kurang = [];
-  rows.filter(r=>r.pcs>0).forEach(r => kains.forEach(k => { if(!(r.meters[k]>0)) kurang.push(r.ukuran+(kains.length>1?" ("+k+")":"")); }));
+  rows.filter(r=>r.pcs>0).forEach(r => kains.forEach(k => { if(!(r.meterPerPcs[k]>0)) kurang.push(r.ukuran+(kains.length>1?" ("+k+")":"")); }));
   if(kurang.length) return toast("Isi meter untuk: "+kurang.join(", ")+" — supaya stok kain berkurang & rata-rata kain benar","w");
   const meterPerKain = {}; rows.forEach(r => Object.entries(r.meters).forEach(([k,v]) => { meterPerKain[k] = +((meterPerKain[k]||0) + v).toFixed(2); }));
   const totM = rows.reduce((s,r)=>s+r.meter,0);
