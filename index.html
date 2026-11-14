@@ -459,7 +459,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="ka-tgl"></div>
       <div class="fg"><label>Operator</label><select id="ka-op"><option value="">— Pilih —</option></select></div>
-      <div class="fg"><label>Nama Item</label><input type="text" id="ka-item" placeholder="Korpri Pria, PDH..." onchange="if(!document.querySelector('#ka-ukuran-rows .ka-row'))buildKainUkuranRows()"></div>
+      <div class="fg"><label>Nama Item</label><input type="text" id="ka-item" list="dl-item" autocomplete="off" placeholder="Pilih dari daftar item…" onchange="kaCekItem();if(!document.querySelector('#ka-ukuran-rows .ka-row'))buildKainUkuranRows()"><datalist id="dl-item"></datalist><div id="ka-item-info" style="font-size:11px;margin-top:3px"></div></div>
       <div class="fg" style="grid-column:1/-1"><label>Kain <span style="font-weight:500;color:var(--t2)">— bisa lebih dari satu untuk baju/celana kombinasi (2–3 warna)</span></label>
         <div id="ka-kain-list"></div>
         <button type="button" class="btsm" onclick="addKaKain()" style="margin-top:6px">+ Tambah kain kombinasi</button></div>
@@ -1614,7 +1614,7 @@ function go(name) {
   if (name==="setting")    { renderItemTable(); renderKainTags(); renderGudangTags(); isiPilihanGudang(); loadUpahKosong(); }
   if (name==="modal")      loadModalDashboard();
   if (name==="kain-masuk") { loadKainList(); loadKainMasukHist(); loadStokKain(); loadKainUsulan(); loadOpname(); const l = document.getElementById("km-lama-link"); if (l) l.style.display = role === "admin" ? "" : "none"; kmTampilPilihan() }
-  if (name==="kain-ambil") { loadKainList(); loadKainAmbilHist(); loadStokKain(); }
+  if (name==="kain-ambil") { loadKainList(); loadKainAmbilHist(); loadStokKain(); isiDaftarItem(); }
   if (name==="katalog")    loadKatalog();
   if (["kain-masuk","kain-ambil","bahan","gunting","ambil","jahit","qc"].includes(name)) isiPilihanOrder();
   if (name==="bahan")      loadBahan();
@@ -2100,7 +2100,7 @@ function isiDariOrder() {
     }
   }).catch(() => {});
   const itemEl = document.getElementById("ka-item");
-  if (!itemEl.value.trim() && o.items.length === 1) itemEl.value = o.items[0].name;
+  if (!itemEl.value.trim() && o.items.length === 1) { const c = cariItemUpah(o.items[0].name); itemEl.value = c.im ? c.im.nama : o.items[0].name; kaCekItem(o.items[0].name) }
   if (o.sizeBreakdown && Object.keys(o.sizeBreakdown).length) {
     document.getElementById("ka-ukuran-rows").innerHTML = "";
     Object.entries(o.sizeBreakdown).forEach(([u, q]) => {
@@ -2684,6 +2684,22 @@ async function putusOpname(id, setuju) {
   toast(setuju ? "✅ Stok kain diperbarui" : "Hasil hitung ditolak"); loadOpname(); loadStokKain()
 }
 
+
+// Nama item di Pengambilan Kain wajib dari Daftar Item & Upah (supaya guntingan → jahitan → upah semuanya cocok)
+function isiDaftarItem() { const dl = document.getElementById("dl-item"); if (dl) dl.innerHTML = (settings.items || []).map(i => `<option value="${escH(i.nama)}">`).join("") }
+const itemDiDaftar = nama => (settings.items || []).find(i => kunciItem(i.nama) === kunciItem(nama))
+function kaCekItem(asalOrder) {
+  isiDaftarItem()
+  const el = document.getElementById("ka-item"), info = document.getElementById("ka-item-info"); if (!el || !info) return
+  const v = el.value.trim()
+  if (!v) { info.innerHTML = ""; return }
+  const ada = itemDiDaftar(v)
+  if (ada) { if (ada.nama !== v) el.value = ada.nama; info.innerHTML = `<span style="color:var(--g)">✓ Ada di daftar upah</span>${asalOrder && kunciItem(asalOrder) !== kunciItem(ada.nama) ? ` <span style="color:var(--t2)">(di order: ${escH(asalOrder)})</span>` : ""}`; return }
+  const c = cariItemUpah(v)
+  info.innerHTML = `<span style="color:#c2410c">⚠ "${escH(v)}" belum ada di Daftar Item & Upah.</span>`
+    + (c.im ? ` <a href="javascript:void(0)" onclick="document.getElementById('ka-item').value=${attrJ(c.im.nama).replace(/"/g, "&quot;")};kaCekItem()" style="color:var(--bl)">Pakai "${escH(c.im.nama)}"?</a>` : "")
+    + (role === "admin" ? ` <a href="javascript:void(0)" onclick="isiUpahItem(document.getElementById('ka-item').value.trim()).then(kaCekItem)" style="color:var(--bl)">+ Tambah ke daftar upah</a>` : `<br>${tombolMintaAdmin("Item belum ada di Daftar Item & Upah", v, "setting", { isi: "upah", item: v })}`)
+}
 // ── MINTA ADMIN ISI: staff kirim WA ke Admin berisi link yang langsung membuka bagian yang harus diisi ──
 const attrJ = v => JSON.stringify(v).replace(/&/g, "&amp;").replace(/'/g, "&#39;").replace(/</g, "&lt;")
 const linkIsi = (halaman, p) => location.origin + location.pathname + "#" + halaman + "?" + new URLSearchParams(p)
@@ -3893,6 +3909,11 @@ async function submitKainAmbil() {
   const item = document.getElementById("ka-item").value.trim();
   const ket  = document.getElementById("ka-ket").value.trim();
   if(!tgl||!op||!kains.length||!item) return toast("Tanggal, operator, kain, dan item wajib diisi!","w");
+  if (!itemDiDaftar(item)) {
+    kaCekItem()
+    if (role !== "admin") return toast("Pilih nama item dari Daftar Item & Upah — kalau belum ada, tekan Minta Admin isi via WA", "w")
+    if (!await confirm2(`"${item}" belum ada di Daftar Item & Upah — upah guntingan & jahitannya akan Rp 0. Tetap simpan?`)) return
+  }
   if(!wajibOrder("ka-ord")) return;
   const bagian = {}; document.querySelectorAll("#ka-kain-list .ka-kr").forEach(r => { const k = r.querySelector(".ka-kain-sel").value, b = r.querySelector(".ka-bagian").value.trim(); if (k && b) bagian[k] = b; });
   const rows=[];
