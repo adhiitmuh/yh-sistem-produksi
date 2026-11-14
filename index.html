@@ -434,7 +434,11 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
     <div class="ct">➕ Input Kain Masuk</div>
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="km-tgl"></div>
-      <div class="fg"><label>Nama Kain</label><select id="km-kain" onchange="tandaiWarnaSelect(this)" onmousedown="if(role!=='admin'&&katalog.jenis.length){event.preventDefault();kmPilihKatalog()}"><option value="">— Pilih —</option></select><div style="margin-top:4px"><a href="javascript:void(0)" onclick="kmPilihKatalog()" style="font-size:11px;color:var(--bl);text-decoration:none;margin-right:10px">🎨 Pilih dari katalog</a><a href="javascript:void(0)" onclick="usulkanKain()" id="km-usul-link" style="font-size:11px;color:var(--bl);text-decoration:none">+ Kain belum ada? Usulkan nama kain baru</a></div></div>
+      <div class="fg"><label>Kain & Kode Warna</label>
+        <button type="button" id="km-katalog-btn" onclick="kmPilihKatalog()" style="width:100%;text-align:left;display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px dashed var(--g);border-radius:10px;background:var(--gdim,rgba(0,150,100,.06));cursor:pointer;font-size:14px;color:inherit"><span style="font-size:20px">🎨</span><span><b>Pilih kain & warna dari katalog</b><br><span style="font-size:11px;opacity:.7">UNIONE · PASSUKA · VENOZA · ORLANDO — cari kode, mis. 714</span></span></button>
+        <div id="km-admin-lama" style="margin-top:6px;display:none"><select id="km-kain" onchange="tandaiWarnaSelect(this);kmTampilPilihan()"><option value="">— Pilih —</option></select>
+          <div style="margin-top:4px"><a href="javascript:void(0)" onclick="usulkanKain()" id="km-usul-link" style="font-size:11px;color:var(--bl);text-decoration:none">+ Kain belum ada di katalog? Tambah nama kain</a></div></div>
+        <a href="javascript:void(0)" id="km-lama-link" onclick="document.getElementById('km-admin-lama').style.display='';this.style.display='none'" style="font-size:11px;color:var(--t2);text-decoration:none;display:none;margin-top:4px">atau pilih nama kain lama (tanpa kode warna) — Admin</a></div>
       <div class="fg"><label>Jumlah (Meter)</label><input type="number" id="km-meter" placeholder="0" min="0" step="0.1"></div>
       <div class="fg"><label>Supplier</label><input type="text" id="km-supplier" placeholder="Nama supplier..."></div>
       <div class="fg"><label>Untuk order (Custom Order)</label><select id="km-ord" class="pilih-order"><option value="">— Pilih order Custom Order —</option></select></div>
@@ -1490,7 +1494,7 @@ async function usulkanKain() {
     settings.kain = [...(settings.kain || []), {nama: n}];
     await saveSettings();
     toast("✅ Kain ditambahkan!"); renderKainTags(); loadKainList();
-    document.getElementById("km-kain").value = n;
+    document.getElementById("km-kain").value = n; kmTampilPilihan();
     return;
   }
   const ada = await fsAll("kain_usulan");
@@ -1600,7 +1604,7 @@ function go(name) {
   if (name==="ringkasan")  loadRingkasan();
   if (name==="setting")    { renderItemTable(); renderKainTags(); renderGudangTags(); isiPilihanGudang(); }
   if (name==="modal")      loadModalDashboard();
-  if (name==="kain-masuk") { loadKainList(); loadKainMasukHist(); loadStokKain(); loadKainUsulan(); loadOpname(); }
+  if (name==="kain-masuk") { loadKainList(); loadKainMasukHist(); loadStokKain(); loadKainUsulan(); loadOpname(); const l = document.getElementById("km-lama-link"); if (l) l.style.display = role === "admin" ? "" : "none"; kmTampilPilihan() }
   if (name==="kain-ambil") { loadKainList(); loadKainAmbilHist(); loadStokKain(); }
   if (name==="katalog")    loadKatalog();
   if (["kain-masuk","kain-ambil","bahan","gunting","ambil","jahit","qc"].includes(name)) isiPilihanOrder();
@@ -2454,8 +2458,17 @@ async function pilihDariKatalog(setelah) {
 async function pastikanNamaKain(nama) {
   if (!(settings.kain || []).find(k => k.nama.toLowerCase() === nama.toLowerCase())) { settings.kain = [...(settings.kain || []), { nama }]; await saveSettings(); loadKainList() }
 }
+// Tombol besar menampilkan kain & warna yang dipilih
+function kmTampilPilihan() {
+  const btn = document.getElementById("km-katalog-btn"), nama = document.getElementById("km-kain")?.value; if (!btn) return
+  const w = warnaKain(nama)
+  btn.innerHTML = w ? `<span style="width:38px;height:38px;border-radius:8px;background:${escH(w.v.hex)};border:1px solid rgba(128,128,128,.4);flex:0 0 38px"></span><span><b style="font-size:16px">${escH(w.j.nama)} ${escH(w.v.kode)}</b>${w.v.ket ? ` <span style="color:var(--r);font-weight:700;font-size:12px">${escH(w.v.ket)}</span>` : ""}<br><span style="font-size:11px;opacity:.7">Ketuk untuk ganti kain/warna</span></span>`
+    : nama ? `<span style="font-size:20px">🧵</span><span><b>${escH(nama)}</b> <span style="font-size:11px;opacity:.7">(tanpa kode warna)</span><br><span style="font-size:11px;opacity:.7">Ketuk untuk pilih dari katalog</span></span>`
+    : `<span style="font-size:20px">🎨</span><span><b>Pilih kain & warna dari katalog</b><br><span style="font-size:11px;opacity:.7">UNIONE · PASSUKA · VENOZA · ORLANDO — cari kode, mis. 714</span></span>`
+  btn.style.borderStyle = nama ? "solid" : "dashed"
+}
 async function kmPilihKatalog() {
-  pilihDariKatalog(async nama => { await pastikanNamaKain(nama); const sel = document.getElementById("km-kain"); sel.value = nama; tandaiWarnaSelect(sel); toast("Kain: " + nama) })
+  pilihDariKatalog(async nama => { await pastikanNamaKain(nama); const sel = document.getElementById("km-kain"); sel.value = nama; tandaiWarnaSelect(sel); kmTampilPilihan() })
 }
 // Kotak warna kecil di samping pilihan kain
 function tandaiWarnaSelect(sel) {
@@ -3602,13 +3615,15 @@ async function submitKainMasuk() {
   toast("Kain masuk disimpan!");
   kirimProgresOrder(kmOrd);
   ["km-tgl","km-kain","km-meter","km-supplier","km-ket","km-ord","km-harga"].forEach(id=>document.getElementById(id).value="");
+  kmTampilPilihan(); document.querySelector('#km-admin-lama .kt-chip')?.remove();
   await loadKainMasukHist();
 }
 async function loadKainMasukHist() {
+  await muatKatalog().catch(() => {})
   const docs = await fsAll("kain_masuk");
   renderHistList("km-hist","km-cnt",docs,d=>`
     <div class="card">
-      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.kain}</b> — ${d.meter}m${d.supplier?" dari "+d.supplier:""}</div>
+      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> ${(w => w ? kotakWarna(w.v.hex, 13) : "")(warnaKain(d.kain))}<b>${escH(d.kain)}</b>${(w => w && w.v.ket ? ` <span style="color:var(--r);font-size:11px;font-weight:700">${escH(w.v.ket)}</span>` : "")(warnaKain(d.kain))} — ${d.meter}m${d.supplier?" dari "+d.supplier:""}</div>
       <div style="font-size:11px;color:var(--t2);margin-top:3px">${d.order?(d.order==="STOK"?"📦 Stok umum":"Untuk order <b>"+escH(d.order)+"</b>"):"Order belum dicatat"}${d.hargaMeter?" · Rp "+fmt(d.hargaMeter)+"/m = <b>Rp "+fmt(d.totalHarga||0)+"</b>":""}</div>
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
       <div style="margin-top:6px">${mkDelBtn("kain_masuk",d._id)}</div>
