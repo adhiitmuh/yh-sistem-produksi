@@ -881,6 +881,12 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
     <div style="font-size:12px;color:var(--t2);margin-bottom:12px">Download semua data sebagai file JSON backup.</div>
     <button onclick="downloadBackup()" style="padding:9px 20px;background:var(--bl);color:#fff;border:none;border-radius:var(--rads);font-family:var(--f);font-size:13px;font-weight:700;cursor:pointer">⬇ Download Backup Data</button>
   </div>
+  <div class="card hanya-admin" id="upah-kosong-card" style="display:none">
+    <div class="ct">⚠ Item tanpa upah</div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:8px">Item yang sudah disetor (guntingan / jahitan) tapi upahnya masih Rp 0 karena belum ada di daftar upah. Isi upahnya, lalu tekan <b>Hitung ulang upah Rp 0</b> supaya setoran lama ikut terisi.</div>
+    <div id="upah-kosong-list"><div class="empty" style="padding:8px">Memuat…</div></div>
+    <button class="btsm" style="margin-top:8px;background:var(--gold,#eab308);color:#0a0a0a" onclick="hitungUlangUpahNol()">🔄 Hitung ulang upah Rp 0</button>
+  </div>
   <div class="card" id="backfill-card" style="display:none">
     <div class="ct">🔧 Backfill Upah Gunting</div>
     <div style="font-size:12px;color:var(--t2);margin-bottom:12px">Hitung ulang total upah semua setoran guntingan lama menggunakan <b>upah_gunting terbaru</b> di daftar item. Jalankan setelah mengisi upah_gunting untuk item yang sebelumnya 0.</div>
@@ -1602,7 +1608,7 @@ function go(name) {
   if (name==="stok")       { switchStokTab("gunting"); loadKoreksiLog(); }
   if (name==="keluar")     loadKeluarHist();
   if (name==="ringkasan")  loadRingkasan();
-  if (name==="setting")    { renderItemTable(); renderKainTags(); renderGudangTags(); isiPilihanGudang(); }
+  if (name==="setting")    { renderItemTable(); renderKainTags(); renderGudangTags(); isiPilihanGudang(); loadUpahKosong(); }
   if (name==="modal")      loadModalDashboard();
   if (name==="kain-masuk") { loadKainList(); loadKainMasukHist(); loadStokKain(); loadKainUsulan(); loadOpname(); const l = document.getElementById("km-lama-link"); if (l) l.style.display = role === "admin" ? "" : "none"; kmTampilPilihan() }
   if (name==="kain-ambil") { loadKainList(); loadKainAmbilHist(); loadStokKain(); }
@@ -1981,16 +1987,26 @@ function renderPilihan(pre, listId, wrapId, data, kosong) {
       <button type="button" class="btn-s" onclick="pilihDari('${pre}', decodeURIComponent('${encodeURIComponent(it)}'))">➕ Pakai</button>
     </div>`).join("") : `<div class="empty" style="padding:8px 0;font-size:12px">${kosong}</div>`;
 }
+// Cari item di daftar upah: nama persis → nama tanpa beda spasi/tanda baca → nama daftar yang terkandung di nama item (terpanjang)
+const kunciItem = t => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
+function cariItemUpah(nama) {
+  const daftar = settings.items || [], k = kunciItem(nama)
+  let im = daftar.find(i => i.nama.toLowerCase() === String(nama).toLowerCase()) || daftar.find(i => kunciItem(i.nama) === k)
+  if (im) return { im, mirip: false }
+  im = daftar.filter(i => { const ki = kunciItem(i.nama); return ki && (` ${k} `).includes(` ${ki} `) }).sort((a, b) => b.nama.length - a.nama.length)[0]
+  return { im: im || null, mirip: !!im }
+}
 const _cfgPil = { g:{cid:"g-blocks",fn:"calcG",upah:"upah_gunting",lembar:true}, a:{cid:"a-blocks",fn:"calcA",upah:"upah"}, j:{cid:"j-blocks",fn:"calcJ",upah:"upah"} };
 function pilihDari(pre, item) {
   const cfg = _cfgPil[pre], uk = (_pil[pre]||{})[item]; if(!cfg||!uk) return;
   const c = document.getElementById(cfg.cid);
   if ([...c.querySelectorAll(".iblock[data-dari]")].some(b => b.dataset.item === item)) return toast(item+" sudah ada di daftar","w");
   c.querySelectorAll(".iblock:not([data-dari])").forEach(b => { if(!b.querySelector(".ibn")?.value?.trim()) b.remove(); });  // buang blok manual kosong
-  const im = (settings.items||[]).find(i => i.nama.toLowerCase() === item.toLowerCase()) || {};
+  const cari = cariItemUpah(item), im = cari.im || {};
   const upah = im[cfg.upah] || 0, bid = pre+"p"+Date.now();
   const div = document.createElement("div");
   div.className = "iblock"; div.id = "ib-"+bid; div.dataset.dari = "1"; div.dataset.item = item;
+  div.dataset.upahKosong = upah ? "" : "1";
   div.innerHTML = `<div class="ibhdr">
       <input type="hidden" class="ibn" value="${escH(item)}">
       <div style="font-weight:700;flex:1">${escH(item)}</div>
@@ -1999,7 +2015,9 @@ function pilihDari(pre, item) {
       <button type="button" class="btnrm" onclick="this.closest('.iblock').remove();${cfg.fn}()">&#215;</button>
     </div>
     <div class="uksec"><div class="ukgl">Jumlah per Ukuran (tidak boleh melebihi yang tersedia)</div><div class="ukgrid">${Object.entries(uk).map(([u,q])=>`<div class="uki"><div class="ukl">${escH(u)}</div><input type="number" class="ukin" data-ukuran="${escH(u)}" min="0" max="${q}" value="${q}" oninput="${cfg.fn}()"><div style="font-size:9px;color:var(--t2);text-align:center">maks ${q}</div></div>`).join("")}</div></div>
-    <div style="margin-top:5px;font-size:11px;font-family:var(--m);font-weight:700;color:var(--g)" id="ibt-${bid}"></div>`;
+    <div style="margin-top:5px;font-size:11px;font-family:var(--m);font-weight:700;color:var(--g)" id="ibt-${bid}"></div>
+    ${upah ? (cari.mirip ? `<div style="font-size:10px;color:var(--t2);margin-top:3px">Upah memakai daftar "${escH(cari.im.nama)}"</div>` : "")
+      : `<div style="font-size:11px;color:#c2410c;background:#fff7ed;border-radius:6px;padding:5px 8px;margin-top:5px">⚠ Upah ${pre === "g" ? "gunting" : "jahit"} untuk <b>${escH(item)}</b> belum diatur Admin — setoran tetap tersimpan, upah dihitung setelah Admin mengisi daftar upah${role === "admin" ? " (isi di kolom Upah/pcs di atas, atau di Pengaturan → Daftar Item)" : ""}.</div>`}`;
   c.appendChild(div);
   window[cfg.fn]();
   if (pre === "j") tebakOrderJahit(document.getElementById("j-pjt").value, item).catch(() => {});
@@ -4137,6 +4155,44 @@ function checkBackupReminder() {
 }
 
 // ── BACKFILL UPAH GUNTING ────────────────────────────────────────────────────
+
+// ── ITEM TANPA UPAH (Admin) ──
+async function loadUpahKosong() {
+  const el = document.getElementById("upah-kosong-list"); if (!el || role !== "admin") return
+  const txs = (await fsAll("transaksi")).filter(d => ["gunting", "jahit"].includes(d.type))
+  const kosong = {}
+  txs.forEach(d => (d.items || []).forEach(i => { if (!(+i.upah > 0) && i.nama) { const k = i.nama; kosong[k] = kosong[k] || { g: 0, j: 0, pcs: 0 }; kosong[k][d.type === "gunting" ? "g" : "j"]++; kosong[k].pcs += +i.pcs || 0 } }))
+  const daftar = Object.entries(kosong).filter(([n, x]) => { const im = cariItemUpah(n).im; return !im || (x.g && !(im.upah_gunting > 0)) || (x.j && !(im.upah > 0)) })
+  el.innerHTML = daftar.length ? daftar.map(([n, x]) => { const c = cariItemUpah(n)
+    return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--b);font-size:12px">
+      <span style="flex:1;min-width:160px"><b>${escH(n)}</b>${c.im ? ` <span style="color:var(--t2)">→ daftar "${escH(c.im.nama)}"</span>` : ` <span style="color:var(--r)">belum ada di daftar</span>`}<br><span style="color:var(--t2)">${x.g ? x.g + " setoran gunting" : ""}${x.g && x.j ? " · " : ""}${x.j ? x.j + " setoran jahit" : ""} · ${x.pcs} pcs</span></span>
+      <button class="btsm" onclick="isiUpahItem('${escH(n).replace(/'/g, "\\'")}')">Isi upah</button></div>` }).join("")
+    : '<div style="font-size:12px;color:var(--g)">✓ Semua item yang disetor sudah punya upah</div>'
+}
+async function isiUpahItem(nama) {
+  if (role !== "admin") return
+  const c = cariItemUpah(nama), im = c.im
+  const target = im ? im.nama : nama
+  const uj = prompt(`Upah JAHIT per pcs untuk "${target}" (Rp):`, im?.upah || ""); if (uj === null) return
+  const ug = prompt(`Upah GUNTING per pcs untuk "${target}" (Rp):`, im?.upah_gunting || ""); if (ug === null) return
+  const n = v => +String(v).replace(/\D/g, "") || 0
+  if (im) { im.upah = n(uj); im.upah_gunting = n(ug) } else itemMaster.push({ nama: target, upah: n(uj), upah_gunting: n(ug), type: "umum" })
+  await saveIM(); toast("✅ Upah " + target + " disimpan"); loadUpahKosong(); renderItemTable?.()
+}
+async function hitungUlangUpahNol() {
+  if (role !== "admin") return
+  if (!await confirm2("Isi upah setoran guntingan & jahitan yang masih Rp 0 memakai daftar upah sekarang? Upah yang sudah terisi tidak diubah.")) return
+  const txs = (await fsAll("transaksi")).filter(d => ["gunting", "jahit"].includes(d.type)); let ubah = 0
+  for (const d of txs) {
+    let beda = false
+    const items = (d.items || []).map(i => { if (+i.upah > 0) return i; const im = cariItemUpah(i.nama).im; const u = im ? (d.type === "gunting" ? +im.upah_gunting || 0 : +im.upah || 0) : 0
+      if (!u) return i; beda = true; return { ...i, upah: u, subtotal: (+i.pcs || 0) * u } })
+    if (!beda) continue
+    const totalUpah = items.reduce((t, i) => t + (+i.subtotal || (+i.pcs || 0) * (+i.upah || 0)), 0)
+    await db.collection("transaksi").doc(d._id).update({ items, totalUpah }); ubah++
+  }
+  toast(`✅ ${ubah} setoran diperbarui upahnya`); loadUpahKosong()
+}
 async function backfillGuntingUpah() {
   if(role!=="admin") return toast("Admin only!","w");
   if(!await confirm2("Hitung ulang totalUpah semua setoran guntingan pakai upah_gunting terbaru dari daftar item? Data lama akan ditulis ulang.")) return;
