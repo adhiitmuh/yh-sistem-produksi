@@ -1152,7 +1152,7 @@ const DEFAULT_KAIN = ["Kain Korpri","Kain Drill","Kain TC","Kain Lacoste"];
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let settings = {penjahit:[], operator:[], nama_konveksi:"Young Harmonis Production", kain:[], items:[]};
 let itemMaster = [];
-let role = "guest", uname = null, unama = null, uid = null;
+let role = "guest", uname = null, unama = null, uid = null, isOwner = false;
 let stokData = [], keluarData = [], allRingData = [];
 let lbImgs = [], lbIdx = 0;
 let cfmCallback = null;
@@ -1256,6 +1256,7 @@ auth.onAuthStateChanged(async user => {
       return;
     }
 
+    isOwner = userDoc.role === 'owner'
     if (userDoc.role === 'owner') {
       role = 'admin';
     } else {
@@ -1269,7 +1270,7 @@ auth.onAuthStateChanged(async user => {
     }
     unama = userDoc?.nama || user.email;
   } else {
-    uid = null; uname = null; unama = null; role = "guest";
+    uid = null; uname = null; unama = null; role = "guest"; isOwner = false;
   }
   applyRole();
   if (role !== "guest") { try { await loadAll(); } catch(e) { console.error("loadAll error:", e); } }
@@ -2340,6 +2341,49 @@ async function muatKatalog(paksa) {
   return katalog
 }
 async function simpanKatalog() { await db.collection("config").doc("katalog_kain").set({ jenis: katalog.jenis.map(({ varian, ...j }) => ({ ...j, varian: (varian || []).map(({ _lab, ...v }) => v) })), waCS: katalog.waCS || "", diubah: new Date().toISOString(), diubahOleh: unama || uname || "" }) }
+// Riwayat perubahan katalog — setiap ubah/hapus dicatat (termasuk foto lama) supaya Owner bisa mengembalikan bila salah pencet
+async function catatRiwayatKatalog(aksi, j, v, sebelum, sesudah, fotoLama) {
+  try { await db.collection("katalog_riwayat").add({ waktu: new Date().toISOString(), oleh: unama || uname || "", aksi, jenis: j.nama, kode: v.kode, sebelum, sesudah: sesudah || null, fotoLama: fotoLama || "", dikembalikan: false }) } catch (e) { console.warn("riwayat katalog", e) }
+}
+const _fotoKatalog = async (j, v) => { try { return (await db.collection("katalog_foto").doc(idFotoKatalog(j, v)).get()).data()?.foto || "" } catch (e) { return "" } }
+async function riwayatKatalog() {
+  if (!isOwner) return
+  const snap = await db.collection("katalog_riwayat").orderBy("waktu", "desc").limit(80).get()
+  const daftar = snap.docs.map(d => ({ _id: d.id, ...d.data() }))
+  const bg = document.createElement("div"); bg.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;display:flex;align-items:center;justify-content:center;padding:12px"
+  const kotak = (x, l) => x ? `<span style="display:inline-flex;flex-direction:column;align-items:center;font-size:10px;color:var(--t2)"><span style="width:34px;height:34px;border-radius:7px;background:${escH(x.hex || "#ccc")};border:1px solid rgba(128,128,128,.4)"></span>${l}</span>` : ""
+  const label = { ubah: "✏️ Ubah", hapus: "🗑 Hapus warna", "hapus foto": "🖼 Hapus foto" }
+  bg.innerHTML = `<div style="background:var(--s1,#fff);color:var(--t1,#111);border-radius:14px;max-width:560px;width:100%;max-height:90vh;overflow:auto;padding:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b style="font-size:16px">🕘 Riwayat perubahan katalog</b><button class="btn" id="rk-tutup">Tutup</button></div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:8px">Kalau ada yang salah pencet, tekan <b>↩ Kembalikan</b> — warna/keterangan/foto kembali seperti sebelumnya.</div>
+    ${daftar.length ? daftar.map(r => `<div style="border-top:1px solid var(--b);padding:8px 0;display:flex;gap:10px;align-items:center">
+      <div style="display:flex;gap:4px;align-items:center">${kotak(r.sebelum, "sebelum")}${r.sesudah ? "→" + kotak(r.sesudah, "sesudah") : ""}</div>
+      <div style="flex:1;min-width:0;font-size:12px"><b>${label[r.aksi] || escH(r.aksi)} ${escH(r.jenis)} ${escH(r.kode)}</b><br>
+        ${r.sebelum?.ket !== r.sesudah?.ket && r.sesudah ? `Ket: "${escH(r.sebelum?.ket || "-")}" → "${escH(r.sesudah?.ket || "-")}"<br>` : ""}
+        <span style="color:var(--t2)">${escH(r.oleh)} · ${new Date(r.waktu).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}${r.fotoLama ? " · foto lama tersimpan" : ""}</span></div>
+      ${r.dikembalikan ? `<span style="font-size:11px;color:var(--g);font-weight:700">✓ Dikembalikan</span>` : `<button class="btsm" data-id="${r._id}">↩ Kembalikan</button>`}</div>`).join("") : `<div style="color:var(--t2);font-size:13px;padding:10px 0">Belum ada perubahan.</div>`}</div>`
+  document.body.appendChild(bg)
+  bg.querySelector("#rk-tutup").onclick = () => bg.remove()
+  bg.querySelectorAll("[data-id]").forEach(b => b.onclick = async () => {
+    const r = daftar.find(x => x._id === b.dataset.id); if (!r) return
+    await muatKatalog(true)
+    const j = katalog.jenis.find(x => x.nama === r.jenis); if (!j) return toast("Jenis " + r.jenis + " sudah tidak ada", "w")
+    j.varian = j.varian || []
+    let v = j.varian.find(x => x.kode === r.kode)
+    if (r.aksi === "hapus") {
+      if (v) return toast(r.kode + " sudah ada lagi di katalog", "w")
+      v = { ...r.sebelum }; const idx = Math.min(r.sebelum?._idx ?? j.varian.length, j.varian.length); delete v._idx; j.varian.splice(idx, 0, v)
+    } else {
+      if (!v) return toast(r.kode + " sudah dihapus — kembalikan dulu penghapusannya", "w")
+      if (r.aksi === "ubah") { v.ket = r.sebelum?.ket || ""; v.hex = r.sebelum?.hex || v.hex }
+      v.adaFoto = !!r.sebelum?.adaFoto
+    }
+    if (r.fotoLama) await db.collection("katalog_foto").doc(idFotoKatalog(j, v)).set({ foto: r.fotoLama, jenis: j.nama, kode: v.kode })
+    else if (r.sebelum && !r.sebelum.adaFoto) await db.collection("katalog_foto").doc(idFotoKatalog(j, v)).delete().catch(() => {})
+    await simpanKatalog(); await db.collection("katalog_riwayat").doc(r._id).update({ dikembalikan: true, dikembalikanOleh: unama || uname || "", dikembalikanPada: new Date().toISOString() })
+    bg.remove(); loadKatalog(); toast("↩ " + r.jenis + " " + r.kode + " dikembalikan")
+  })
+}
 const LINK_KATALOG_PUBLIK = "https://adhiitmuh.github.io/custom-order-harmoni/katalog-kain.html"
 async function bagikanKatalog() {
   const bg = document.createElement("div"); bg.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;display:flex;align-items:center;justify-content:center;padding:14px"
@@ -2349,17 +2393,19 @@ async function bagikanKatalog() {
     <div style="font-size:16px;font-weight:800;margin-bottom:6px">📤 Daftar Kain Harmoni Indonesia</div>
     <div style="font-size:12px;color:var(--t2);margin-bottom:10px">Link untuk calon customer — hanya menampilkan kode, keterangan, contoh warna & foto (<b>stok tidak tampil</b>). Customer bisa memilih warna lalu mengirim pilihannya ke WA Harmoni.</div>
     <input id="bk-link" readonly value="${escH(link)}" style="width:100%;font-size:12px;margin-bottom:8px">
+    <label style="display:flex;gap:6px;align-items:center;font-size:12px;margin-bottom:6px"><input type="checkbox" id="bk-foto"> 📷 Langsung buka <b>"Cari warna dari foto"</b> (untuk customer yang punya contoh kain)</label>
     <label style="display:flex;gap:6px;align-items:center;font-size:12px;margin-bottom:8px"><input type="checkbox" id="bk-semua" ${merek ? "" : "checked"}> Semua merek ${merek ? `(tidak dicentang = hanya ${escH(merek)})` : ""}</label>
     ${role === "admin" || bolehKatalog() ? `<div class="fg" style="margin-bottom:8px"><label>No. WA tujuan pesan customer (CS Harmoni)</label><input type="tel" id="bk-wa" value="${escH(katalog.waCS || "")}" placeholder="08xx…"></div>` : ""}
     <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btg" id="bk-salin" style="flex:1">📋 Salin link</button><button class="btn" id="bk-wa-kirim" style="flex:1;background:#25d366;color:#fff">📲 Kirim via WA</button><a class="btn" href="${escH(link)}" id="bk-buka" target="_blank" style="flex:1;text-align:center;text-decoration:none">👁 Lihat</a></div>
     <button class="btn" id="bk-tutup" style="width:100%;margin-top:8px">Tutup</button></div>`
   document.body.appendChild(bg)
-  const linkNow = () => bg.querySelector("#bk-semua").checked || !merek ? LINK_KATALOG_PUBLIK : link
-  bg.querySelector("#bk-semua").onchange = () => { bg.querySelector("#bk-link").value = linkNow(); bg.querySelector("#bk-buka").href = linkNow() }
+  const linkNow = () => { const pakaiMerek = !(bg.querySelector("#bk-semua").checked || !merek), foto = bg.querySelector("#bk-foto").checked
+    return LINK_KATALOG_PUBLIK + (pakaiMerek || foto ? "?" + [pakaiMerek ? "merek=" + encodeURIComponent(merek) : "", foto ? "foto=1" : ""].filter(Boolean).join("&") : "") }
+  bg.querySelector("#bk-foto").onchange = bg.querySelector("#bk-semua").onchange = () => { bg.querySelector("#bk-link").value = linkNow(); bg.querySelector("#bk-buka").href = linkNow() }
   const simpanWa = async () => { const el = bg.querySelector("#bk-wa"); if (el && el.value.trim() !== (katalog.waCS || "")) { katalog.waCS = el.value.trim(); await simpanKatalog() } }
   bg.querySelector("#bk-tutup").onclick = async () => { await simpanWa(); bg.remove() }
   bg.querySelector("#bk-salin").onclick = async () => { await simpanWa(); try { await navigator.clipboard.writeText(linkNow()); toast("✅ Link disalin") } catch (e) { bg.querySelector("#bk-link").select(); toast("Tekan lama lalu Salin", "w") } }
-  bg.querySelector("#bk-wa-kirim").onclick = async () => { await simpanWa(); window.open("https://api.whatsapp.com/send?text=" + encodeURIComponent("Halo Kak 👋 Ini daftar pilihan warna kain seragam Harmoni Indonesia. Silakan pilih warnanya, lalu tekan *Kirim ke Harmoni via WA*:\n" + linkNow()), "_blank") }
+  bg.querySelector("#bk-wa-kirim").onclick = async () => { await simpanWa(); window.open("https://api.whatsapp.com/send?text=" + encodeURIComponent((bg.querySelector("#bk-foto").checked ? "Halo Kak 👋 Silakan foto contoh kain Kakak (taruh kertas putih di sampingnya, di cahaya siang). Lewat link ini warnanya langsung dicarikan dari katalog kain Harmoni Indonesia, lalu tekan *Kirim via WA* & kirim juga fotonya ya:\n" : "Halo Kak 👋 Ini daftar pilihan warna kain seragam Harmoni Indonesia. Silakan pilih warnanya, lalu tekan *Kirim via WA*:\n") + linkNow()), "_blank") }
 }
 // Cari warna dari nama kain stok ("UNIONE 714")
 function warnaKain(nama) {
@@ -2381,7 +2427,7 @@ async function loadKatalog() {
   const alat = document.getElementById("kt-alat")
   if (bolehKatalog()) {
     alat.style.display = "flex"
-    alat.innerHTML = `<button class="btsm" style="background:var(--bl);color:#fff" onclick="cariWarnaFoto()">📷 Cari warna dari foto</button><button class="btsm" style="background:#25d366;color:#fff" onclick="bagikanKatalog()">📤 Link katalog untuk customer</button><button class="btsm" onclick="tambahJenisKain()">+ Jenis kain</button><button class="btsm" onclick="tambahWarnaKain()">+ Warna</button>`
+    alat.innerHTML = `<button class="btsm" style="background:var(--bl);color:#fff" onclick="cariWarnaFoto()">📷 Cari warna dari foto</button><button class="btsm" style="background:#25d366;color:#fff" onclick="bagikanKatalog()">📤 Link katalog untuk customer</button>${isOwner ? `<button class="btsm" onclick="riwayatKatalog()">🕘 Riwayat / kembalikan</button>` : ""}<button class="btsm" onclick="tambahJenisKain()">+ Jenis kain</button><button class="btsm" onclick="tambahWarnaKain()">+ Warna</button>`
       + KATALOG_SIAP.filter(k => !katalog.jenis.some(j => j.nama.toUpperCase() === k.nama)).map(k => `<button class="btsm" style="background:var(--g);color:#0a0a0a" onclick="imporKatalog('${k.nama}')">⬇ Impor katalog ${k.nama} (${k.jumlah} warna)</button>`).join("")
   } else { alat.style.display = katalog.jenis.length ? "flex" : "none"; alat.innerHTML = `<button class="btsm" style="background:var(--bl);color:#fff" onclick="cariWarnaFoto()">📷 Cari warna dari foto</button><button class="btsm" style="background:#25d366;color:#fff" onclick="bagikanKatalog()">📤 Link katalog untuk customer</button>` }
   renderKatalog()
@@ -2419,8 +2465,9 @@ async function detailWarna(i, k, pilih) {
       ${boleh ? `<div style="border-top:1px solid var(--b);margin-top:10px;padding-top:10px;display:grid;gap:8px">
         <div class="fg"><label>Keterangan</label><input type="text" id="dw-ket" value="${escH(v.ket || "")}" placeholder="cth: SMA, PRAMUKA, POLRI"></div>
         <div class="fg"><label>Contoh warna</label><input type="color" id="dw-hex" value="${escH(v.hex || "#cccccc")}" style="height:38px;padding:2px"></div>
-        <div class="fg"><label>Foto kain (opsional)</label><input type="file" id="dw-foto" accept="image/*"><button type="button" class="btsm" id="dw-tempel" style="margin-top:6px">📋 Tempel foto</button>${v.adaFoto ? ` <button type="button" class="btsm" id="dw-hapusfoto" style="margin-top:6px">Hapus foto</button>` : ""}</div>
-        <div style="display:flex;gap:6px"><button class="btn btg" id="dw-simpan" style="flex:1">Simpan</button><button class="btn" id="dw-hapus" style="background:var(--rdim,#fee);color:var(--r)">Hapus warna</button></div></div>` : ""}
+        <div class="fg"><label>Foto kain (opsional)</label><input type="file" id="dw-foto" accept="image/*"><button type="button" class="btsm" id="dw-tempel" style="margin-top:6px">📋 Tempel foto</button>${v.adaFoto && isOwner ? ` <button type="button" class="btsm" id="dw-hapusfoto" style="margin-top:6px">Hapus foto</button>` : ""}</div>
+        <div style="display:flex;gap:6px"><button class="btn btg" id="dw-simpan" style="flex:1">Simpan</button>${isOwner ? `<button class="btn" id="dw-hapus" style="background:var(--rdim,#fee);color:var(--r)">Hapus warna</button>` : ""}</div>
+        <div style="font-size:11px;color:var(--t2)">${isOwner ? "Semua perubahan tercatat di 🕘 Riwayat dan bisa dikembalikan." : "Perubahan tercatat & bisa dikembalikan Owner. Hapus warna/foto hanya bisa oleh Owner."}</div></div>` : ""}
       <button class="btn" id="dw-tutup" style="width:100%;margin-top:8px">Tutup</button></div></div>`
   document.body.appendChild(bg)
   const tutup = () => bg.remove()
@@ -2430,17 +2477,34 @@ async function detailWarna(i, k, pilih) {
   let fileBaru = null
   bg.querySelector("#dw-foto").onchange = e => { fileBaru = e.target.files[0] || null; if (fileBaru) toast("📸 Foto dipilih — tekan Simpan") }
   bg.querySelector("#dw-tempel").onclick = async () => { try { for (const it of await navigator.clipboard.read()) { const t = it.types.find(x => x.startsWith("image/")); if (t) { fileBaru = new File([await it.getType(t)], "kain.png", { type: t }); return toast("📸 Foto ditempel — tekan Simpan") } } toast("Belum ada foto yang disalin", "w") } catch (e) { toast("Tempel tidak diizinkan — pakai pilih file", "w") } }
-  bg.querySelector("#dw-hapusfoto")?.addEventListener("click", async () => { await db.collection("katalog_foto").doc(idFotoKatalog(j, v)).delete().catch(() => {}); v.adaFoto = false; await simpanKatalog(); tutup(); renderKatalog(); toast("Foto dihapus") })
+  const sebelum = () => ({ ket: v.ket || "", hex: v.hex || "", adaFoto: !!v.adaFoto })
+  bg.querySelector("#dw-hapusfoto")?.addEventListener("click", async () => {
+    if (!isOwner) return
+    if (!await confirm2(`Hapus foto kain ${escH(j.nama)} ${escH(v.kode)}?<br><small>Foto lama disimpan di 🕘 Riwayat, bisa dikembalikan.</small>`)) return
+    const lama = sebelum(), fotoLama = await _fotoKatalog(j, v)
+    await db.collection("katalog_foto").doc(idFotoKatalog(j, v)).delete().catch(() => {}); v.adaFoto = false; await simpanKatalog()
+    await catatRiwayatKatalog("hapus foto", j, v, lama, sebelum(), fotoLama); tutup(); renderKatalog(); toast("Foto dihapus")
+  })
   bg.querySelector("#dw-simpan").onclick = async () => {
-    v.ket = bg.querySelector("#dw-ket").value.trim().toUpperCase(); v.hex = bg.querySelector("#dw-hex").value
+    const ketBaru = bg.querySelector("#dw-ket").value.trim().toUpperCase(), hexBaru = bg.querySelector("#dw-hex").value
+    const gantiHex = hexBaru.toLowerCase() !== String(v.hex || "").toLowerCase(), gantiKet = ketBaru !== (v.ket || "")
+    if (!gantiHex && !gantiKet && !fileBaru) { tutup(); return }
+    // Peringatan sebelum menyimpan — tampilkan apa yang berubah
+    const kotak = h => `<span style="display:inline-block;width:30px;height:30px;border-radius:6px;background:${escH(h || "#ccc")};border:1px solid rgba(128,128,128,.4);vertical-align:middle"></span>`
+    const isi = [gantiHex ? `Contoh warna: ${kotak(v.hex)} → ${kotak(hexBaru)}` : "", gantiKet ? `Keterangan: "${escH(v.ket || "-")}" → "${escH(ketBaru || "-")}"` : "", fileBaru ? (v.adaFoto ? "Foto kain <b>diganti</b> dengan foto baru" : "Foto kain ditambahkan") : ""].filter(Boolean).join("<br>")
+    if (!await confirm2(`<b>Ubah ${escH(j.nama)} ${escH(v.kode)}?</b><br>${isi}<br><small>Perubahan ini terlihat juga oleh customer di link katalog. Tercatat di riwayat & bisa dikembalikan Owner.</small>`)) return
+    const lama = sebelum(), fotoLama = fileBaru && v.adaFoto ? await _fotoKatalog(j, v) : ""
+    v.ket = ketBaru; v.hex = hexBaru; delete v._lab
     if (fileBaru) { const [f] = await uploadFotos([fileBaru]); await db.collection("katalog_foto").doc(idFotoKatalog(j, v)).set({ foto: f, jenis: j.nama, kode: v.kode }); v.adaFoto = true }
-    await simpanKatalog(); tutup(); renderKatalog(); toast("✅ " + v.kode + " disimpan")
+    await simpanKatalog(); await catatRiwayatKatalog("ubah", j, v, lama, sebelum(), fotoLama); tutup(); renderKatalog(); toast("✅ " + v.kode + " disimpan")
   }
-  bg.querySelector("#dw-hapus").onclick = async () => {
+  bg.querySelector("#dw-hapus")?.addEventListener("click", async () => {
+    if (!isOwner) return toast("Hanya Owner yang bisa menghapus warna", "w")
     if (stok > 0) return toast("Masih ada stok " + stok + " m — tidak bisa dihapus", "w")
-    if (!await confirm2(`Hapus warna ${v.kode} dari katalog ${j.nama}?`)) return
-    j.varian.splice(k, 1); await simpanKatalog(); tutup(); renderKatalog(); toast("Warna dihapus")
-  }
+    if (!await confirm2(`Hapus warna <b>${escH(v.kode)}</b> dari katalog ${escH(j.nama)}?<br><small>Bisa dikembalikan lewat 🕘 Riwayat.</small>`)) return
+    const lama = { ...v, _idx: k }; delete lama._lab; const fotoLama = v.adaFoto ? await _fotoKatalog(j, v) : ""
+    j.varian.splice(k, 1); await simpanKatalog(); await catatRiwayatKatalog("hapus", j, v, lama, null, fotoLama); tutup(); renderKatalog(); toast("Warna dihapus")
+  })
 }
 async function tambahJenisKain() {
   if (!bolehKatalog()) return
