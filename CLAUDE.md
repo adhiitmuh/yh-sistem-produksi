@@ -92,3 +92,11 @@ Aplikasi manajemen produksi konveksi untuk Young Harmoni. Single-file HTML + Fir
 
 ## Deploy
 Push ke `main` → otomatis live di GitHub Pages (biasanya 1-2 menit).
+
+## Katalog Kain (fitur 2026-11)
+- `config/katalog_kain` `{jenis:[{nama, ket, varian:[{kode, ket, hex, hal, adaFoto}]}], waCS}`; foto di `katalog_foto/{jenis__kode}`; data bawaan `katalog/*.json` (UNIONE, PASSUKA, VENOZA, ORLANDO, RIBSTOP).
+- Nama kain di stok = `"JENIS KODE"` (mis. `UNIONE 714`); Kain Masuk wajib pilih dari katalog; opname di `opname_kain` → disetujui Admin → `koreksi_stok`.
+- Ubah warna/keterangan/foto: konfirmasi + tercatat di `katalog_riwayat` (foto lama ikut disimpan); **hapus warna/foto & kembalikan hanya Owner** (`isOwner`).
+- Cari warna dari foto: koreksi kertas putih di ruang linear, CIEDE2000, rata-rata 3 titik, wajib centang "cek ulang".
+- Katalog publik untuk customer (tanpa stok): `custom-order-harmoni/katalog-kain.html` (`?merek=`, `?foto=1`), dibagikan lewat tombol "📤 Link katalog untuk customer".
+- Link "📲 WA Adi untuk diisi" memakai deep link `#halaman?isi=upah|opname|usulan-kain|katalog|stok&item=…` (`settings.waAdmin`).
