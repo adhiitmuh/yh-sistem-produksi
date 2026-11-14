@@ -2477,8 +2477,24 @@ const PANDUAN_FOTO = `<div style="font-size:12px;line-height:1.55">
     <li>Foto <b>lurus dari atas</b>, jarak ±30 cm, kain rata (tidak terlipat/berkerut), tidak ada bayangan HP.</li>
     <li>Jangan pakai filter / mode kecantikan / HDR berlebihan; jangan zoom digital.</li>
     <li>Setelah foto muncul: <b>ketuk kertas putih dulu</b>, lalu <b>ketuk bagian kain</b> (di tengah, bukan pinggir/jahitan).</li>
-    <li>Hasilnya <b>perkiraan</b> — cocokkan 2–3 kode teratas dengan buku katalog fisik sebelum dipakai.</li>
+    <li>Hasilnya <b>perkiraan</b> — <b>WAJIB cek ulang</b>: cocokkan 2–3 kode teratas dengan buku katalog fisik sebelum dipakai.</li>
   </ol></div>`
+let _peringatanCW = []
+// Staff wajib menyatakan sudah mencocokkan dengan buku katalog sebelum kode hasil foto dipakai
+function konfirmasiCekUlang(j, v, peringatan, lanjut) {
+  const bg = document.createElement("div"); bg.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9700;display:flex;align-items:center;justify-content:center;padding:14px"
+  bg.innerHTML = `<div style="background:var(--s1,#fff);color:var(--t1,#111);border-radius:14px;max-width:400px;width:100%;padding:16px">
+    <div style="font-size:16px;font-weight:800;color:#c2410c;margin-bottom:6px">⚠️ Cek ulang dulu</div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px"><span style="width:44px;height:44px;border-radius:8px;background:${escH(v.hex)};border:1px solid rgba(128,128,128,.4)"></span><b style="font-size:15px">${escH(j.nama)} ${escH(v.kode)}</b>${v.ket ? `<span style="color:var(--r);font-weight:700;font-size:12px">${escH(v.ket)}</span>` : ""}</div>
+    <div style="font-size:12px;line-height:1.5">Hasil dari foto hanya <b>perkiraan</b>. Buka buku katalog <b>${escH(j.nama)}</b>, cari kode <b>${escH(v.kode)}</b>, lalu tempelkan kain ke contoh warnanya di cahaya siang.</div>
+    ${peringatan.length ? `<ul style="font-size:12px;color:#9a3412;margin:6px 0 0 16px;padding:0">${peringatan.map(t => `<li>${t}</li>`).join("")}</ul>` : ""}
+    <label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px;cursor:pointer"><input type="checkbox" id="cu-cek" style="margin-top:3px;width:18px;height:18px"> <span>Saya <b>sudah mencocokkan</b> kain ini dengan buku katalog fisik dan warnanya <b>sama</b>.</span></label>
+    <div style="display:flex;gap:6px"><button class="btn" id="cu-batal" style="flex:1">Batal</button><button class="btn btg" id="cu-ok" style="flex:1;opacity:.5" disabled>Pakai kode ini</button></div></div>`
+  document.body.appendChild(bg)
+  const ok = bg.querySelector("#cu-ok"); bg.querySelector("#cu-cek").onchange = e => { ok.disabled = !e.target.checked; ok.style.opacity = e.target.checked ? 1 : .5 }
+  bg.querySelector("#cu-batal").onclick = () => bg.remove()
+  ok.onclick = () => { bg.remove(); lanjut() }
+}
 async function cariWarnaFoto(setelah) {
   await muatKatalog(); if (!katalog.jenis.length) return toast("Katalog masih kosong — impor katalog dulu di menu 🎨 Katalog Kain", "w")
   _stokKatalog = (await db.collection("config").doc("stok_kain").get()).data() || {}
@@ -2527,14 +2543,24 @@ async function cariWarnaFoto(setelah) {
     if (!kain) { hEl.innerHTML = ""; return }
     const hasil = kodeTerdekat(koreksi(kain), bg.querySelector("#cw-jenis").value)
     const label = d => d < 5 ? ["sangat mirip", "var(--g)"] : d < 10 ? ["mirip", "var(--bl)"] : d < 18 ? ["agak beda", "#d97706"] : ["jauh", "var(--r)"]
-    hEl.innerHTML = `<div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;margin:6px 0">Kode terdekat${putih ? "" : " (tanpa koreksi cahaya)"}</div>` + hasil.map((x, n) => { const [l, w] = label(x.d), st = +(_stokKatalog[namaKainKatalog(x.j, x.v)] || 0)
+    // Peringatan cek ulang: kasus yang rawan tertukar
+    const peringatan = [], L = rgbKeLab(koreksi(kain))[0]
+    if (!putih) peringatan.push("Foto <b>tanpa kertas putih</b> — warna bisa melenceng karena lampu.")
+    if (hasil[0] && hasil[0].d > 10) peringatan.push("Warna kain <b>kurang mirip</b> dengan semua kode — mungkin warnanya tidak ada di katalog ini.")
+    const dekat = hasil.slice(1).filter(x => hasil[0] && x.d - hasil[0].d < 2)
+    if (dekat.length) peringatan.push(`Ada kode lain yang <b>hampir sama</b>: ${dekat.map(x => escH(x.j.nama + " " + x.v.kode)).join(", ")} — bandingkan langsung di buku katalog.`)
+    if (L < 30) peringatan.push("Warna <b>gelap</b> (hitam/dongker/abu tua) <b>sering tertukar</b> di foto — wajib dicocokkan di buku katalog di bawah cahaya siang.")
+    _peringatanCW = peringatan
+    hEl.innerHTML = `<div style="background:#fff7ed;border:1.5px solid #fdba74;color:#9a3412;border-radius:10px;padding:8px 10px;font-size:12px;margin:6px 0">⚠️ <b>CEK ULANG sebelum dipakai:</b> cocokkan kain dengan <b>buku katalog fisik</b> — tempelkan kain ke kotak warna kode di bawah, di cahaya siang.${peringatan.length ? `<ul style="margin:4px 0 0 16px;padding:0">${peringatan.map(t => `<li>${t}</li>`).join("")}</ul>` : ""}</div>`
+      + `<div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;margin:6px 0">Kode terdekat${putih ? "" : " (tanpa koreksi cahaya)"}</div>` + hasil.map((x, n) => { const [l, w] = label(x.d), st = +(_stokKatalog[namaKainKatalog(x.j, x.v)] || 0)
       return `<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--b)">
         <span style="width:44px;height:44px;border-radius:8px;background:${escH(x.v.hex)};border:1px solid rgba(128,128,128,.4);flex:0 0 44px"></span>
         <span style="flex:1;min-width:0;font-size:12px"><b style="font-size:14px">${n + 1}. ${escH(x.j.nama)} ${escH(x.v.kode)}</b> ${x.v.ket ? `<span style="color:var(--r);font-weight:700">${escH(x.v.ket)}</span>` : ""}<br><span style="color:${w};font-weight:700">${l}</span> <span style="color:var(--t2)">· selisih ${x.d.toFixed(1)} · stok ${+st.toFixed(1)} m</span></span>
         <button class="btsm" data-i="${x.i}" data-k="${x.k}">${setelah ? "Pakai" : "Lihat"}</button></div>` }).join("")
       + `<div style="font-size:11px;color:var(--t2);margin-top:6px">Selisih &lt; 5 = sangat mirip · 5–10 = mirip · &gt; 10 = cek lagi. Tetap cocokkan dengan buku katalog fisik.</div>`
     hEl.querySelectorAll("[data-i]").forEach(b => b.onclick = () => { const j = katalog.jenis[+b.dataset.i], v = j.varian[+b.dataset.k]
-      if (setelah) { bg.remove(); setelah(namaKainKatalog(j, v)) } else detailWarna(+b.dataset.i, +b.dataset.k) }) }
+      if (!setelah) return detailWarna(+b.dataset.i, +b.dataset.k)
+      konfirmasiCekUlang(j, v, _peringatanCW, () => { bg.remove(); setelah(namaKainKatalog(j, v)) }) }) }
 }
 // Pemilih kain dari katalog (dipakai di Kain Masuk)
 async function pilihDariKatalog(setelah) {
