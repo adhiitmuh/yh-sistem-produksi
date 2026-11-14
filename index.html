@@ -381,6 +381,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
   <nav>
     <div class="nt active" onclick="go('kain-masuk')" id="t-kain-masuk">🧵 Kain Masuk</div>
     <div class="nt" onclick="go('kain-ambil')" id="t-kain-ambil">📋 Pengambilan Kain</div>
+    <div class="nt" onclick="go('katalog')" id="t-katalog">🎨 Katalog Kain</div>
     <div class="nt" onclick="go('bahan')" id="t-bahan">🧷 Bahan Pendukung</div>
     <div class="nt" onclick="go('gunting')" id="t-gunting">✂️ Setor Guntingan</div>
     <div class="nt" onclick="go('ambil')" id="t-ambil">📦 Ambil Jahitan</div>
@@ -422,7 +423,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
     <div class="ct">➕ Input Kain Masuk</div>
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="km-tgl"></div>
-      <div class="fg"><label>Nama Kain</label><select id="km-kain"><option value="">— Pilih —</option></select><div style="margin-top:4px"><a href="javascript:void(0)" onclick="usulkanKain()" id="km-usul-link" style="font-size:11px;color:var(--bl);text-decoration:none">+ Kain belum ada? Usulkan nama kain baru</a></div></div>
+      <div class="fg"><label>Nama Kain</label><select id="km-kain" onchange="tandaiWarnaSelect(this)"><option value="">— Pilih —</option></select><div style="margin-top:4px"><a href="javascript:void(0)" onclick="kmPilihKatalog()" style="font-size:11px;color:var(--bl);text-decoration:none;margin-right:10px">🎨 Pilih dari katalog</a><a href="javascript:void(0)" onclick="usulkanKain()" id="km-usul-link" style="font-size:11px;color:var(--bl);text-decoration:none">+ Kain belum ada? Usulkan nama kain baru</a></div></div>
       <div class="fg"><label>Jumlah (Meter)</label><input type="number" id="km-meter" placeholder="0" min="0" step="0.1"></div>
       <div class="fg"><label>Supplier</label><input type="text" id="km-supplier" placeholder="Nama supplier..."></div>
       <div class="fg"><label>Untuk order (Custom Order)</label><select id="km-ord" class="pilih-order"><option value="">— Pilih order Custom Order —</option></select></div>
@@ -472,6 +473,21 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
 </div>
 
 <!-- BAHAN PENDUKUNG -->
+<!-- KATALOG KAIN -->
+<div class="sec" id="s-katalog">
+  <div class="ph"><div class="pt">🎨 Katalog Kain</div><div class="ps">Jenis kain & warnanya — kode, contoh warna, foto, dan sisa stok</div></div>
+  <div class="card">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input type="search" id="kt-cari" placeholder="Cari kode / keterangan (cth: 714, SMA, PRAMUKA)…" oninput="renderKatalog()" style="flex:1;min-width:180px">
+      <select id="kt-jenis" onchange="renderKatalog()" style="width:auto"></select>
+      <label style="display:flex;gap:4px;align-items:center;font-size:12px"><input type="checkbox" id="kt-stok" onchange="renderKatalog()"> Hanya yang ada stok</label>
+    </div>
+    <div id="kt-alat" style="display:none;margin-top:10px;display:flex;gap:6px;flex-wrap:wrap"></div>
+  </div>
+  <div id="kt-info" style="font-size:12px;color:var(--t2);margin:4px 2px 8px"></div>
+  <div id="kt-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px"></div>
+</div>
+
 <div class="sec" id="s-bahan">
   <div class="ph"><div class="pt">🧷 Bahan Pendukung</div><div class="ps">Kancing, puring, resleting, kain keras, dll — stok masuk & keluar per order</div></div>
   <div id="bp-stok" style="margin-bottom:14px"></div>
@@ -824,7 +840,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
 <div class="sec" id="s-setting">
   <div class="ph"><div class="pt">⚙️ Pengaturan</div><div class="ps">Konveksi, penjahit, item & pengguna</div></div>
   <div class="card hanya-admin" style="display:none">
-    <div class="ct">🏬 Petugas Gudang — izin mencatat Kain Masuk, Pengambilan Kain & Bahan Pendukung</div>
+    <div class="ct">🏬 Petugas Gudang & CS — izin mencatat Kain Masuk, Pengambilan Kain, Bahan Pendukung & mengatur Katalog Kain</div>
     <div style="font-size:12px;color:var(--t2);margin-bottom:8px">Selain Admin, hanya orang di daftar ini yang bisa mencatat — sesuai bagian yang dicentang. Jangan beri izin Pengambilan Kain ke penggunting.</div>
     <div class="tglist" id="gudang-tags"></div>
     <div style="display:flex;gap:7px">
@@ -832,6 +848,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
       <label style="display:flex;gap:4px;align-items:center;font-size:12px"><input type="checkbox" id="s-gd-kainMasuk" checked> Kain Masuk</label>
       <label style="display:flex;gap:4px;align-items:center;font-size:12px"><input type="checkbox" id="s-gd-ambilKain"> Pengambilan Kain</label>
       <label style="display:flex;gap:4px;align-items:center;font-size:12px"><input type="checkbox" id="s-gd-bahan"> Bahan Pendukung</label>
+      <label style="display:flex;gap:4px;align-items:center;font-size:12px"><input type="checkbox" id="s-gd-katalog"> Atur Katalog Kain</label>
       <button class="btsm" onclick="addGudang()">+ Tambah</button>
     </div>
   </div>
@@ -1573,6 +1590,7 @@ function go(name) {
   if (name==="modal")      loadModalDashboard();
   if (name==="kain-masuk") { loadKainList(); loadKainMasukHist(); loadStokKain(); loadKainUsulan(); }
   if (name==="kain-ambil") { loadKainList(); loadKainAmbilHist(); loadStokKain(); }
+  if (name==="katalog")    loadKatalog();
   if (["kain-masuk","kain-ambil","bahan","gunting","ambil","jahit","qc"].includes(name)) isiPilihanOrder();
   if (name==="bahan")      loadBahan();
   if (name==="gunting")    loadGuntingPending();
@@ -2270,13 +2288,166 @@ async function loadKoreksiLog() {
   el.innerHTML = docs.length ? docs.map(d => `<div style="padding:6px 0;border-bottom:1px solid var(--b)">${fmtTgl(d.tanggal)} · <b>${escH(nm[d.jenis] || d.jenis)}</b>${d.pemegang ? " (" + escH(d.pemegang) + ")" : ""} · ${escH(String(d.kunci).replace("||", " "))}: ${d.dari} → <b>${d.ke}</b> <span style="color:var(--t2)">— ${escH(d.alasan)} · ${escH(d.oleh)}</span></div>`).join("") : '<div class="empty" style="padding:8px">Belum ada koreksi.</div>';
 }
 
+// ── KATALOG KAIN: jenis kain + varian warna (kode, keterangan, contoh warna, foto) ──
+// config/katalog_kain = { jenis: [{ nama, ket, varian: [{ kode, ket, hex, adaFoto }] }] }; foto disimpan terpisah di katalog_foto/{jenis__kode}
+// Nama kain di stok = "JENIS KODE" (mis. "UNIONE 714") supaya stok per warna terpisah.
+let katalog = { jenis: [] }, _katalogDimuat = false, _stokKatalog = {}
+const bolehKatalog = () => role === "admin" || bolehGudang("katalog")
+const namaKainKatalog = (j, v) => `${j.nama} ${v.kode}`
+const idFotoKatalog = (j, v) => (j.nama + "__" + v.kode).replace(/[\/\s.#$\[\]]+/g, "_")
+async function muatKatalog(paksa) {
+  if (_katalogDimuat && !paksa) return katalog
+  const d = (await db.collection("config").doc("katalog_kain").get()).data()
+  katalog = d && Array.isArray(d.jenis) ? d : { jenis: [] }; _katalogDimuat = true
+  return katalog
+}
+async function simpanKatalog() { await db.collection("config").doc("katalog_kain").set({ jenis: katalog.jenis, diubah: new Date().toISOString(), diubahOleh: unama || uname || "" }) }
+// Cari warna dari nama kain stok ("UNIONE 714")
+function warnaKain(nama) {
+  const n = String(nama || "").trim().toUpperCase()
+  for (const j of katalog.jenis || []) {
+    const pre = j.nama.toUpperCase() + " "
+    if (n.startsWith(pre)) { const v = (j.varian || []).find(x => x.kode.toUpperCase() === n.slice(pre.length)); if (v) return { j, v } }
+  }
+  return null
+}
+const kotakWarna = (hex, ukuran = 12) => `<span style="display:inline-block;width:${ukuran}px;height:${ukuran}px;border-radius:3px;background:${hex};border:1px solid rgba(128,128,128,.4);vertical-align:-2px;margin-right:4px"></span>`
+async function loadKatalog() {
+  await muatKatalog(true)
+  _stokKatalog = (await db.collection("config").doc("stok_kain").get()).data() || {}
+  const sel = document.getElementById("kt-jenis"), lama = sel.value
+  sel.innerHTML = `<option value="">Semua jenis (${katalog.jenis.reduce((t, j) => t + (j.varian || []).length, 0)} warna)</option>` + katalog.jenis.map((j, i) => `<option value="${i}">${escH(j.nama)} (${(j.varian || []).length})</option>`).join("")
+  sel.value = lama
+  const alat = document.getElementById("kt-alat")
+  if (bolehKatalog()) {
+    alat.style.display = "flex"
+    alat.innerHTML = `<button class="btsm" onclick="tambahJenisKain()">+ Jenis kain</button><button class="btsm" onclick="tambahWarnaKain()">+ Warna</button>`
+      + (katalog.jenis.some(j => j.nama.toUpperCase() === "UNIONE") ? "" : `<button class="btsm" style="background:var(--g);color:#0a0a0a" onclick="imporUnione()">⬇ Impor katalog UNIONE (348 warna)</button>`)
+  } else alat.style.display = "none"
+  renderKatalog()
+}
+function renderKatalog() {
+  const q = (document.getElementById("kt-cari")?.value || "").trim().toUpperCase()
+  const ji = document.getElementById("kt-jenis")?.value, hanyaStok = document.getElementById("kt-stok")?.checked
+  const daftar = []
+  katalog.jenis.forEach((j, i) => { if (ji !== "" && ji != null && +ji !== i) return
+    ;(j.varian || []).forEach((v, k) => { const stok = +(_stokKatalog[namaKainKatalog(j, v)] || 0)
+      if (hanyaStok && !(stok > 0)) return
+      if (q && !(`${j.nama} ${v.kode} ${v.ket || ""}`.toUpperCase().includes(q))) return
+      daftar.push({ i, k, j, v, stok }) }) })
+  document.getElementById("kt-info").textContent = katalog.jenis.length ? `${daftar.length} warna ditampilkan` + (bolehKatalog() ? " · ketuk warna untuk lihat/ubah" : " · ketuk warna untuk lihat detail") : (bolehKatalog() ? "Katalog masih kosong — tekan Impor katalog UNIONE atau + Jenis kain." : "Katalog belum diisi Admin.")
+  document.getElementById("kt-grid").innerHTML = daftar.slice(0, 600).map(x => `<div onclick="detailWarna(${x.i},${x.k})" style="cursor:pointer;border:1px solid var(--b);border-radius:10px;overflow:hidden;background:var(--s1,#fff)">
+      <div style="height:54px;background:${escH(x.v.hex || "#ccc")}"></div>
+      <div style="padding:5px 7px;font-size:11px;line-height:1.35">
+        <b style="font-size:12px">${escH(x.v.kode)}</b>${x.v.adaFoto ? " 📷" : ""}<div style="color:var(--t2);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escH(x.j.nama)}${x.v.ket ? " · " + escH(x.v.ket) : ""}</div>
+        <div style="font-size:10px;font-weight:700;color:${x.stok > 0 ? "var(--g)" : "var(--t2)"}">${x.stok > 0 ? "Stok " + (+x.stok.toFixed(2)) + " m" : "Stok 0"}</div></div></div>`).join("")
+}
+async function detailWarna(i, k, pilih) {
+  const j = katalog.jenis[i], v = j?.varian?.[k]; if (!v) return
+  const nama = namaKainKatalog(j, v), stok = +(_stokKatalog[nama] || 0), boleh = bolehKatalog()
+  let foto = ""
+  if (v.adaFoto) { try { foto = (await db.collection("katalog_foto").doc(idFotoKatalog(j, v)).get()).data()?.foto || "" } catch (e) {} }
+  const bg = document.createElement("div"); bg.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;display:flex;align-items:center;justify-content:center;padding:14px"
+  bg.innerHTML = `<div style="background:var(--s1,#fff);color:var(--t1,#111);border-radius:14px;max-width:420px;width:100%;max-height:90vh;overflow:auto">
+    ${foto ? `<img src="${foto}" style="width:100%;max-height:260px;object-fit:cover;display:block">` : `<div style="height:140px;background:${escH(v.hex || "#ccc")}"></div>`}
+    <div style="padding:14px">
+      <div style="font-size:20px;font-weight:800">${escH(v.kode)} <span style="font-size:13px;font-weight:600;color:var(--t2)">${escH(j.nama)}</span></div>
+      ${v.ket ? `<div style="font-size:13px;color:var(--r);font-weight:700">${escH(v.ket)}</div>` : ""}
+      <div style="font-size:12px;margin:6px 0">Nama di stok: <b>${escH(nama)}</b> · Stok: <b style="color:${stok > 0 ? "var(--g)" : "var(--t2)"}">${+stok.toFixed(2)} m</b></div>
+      ${pilih ? `<button class="btn btg" id="dw-pilih" style="width:100%;margin:6px 0">✓ Pakai kain ini</button>` : ""}
+      ${boleh ? `<div style="border-top:1px solid var(--b);margin-top:10px;padding-top:10px;display:grid;gap:8px">
+        <div class="fg"><label>Keterangan</label><input type="text" id="dw-ket" value="${escH(v.ket || "")}" placeholder="cth: SMA, PRAMUKA, POLRI"></div>
+        <div class="fg"><label>Contoh warna</label><input type="color" id="dw-hex" value="${escH(v.hex || "#cccccc")}" style="height:38px;padding:2px"></div>
+        <div class="fg"><label>Foto kain (opsional)</label><input type="file" id="dw-foto" accept="image/*"><button type="button" class="btsm" id="dw-tempel" style="margin-top:6px">📋 Tempel foto</button>${v.adaFoto ? ` <button type="button" class="btsm" id="dw-hapusfoto" style="margin-top:6px">Hapus foto</button>` : ""}</div>
+        <div style="display:flex;gap:6px"><button class="btn btg" id="dw-simpan" style="flex:1">Simpan</button><button class="btn" id="dw-hapus" style="background:var(--rdim,#fee);color:var(--r)">Hapus warna</button></div></div>` : ""}
+      <button class="btn" id="dw-tutup" style="width:100%;margin-top:8px">Tutup</button></div></div>`
+  document.body.appendChild(bg)
+  const tutup = () => bg.remove()
+  bg.addEventListener("click", e => { if (e.target === bg) tutup() }); bg.querySelector("#dw-tutup").onclick = tutup
+  if (pilih) bg.querySelector("#dw-pilih").onclick = () => { tutup(); pilih(nama) }
+  if (!boleh) return
+  let fileBaru = null
+  bg.querySelector("#dw-foto").onchange = e => { fileBaru = e.target.files[0] || null; if (fileBaru) toast("📸 Foto dipilih — tekan Simpan") }
+  bg.querySelector("#dw-tempel").onclick = async () => { try { for (const it of await navigator.clipboard.read()) { const t = it.types.find(x => x.startsWith("image/")); if (t) { fileBaru = new File([await it.getType(t)], "kain.png", { type: t }); return toast("📸 Foto ditempel — tekan Simpan") } } toast("Belum ada foto yang disalin", "w") } catch (e) { toast("Tempel tidak diizinkan — pakai pilih file", "w") } }
+  bg.querySelector("#dw-hapusfoto")?.addEventListener("click", async () => { await db.collection("katalog_foto").doc(idFotoKatalog(j, v)).delete().catch(() => {}); v.adaFoto = false; await simpanKatalog(); tutup(); renderKatalog(); toast("Foto dihapus") })
+  bg.querySelector("#dw-simpan").onclick = async () => {
+    v.ket = bg.querySelector("#dw-ket").value.trim().toUpperCase(); v.hex = bg.querySelector("#dw-hex").value
+    if (fileBaru) { const [f] = await uploadFotos([fileBaru]); await db.collection("katalog_foto").doc(idFotoKatalog(j, v)).set({ foto: f, jenis: j.nama, kode: v.kode }); v.adaFoto = true }
+    await simpanKatalog(); tutup(); renderKatalog(); toast("✅ " + v.kode + " disimpan")
+  }
+  bg.querySelector("#dw-hapus").onclick = async () => {
+    if (stok > 0) return toast("Masih ada stok " + stok + " m — tidak bisa dihapus", "w")
+    if (!await confirm2(`Hapus warna ${v.kode} dari katalog ${j.nama}?`)) return
+    j.varian.splice(k, 1); await simpanKatalog(); tutup(); renderKatalog(); toast("Warna dihapus")
+  }
+}
+async function tambahJenisKain() {
+  if (!bolehKatalog()) return
+  const n = (prompt("Nama jenis kain (cth: UNIONE, DRILL, NAGATA):") || "").trim().toUpperCase(); if (!n) return
+  if (katalog.jenis.some(j => j.nama === n)) return toast("Jenis itu sudah ada", "w")
+  const ket = (prompt("Keterangan (opsional, cth: Espero American Drill #1616):") || "").trim()
+  katalog.jenis.push({ nama: n, ket, varian: [] }); await simpanKatalog(); loadKatalog(); toast("✅ Jenis " + n + " ditambahkan")
+}
+async function tambahWarnaKain() {
+  if (!bolehKatalog()) return
+  if (!katalog.jenis.length) return toast("Tambah jenis kain dulu", "w")
+  const ji = document.getElementById("kt-jenis").value
+  const j = ji !== "" ? katalog.jenis[+ji] : (katalog.jenis.length === 1 ? katalog.jenis[0] : katalog.jenis.find(x => x.nama === (prompt("Untuk jenis kain apa? (" + katalog.jenis.map(x => x.nama).join(", ") + ")") || "").trim().toUpperCase()))
+  if (!j) return toast("Jenis kain tidak ditemukan — pilih jenis di filter dulu", "w")
+  const kode = (prompt(`Kode warna baru untuk ${j.nama} (cth: 714):`) || "").trim().toUpperCase(); if (!kode) return
+  if ((j.varian || []).some(v => v.kode === kode)) return toast("Kode itu sudah ada", "w")
+  j.varian = j.varian || []; j.varian.push({ kode, ket: "", hex: "#cccccc" }); await simpanKatalog(); await loadKatalog()
+  detailWarna(katalog.jenis.indexOf(j), j.varian.length - 1)
+}
+async function imporUnione() {
+  if (!bolehKatalog()) return
+  const data = await fetch("katalog/unione.json").then(r => r.json()).catch(() => null)
+  if (!data) return toast("Gagal memuat data katalog", "w")
+  if (!await confirm2(`Impor ${data.length} warna UNIONE (Espero American Drill #1616) ke katalog?`)) return
+  katalog.jenis.push({ nama: "UNIONE", ket: "Espero American Drill #1616", varian: data.map(d => ({ kode: d.kode, ket: d.ket || "", hex: d.hex, hal: d.hal })) })
+  await simpanKatalog(); loadKatalog(); toast(`✅ ${data.length} warna UNIONE masuk katalog`)
+}
+// Pemilih kain dari katalog (dipakai di Kain Masuk)
+async function pilihDariKatalog(setelah) {
+  await muatKatalog(); _stokKatalog = (await db.collection("config").doc("stok_kain").get()).data() || {}
+  if (!katalog.jenis.length) return toast("Katalog kain masih kosong — isi di menu 🎨 Katalog Kain", "w")
+  const bg = document.createElement("div"); bg.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8000;display:flex;align-items:center;justify-content:center;padding:12px"
+  bg.innerHTML = `<div style="background:var(--s1,#fff);color:var(--t1,#111);border-radius:14px;max-width:640px;width:100%;max-height:88vh;display:flex;flex-direction:column;padding:12px">
+    <div style="display:flex;gap:8px;margin-bottom:8px"><input type="search" id="pk-cari" placeholder="Cari kode / keterangan…" style="flex:1"><button class="btn" id="pk-tutup">Tutup</button></div>
+    <div id="pk-grid" style="overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px"></div></div>`
+  document.body.appendChild(bg)
+  const isi = () => { const q = bg.querySelector("#pk-cari").value.trim().toUpperCase(); const out = []
+    katalog.jenis.forEach((j, i) => (j.varian || []).forEach((v, k) => { if (!q || `${j.nama} ${v.kode} ${v.ket || ""}`.toUpperCase().includes(q)) out.push({ i, k, j, v }) }))
+    bg.querySelector("#pk-grid").innerHTML = out.slice(0, 400).map(x => { const st = +(_stokKatalog[namaKainKatalog(x.j, x.v)] || 0)
+      return `<div data-i="${x.i}" data-k="${x.k}" style="cursor:pointer;border:1px solid var(--b);border-radius:8px;overflow:hidden"><div style="height:40px;background:${escH(x.v.hex)}"></div><div style="padding:4px 6px;font-size:10px"><b style="font-size:11px">${escH(x.v.kode)}</b> ${escH(x.v.ket || "")}<div style="color:var(--t2)">${escH(x.j.nama)} · ${st > 0 ? +st.toFixed(1) + " m" : "stok 0"}</div></div></div>` }).join("")
+    bg.querySelectorAll("[data-i]").forEach(el => el.onclick = () => { const j = katalog.jenis[+el.dataset.i], v = j.varian[+el.dataset.k]; bg.remove(); setelah(namaKainKatalog(j, v)) }) }
+  bg.querySelector("#pk-cari").oninput = isi; bg.querySelector("#pk-tutup").onclick = () => bg.remove(); isi(); bg.querySelector("#pk-cari").focus()
+}
+// Nama kain dari katalog otomatis masuk Daftar Nama Kain
+async function pastikanNamaKain(nama) {
+  if (!(settings.kain || []).find(k => k.nama.toLowerCase() === nama.toLowerCase())) { settings.kain = [...(settings.kain || []), { nama }]; await saveSettings(); loadKainList() }
+}
+async function kmPilihKatalog() {
+  pilihDariKatalog(async nama => { await pastikanNamaKain(nama); const sel = document.getElementById("km-kain"); sel.value = nama; tandaiWarnaSelect(sel); toast("Kain: " + nama) })
+}
+// Kotak warna kecil di samping pilihan kain
+function tandaiWarnaSelect(sel) {
+  if (!sel) return
+  let chip = sel.parentElement.querySelector(".kt-chip")
+  const w = warnaKain(sel.value)
+  if (!w) { chip?.remove(); return }
+  if (!chip) { chip = document.createElement("div"); chip.className = "kt-chip"; chip.style.cssText = "font-size:11px;margin-top:4px;color:var(--t2)"; sel.insertAdjacentElement("afterend", chip) }
+  chip.innerHTML = kotakWarna(w.v.hex, 14) + `<b>${escH(w.v.kode)}</b> ${escH(w.v.ket || "")} <span style="opacity:.7">· ${escH(w.j.nama)}</span>`
+}
+
 // ── PETUGAS GUDANG: hanya Admin & petugas gudang yang mencatat kain masuk / pengambilan kain ──
 // Izin per bagian: kainMasuk, ambilKain, bahan. Data lama tanpa izin = semua bagian.
-const IZIN_GUDANG = { kainMasuk: "Kain Masuk", ambilKain: "Pengambilan Kain", bahan: "Bahan Pendukung" };
+const IZIN_GUDANG = { kainMasuk: "Kain Masuk", ambilKain: "Pengambilan Kain", bahan: "Bahan Pendukung", katalog: "Atur Katalog Kain" };
 const bolehGudang = (bagian) => {
   if (role === "admin") return true;
   const g = (settings.gudang || []).find(x => x.uid && x.uid === uid); if (!g) return false;
-  return !bagian || !g.izin || g.izin[bagian] === true;
+  // Data lama tanpa izin = semua bagian lama; izin katalog harus dicentang khusus
+  return !bagian || (!g.izin ? bagian !== "katalog" : g.izin[bagian] === true);
 };
 function terapkanGudang() {
   document.querySelectorAll(".khusus-gudang").forEach(el => el.style.display = bolehGudang(el.dataset.izin) ? "" : "none");
@@ -2286,7 +2457,7 @@ function renderGudangTags() {
   const el = document.getElementById("gudang-tags"); if (!el) return;
   el.innerHTML = (settings.gudang || []).map((g, i) => `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--b);font-size:12px">
       <b style="min-width:110px">${escH(g.nama)}</b>
-      ${Object.entries(IZIN_GUDANG).map(([k, l]) => `<label style="display:flex;gap:4px;align-items:center;cursor:pointer"><input type="checkbox" ${!g.izin || g.izin[k] ? "checked" : ""} onchange="ubahIzinGudang(${i},'${k}',this.checked)"> ${l}</label>`).join("")}
+      ${Object.entries(IZIN_GUDANG).map(([k, l]) => `<label style="display:flex;gap:4px;align-items:center;cursor:pointer"><input type="checkbox" ${(!g.izin ? k !== "katalog" : g.izin[k]) ? "checked" : ""} onchange="ubahIzinGudang(${i},'${k}',this.checked)"> ${l}</label>`).join("")}
       <span class="tgd" style="cursor:pointer;color:var(--r);margin-left:auto" onclick="delGudang(${i})" title="Hapus">&#215;</span></div>`).join("") || '<span style="font-size:12px;color:var(--t2)">Belum ada — hanya Admin.</span>';
 }
 async function ubahIzinGudang(i, bagian, on) {
@@ -3233,11 +3404,12 @@ async function loadStokJahitan() {
   }).join("");
 }
 async function loadStokKain() {
+  await muatKatalog().catch(() => {})
   const data = (await db.collection("config").doc("stok_kain").get()).data()||{};
   const el = document.getElementById("stok-kain-wrap"); if(!el) return;
   const keys = Object.keys(data).filter(k=>data[k]>0).sort();
   if(!keys.length){el.innerHTML='';return;}
-  el.innerHTML = `<div class="card" style="margin-bottom:0"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Stok Kain</div><div style="display:flex;flex-wrap:wrap;gap:6px">${keys.map(k=>`<span class="tag">${k}: <b>${data[k]}m</b></span>`).join("")}</div></div>`;
+  el.innerHTML = `<div class="card" style="margin-bottom:0"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Stok Kain</div><div style="display:flex;flex-wrap:wrap;gap:6px">${keys.map(k=>{const w=warnaKain(k);return `<span class="tag" title="${w?escH((w.v.ket||"")+" "+w.j.nama):""}">${w?kotakWarna(w.v.hex):""}${k}: <b>${data[k]}m</b></span>`}).join("")}</div></div>`;
 }
 
 // ── ALIH TUGAS ────────────────────────────────────────────────────────────────
@@ -3380,6 +3552,7 @@ function addKaKain(nama) {
 }
 const kaKainDipilih = () => [...new Set([...document.querySelectorAll("#ka-kain-list .ka-kain-sel")].map(s => s.value).filter(Boolean))];
 async function updateKainInfo() {
+  document.querySelectorAll('#ka-kain-list .ka-kain-sel').forEach(tandaiWarnaSelect)
   const kains = kaKainDipilih(), info = document.getElementById("ka-stok-info");
   if (!kains.length) { info.style.display = "none"; } else {
     const kStok = (await db.collection("config").doc("stok_kain").get()).data() || {};
