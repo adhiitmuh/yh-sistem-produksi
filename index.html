@@ -2571,6 +2571,8 @@ const hexKeRgb = h => { const x = String(h || "").replace("#", ""); return [0, 2
 const rgbKeHex = c => "#" + c.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("")
 // Warna kertas putih pada scan katalog (acuan) — hasil koreksi foto disamakan ke sini
 const PUTIH_KATALOG = [240, 240, 236]
+const _keLin = c => { c /= 255; return c > 0.04045 ? Math.pow((c + 0.055) / 1.055, 2.4) : c / 12.92 }
+const _dariLin = v => 255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055)
 function kodeTerdekat(rgb, jenisIdx, n = 6) {
   const lab = rgbKeLab(rgb), out = []
   katalog.jenis.forEach((j, i) => { if (jenisIdx !== "" && jenisIdx != null && +jenisIdx !== i) return
@@ -2578,14 +2580,16 @@ function kodeTerdekat(rgb, jenisIdx, n = 6) {
   return out.sort((a, b) => a.d - b.d).slice(0, n)
 }
 const PANDUAN_FOTO = `<div style="font-size:12px;line-height:1.55">
-  <b>📸 Cara foto supaya hasilnya akurat:</b>
+  <b>📸 Tips supaya warnanya pas:</b>
   <ol style="margin:4px 0 0 18px;padding:0">
-    <li><b>Cahaya siang alami</b> (dekat jendela/teras), jangan di bawah lampu kuning. <b>Matikan flash.</b></li>
-    <li><b>Taruh kertas HVS putih di samping kain</b> — satu foto berisi kain + kertas.</li>
-    <li>Foto <b>lurus dari atas</b>, jarak ±30 cm, kain rata (tidak terlipat/berkerut), tidak ada bayangan HP.</li>
-    <li>Jangan pakai filter / mode kecantikan / HDR berlebihan; jangan zoom digital.</li>
-    <li>Setelah foto muncul: <b>ketuk kertas putih dulu</b>, lalu <b>ketuk bagian kain</b> (di tengah, bukan pinggir/jahitan).</li>
-    <li>Hasilnya <b>perkiraan</b> — <b>WAJIB cek ulang</b>: cocokkan 2–3 kode teratas dengan buku katalog fisik sebelum dipakai.</li>
+    <li><b>Cahaya siang yang teduh</b> (dekat jendela/teras), <b>tidak kena matahari langsung</b>. Paling bagus jam 9–15.</li>
+    <li><b>Matikan flash</b> & lampu ruangan — jangan campur lampu kuning dengan cahaya jendela.</li>
+    <li><b>Kertas HVS putih di samping kain</b> — satu foto, kena cahaya yang sama. <b>Paling penting</b>: tanpa kertas, di bawah lampu hasil bisa meleset jauh.</li>
+    <li>Kain <b>rata, tidak kusut</b>; kain tipis <b>dilipat 2–3 lapis</b> supaya warna alas tidak tembus.</li>
+    <li>Foto <b>lurus dari atas</b>, ±30 cm, tanpa bayangan HP/tangan, jangan zoom, tanpa filter/HDR.</li>
+    <li>Jangan pakai screenshot / foto kiriman WA — foto langsung kainnya.</li>
+    <li>Setelah foto muncul: <b>ketuk kertas putih</b> (bagian tidak silau), lalu <b>ketuk kain di 3 tempat</b> — hasilnya dirata-rata.</li>
+    <li>Hasilnya <b>perkiraan</b> — <b>WAJIB cek ulang</b> dengan buku katalog fisik. Warna <b>hitam/dongker/putih/abu</b> paling sering tertukar.</li>
   </ol></div>`
 let _peringatanCW = []
 // Staff wajib menyatakan sudah mencocokkan dengan buku katalog sebelum kode hasil foto dipakai
@@ -2621,12 +2625,12 @@ async function cariWarnaFoto(setelah) {
     <div id="cw-hasil"></div></div>`
   document.body.appendChild(bg)
   const cv = bg.querySelector("#cw-canvas"), ctx = cv.getContext("2d", { willReadFrequently: true })
-  let putih = null, kain = null, mode = "putih"
+  let putih = null, kain = null, mode = "putih", titik = []
   const langkah = t => bg.querySelector("#cw-langkah").textContent = t
   bg.querySelector("#cw-tutup").onclick = () => bg.remove()
   const muat = file => { if (!file) return; const img = new Image(); img.onload = () => {
       const MAX = 1200, sc = Math.min(1, MAX / Math.max(img.width, img.height)); cv.width = Math.round(img.width * sc); cv.height = Math.round(img.height * sc)
-      ctx.drawImage(img, 0, 0, cv.width, cv.height); cv.style.display = ""; putih = kain = null; mode = "putih"; bg.querySelector("#cw-panduan").open = false
+      ctx.drawImage(img, 0, 0, cv.width, cv.height); cv.style.display = ""; putih = kain = null; titik = []; mode = "putih"; bg.querySelector("#cw-panduan").open = false
       langkah("① Ketuk KERTAS PUTIH di foto (untuk koreksi cahaya) — atau lewati: ketuk langsung kain lalu tekan 'Tanpa kertas'"); tampil() }
     img.src = URL.createObjectURL(file) }
   bg.querySelector("#cw-file").onchange = e => muat(e.target.files[0])
@@ -2640,9 +2644,13 @@ async function cariWarnaFoto(setelah) {
     return [0, 1, 2].map(c => pot.reduce((t, p) => t + p[c], 0) / pot.length) }
   cv.addEventListener("pointerdown", e => { const b = cv.getBoundingClientRect(), x = Math.round((e.clientX - b.left) * cv.width / b.width), y = Math.round((e.clientY - b.top) * cv.height / b.height), c = sampel(x, y)
     if (mode === "putih") { if (c.reduce((a, v) => a + v, 0) / 3 < 120) return toast("Itu terlalu gelap untuk kertas putih — ketuk kertasnya, atau tekan 'Tanpa kertas'", "w"); putih = c; mode = "kain"; langkah("② Sekarang ketuk bagian KAIN (di tengah, bukan pinggir)") }
-    else { kain = c; langkah("✓ Ketuk bagian kain lain untuk mencoba lagi") }
+    else { if (titik.length >= 3) titik.shift(); titik.push(c)
+      // Rata-rata titik kain di ruang cahaya linear
+      kain = [0, 1, 2].map(i => _dariLin(titik.reduce((s, t) => s + _keLin(t[i]), 0) / titik.length))
+      langkah(titik.length < 3 ? `② Ketuk kain di tempat lain (${titik.length}/3) — hasil makin akurat` : "✓ 3 titik kain dirata-rata — ketuk lagi untuk mengganti titik terlama") }
     tampil() })
-  const koreksi = c => putih ? c.map((v, i) => v * PUTIH_KATALOG[i] / Math.max(1, putih[i])) : c
+  // Koreksi cahaya di ruang linear (lebih tepat di ruangan gelap / lampu berwarna)
+  const koreksi = c => putih ? c.map((v, i) => Math.min(255, _dariLin(Math.min(1, _keLin(v) * _keLin(PUTIH_KATALOG[i]) / Math.max(1e-4, _keLin(putih[i])))))) : c
   const tampil = () => {
     const sEl = bg.querySelector("#cw-sampel"), hEl = bg.querySelector("#cw-hasil")
     sEl.innerHTML = (putih ? `<span>${kotakWarna(rgbKeHex(putih), 20)}kertas ✓</span>` : (cv.style.display ? `<button class="btsm" id="cw-tanpa">Tanpa kertas putih</button>` : ""))
@@ -2654,7 +2662,9 @@ async function cariWarnaFoto(setelah) {
     // Peringatan cek ulang: kasus yang rawan tertukar
     const peringatan = [], L = rgbKeLab(koreksi(kain))[0]
     if (!putih) peringatan.push("Foto <b>tanpa kertas putih</b> — warna bisa melenceng karena lampu.")
-    if (putih && Math.max(...putih) > 250) peringatan.push("Foto <b>terlalu terang</b> (kertas putih silau) — hasil kurang akurat, foto ulang tanpa sinar matahari langsung.")
+    if (titik.length < 3) peringatan.push(`Ketuk kain di <b>${3 - titik.length} tempat lagi</b> supaya lebih akurat.`)
+    if (titik.length >= 2 && Math.max(...titik.map(t => deltaE00(rgbKeLab(koreksi(t)), rgbKeLab(koreksi(kain))))) > 6) peringatan.push("Warna di titik yang diketuk <b>berbeda-beda</b> — ada bayangan/kusut. Ratakan kain & foto ulang.")
+    if (putih && Math.max(...putih) >= 253) peringatan.push("Foto <b>terlalu terang</b> (kertas putih silau) — hasil kurang akurat, foto ulang tanpa sinar matahari langsung.")
     { const [, A, B] = rgbKeLab(koreksi(kain)); if (L >= 30 && Math.hypot(A, B) < 10) peringatan.push("Warna <b>putih/krem/abu-abu</b> banyak yang mirip — wajib dicocokkan di buku katalog.") }
     if (hasil[0] && hasil[0].d > 10) peringatan.push("Warna kain <b>kurang mirip</b> dengan semua kode — mungkin warnanya tidak ada di katalog ini.")
     const dekat = hasil.slice(1).filter(x => hasil[0] && x.d - hasil[0].d < 2)
