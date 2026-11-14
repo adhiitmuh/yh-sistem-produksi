@@ -435,7 +435,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="km-tgl"></div>
       <div class="fg"><label>Kain & Kode Warna</label>
-        <button type="button" id="km-katalog-btn" onclick="kmPilihKatalog()" style="width:100%;text-align:left;display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px dashed var(--g);border-radius:10px;background:var(--gdim,rgba(0,150,100,.06));cursor:pointer;font-size:14px;color:inherit"><span style="font-size:20px">🎨</span><span><b>Pilih kain & warna dari katalog</b><br><span style="font-size:11px;opacity:.7">UNIONE · PASSUKA · VENOZA · ORLANDO — cari kode, mis. 714</span></span></button>
+        <button type="button" id="km-katalog-btn" onclick="kmPilihKatalog()" style="width:100%;text-align:left;display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px dashed var(--g);border-radius:10px;background:var(--gdim,rgba(0,150,100,.06));cursor:pointer;font-size:14px;color:inherit"><span style="font-size:20px">🎨</span><span><b>Pilih kain & warna dari katalog</b><br><span style="font-size:11px;opacity:.7">UNIONE · PASSUKA · VENOZA · ORLANDO · RIBSTOP — cari kode, mis. 714</span></span></button>
         <div id="km-admin-lama" style="margin-top:6px;display:none"><select id="km-kain" onchange="tandaiWarnaSelect(this);kmTampilPilihan()"><option value="">— Pilih —</option></select>
           <div style="margin-top:4px"><a href="javascript:void(0)" onclick="usulkanKain()" id="km-usul-link" style="font-size:11px;color:var(--bl);text-decoration:none">+ Kain belum ada di katalog? Tambah nama kain</a></div></div>
         <a href="javascript:void(0)" id="km-lama-link" onclick="document.getElementById('km-admin-lama').style.display='';this.style.display='none'" style="font-size:11px;color:var(--t2);text-decoration:none;display:none;margin-top:4px">atau pilih nama kain lama (tanpa kode warna) — Admin</a></div>
@@ -2445,6 +2445,7 @@ const KATALOG_SIAP = [
   { nama: "PASSUKA", file: "katalog/passuka.json", ket: "Tropical Deluxe — 100% Full Mercerized & Sanforized", jumlah: 105 },
   { nama: "VENOZA", file: "katalog/venoza.json", ket: "American Drill — Export Quality", jumlah: 117 },
   { nama: "ORLANDO", file: "katalog/orlando.json", ket: "American Drill #1978", jumlah: 120 },
+  { nama: "RIBSTOP", file: "katalog/ribstop.json", ket: "Sumtex by Istex — Special Suiting for All Uniform", jumlah: 33 },
 ]
 async function imporKatalog(nama) {
   if (!bolehKatalog()) return
@@ -2616,7 +2617,7 @@ function kmTampilPilihan() {
   const w = warnaKain(nama)
   btn.innerHTML = w ? `<span style="width:38px;height:38px;border-radius:8px;background:${escH(w.v.hex)};border:1px solid rgba(128,128,128,.4);flex:0 0 38px"></span><span><b style="font-size:16px">${escH(w.j.nama)} ${escH(w.v.kode)}</b>${w.v.ket ? ` <span style="color:var(--r);font-weight:700;font-size:12px">${escH(w.v.ket)}</span>` : ""}<br><span style="font-size:11px;opacity:.7">Ketuk untuk ganti kain/warna</span></span>`
     : nama ? `<span style="font-size:20px">🧵</span><span><b>${escH(nama)}</b> <span style="font-size:11px;opacity:.7">(tanpa kode warna)</span><br><span style="font-size:11px;opacity:.7">Ketuk untuk pilih dari katalog</span></span>`
-    : `<span style="font-size:20px">🎨</span><span><b>Pilih kain & warna dari katalog</b><br><span style="font-size:11px;opacity:.7">UNIONE · PASSUKA · VENOZA · ORLANDO — cari kode, mis. 714</span></span>`
+    : `<span style="font-size:20px">🎨</span><span><b>Pilih kain & warna dari katalog</b><br><span style="font-size:11px;opacity:.7">UNIONE · PASSUKA · VENOZA · ORLANDO · RIBSTOP — cari kode, mis. 714</span></span>`
   btn.style.borderStyle = nama ? "solid" : "dashed"
 }
 async function kmPilihKatalog() {
