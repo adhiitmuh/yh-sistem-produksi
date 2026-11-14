@@ -417,13 +417,24 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
 <div class="sec active" id="s-kain-masuk">
   <div class="ph"><div class="pt">🧵 Kain Masuk</div><div class="ps">Catat kain masuk dari supplier — stok kain otomatis bertambah</div></div>
   <div id="stok-kain-wrap" style="margin-bottom:14px"></div>
+  <div class="card" id="opname-card">
+    <div class="ct">📏 Hitung Stok Kain (cek fisik)</div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:8px">Staff menghitung sisa kain di gudang lalu mencatatnya di sini. Angka stok baru berubah setelah <b>Admin</b> menyetujui. Kain yang belum dihitung lebih dari 7 hari ditandai ⚠.</div>
+    <div class="g2" style="margin-bottom:8px">
+      <div class="fg"><label>Kain</label><select id="op-kain" onchange="opInfo()"><option value="">— Pilih —</option></select><div style="margin-top:4px"><a href="javascript:void(0)" onclick="opPilihKatalog()" style="font-size:11px;color:var(--bl);text-decoration:none">🎨 Pilih dari katalog</a></div></div>
+      <div class="fg"><label>Hasil hitung (meter)</label><input type="number" id="op-meter" min="0" step="0.01" placeholder="0" oninput="opInfo()"><div id="op-info" style="font-size:11px;color:var(--t2);margin-top:3px"></div></div>
+    </div>
+    <div class="fg" style="margin-bottom:8px"><label>Keterangan</label><input type="text" id="op-ket" placeholder="cth: 2 gulung + sisa potongan"></div>
+    <button class="btn btg" onclick="kirimOpname()">✓ Kirim hasil hitung</button>
+    <div id="op-list" style="margin-top:12px"></div>
+  </div>
   <div class="card" id="kain-usulan-wrap" style="display:none;margin-bottom:14px"></div>
   <div class="card khusus-gudang-info" data-izin="kainMasuk" style="display:none;font-size:12px;color:var(--t2)">🔒 Kain masuk hanya dicatat oleh <b>Admin</b> atau <b>petugas gudang</b> — supaya yang mengeluarkan kain berbeda dengan yang memakai kain. Riwayat & stok tetap bisa dilihat di bawah.</div>
   <div class="card khusus-gudang" data-izin="kainMasuk">
     <div class="ct">➕ Input Kain Masuk</div>
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Tanggal</label><input type="date" id="km-tgl"></div>
-      <div class="fg"><label>Nama Kain</label><select id="km-kain" onchange="tandaiWarnaSelect(this)"><option value="">— Pilih —</option></select><div style="margin-top:4px"><a href="javascript:void(0)" onclick="kmPilihKatalog()" style="font-size:11px;color:var(--bl);text-decoration:none;margin-right:10px">🎨 Pilih dari katalog</a><a href="javascript:void(0)" onclick="usulkanKain()" id="km-usul-link" style="font-size:11px;color:var(--bl);text-decoration:none">+ Kain belum ada? Usulkan nama kain baru</a></div></div>
+      <div class="fg"><label>Nama Kain</label><select id="km-kain" onchange="tandaiWarnaSelect(this)" onmousedown="if(role!=='admin'&&katalog.jenis.length){event.preventDefault();kmPilihKatalog()}"><option value="">— Pilih —</option></select><div style="margin-top:4px"><a href="javascript:void(0)" onclick="kmPilihKatalog()" style="font-size:11px;color:var(--bl);text-decoration:none;margin-right:10px">🎨 Pilih dari katalog</a><a href="javascript:void(0)" onclick="usulkanKain()" id="km-usul-link" style="font-size:11px;color:var(--bl);text-decoration:none">+ Kain belum ada? Usulkan nama kain baru</a></div></div>
       <div class="fg"><label>Jumlah (Meter)</label><input type="number" id="km-meter" placeholder="0" min="0" step="0.1"></div>
       <div class="fg"><label>Supplier</label><input type="text" id="km-supplier" placeholder="Nama supplier..."></div>
       <div class="fg"><label>Untuk order (Custom Order)</label><select id="km-ord" class="pilih-order"><option value="">— Pilih order Custom Order —</option></select></div>
@@ -479,11 +490,12 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
   <div class="card">
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <input type="search" id="kt-cari" placeholder="Cari kode / keterangan (cth: 714, SMA, PRAMUKA)…" oninput="renderKatalog()" style="flex:1;min-width:180px">
-      <select id="kt-jenis" onchange="renderKatalog()" style="width:auto"></select>
+      <select id="kt-jenis" onchange="renderKatalog()" style="display:none"></select>
       <label style="display:flex;gap:4px;align-items:center;font-size:12px"><input type="checkbox" id="kt-stok" onchange="renderKatalog()"> Hanya yang ada stok</label>
     </div>
     <div id="kt-alat" style="display:none;margin-top:10px;display:flex;gap:6px;flex-wrap:wrap"></div>
   </div>
+  <div id="kt-tab" style="display:flex;gap:6px;flex-wrap:wrap;margin:2px 2px 8px"></div>
   <div id="kt-info" style="font-size:12px;color:var(--t2);margin:4px 2px 8px"></div>
   <div id="kt-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px"></div>
 </div>
@@ -1588,7 +1600,7 @@ function go(name) {
   if (name==="ringkasan")  loadRingkasan();
   if (name==="setting")    { renderItemTable(); renderKainTags(); renderGudangTags(); isiPilihanGudang(); }
   if (name==="modal")      loadModalDashboard();
-  if (name==="kain-masuk") { loadKainList(); loadKainMasukHist(); loadStokKain(); loadKainUsulan(); }
+  if (name==="kain-masuk") { loadKainList(); loadKainMasukHist(); loadStokKain(); loadKainUsulan(); loadOpname(); }
   if (name==="kain-ambil") { loadKainList(); loadKainAmbilHist(); loadStokKain(); }
   if (name==="katalog")    loadKatalog();
   if (["kain-masuk","kain-ambil","bahan","gunting","ambil","jahit","qc"].includes(name)) isiPilihanOrder();
@@ -2317,7 +2329,8 @@ async function loadKatalog() {
   _stokKatalog = (await db.collection("config").doc("stok_kain").get()).data() || {}
   const sel = document.getElementById("kt-jenis"), lama = sel.value
   sel.innerHTML = `<option value="">Semua jenis (${katalog.jenis.reduce((t, j) => t + (j.varian || []).length, 0)} warna)</option>` + katalog.jenis.map((j, i) => `<option value="${i}">${escH(j.nama)} (${(j.varian || []).length})</option>`).join("")
-  sel.value = lama
+  // Default: katalog pertama (tiap katalog dilihat terpisah — UNIONE, VENOZA, PASSUKA, …)
+  sel.value = lama !== "" && katalog.jenis[+lama] ? lama : (katalog.jenis.length ? "0" : "")
   const alat = document.getElementById("kt-alat")
   if (bolehKatalog()) {
     alat.style.display = "flex"
@@ -2335,6 +2348,7 @@ function renderKatalog() {
       if (hanyaStok && !(stok > 0)) return
       if (q && !(`${j.nama} ${v.kode} ${v.ket || ""}`.toUpperCase().includes(q))) return
       daftar.push({ i, k, j, v, stok }) }) })
+  document.getElementById("kt-tab").innerHTML = katalog.jenis.length > 0 ? [["", "Semua"], ...katalog.jenis.map((j, i) => [String(i), j.nama])].map(([v, l]) => `<button class="btsm" onclick="document.getElementById('kt-jenis').value='${v}';renderKatalog()" style="${String(ji ?? "") === v ? "background:var(--g);color:#0a0a0a;font-weight:800" : "opacity:.75"}">${escH(l)}${v !== "" ? " · " + (katalog.jenis[+v].varian || []).length : ""}</button>`).join("") : ""
   document.getElementById("kt-info").textContent = katalog.jenis.length ? `${daftar.length} warna ditampilkan` + (bolehKatalog() ? " · ketuk warna untuk lihat/ubah" : " · ketuk warna untuk lihat detail") : (bolehKatalog() ? "Katalog masih kosong — tekan Impor katalog UNIONE atau + Jenis kain." : "Katalog belum diisi Admin.")
   document.getElementById("kt-grid").innerHTML = daftar.slice(0, 600).map(x => `<div onclick="detailWarna(${x.i},${x.k})" style="cursor:pointer;border:1px solid var(--b);border-radius:10px;overflow:hidden;background:var(--s1,#fff)">
       <div style="height:54px;background:${escH(x.v.hex || "#ccc")}"></div>
@@ -2414,10 +2428,14 @@ async function pilihDariKatalog(setelah) {
   const bg = document.createElement("div"); bg.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8000;display:flex;align-items:center;justify-content:center;padding:12px"
   bg.innerHTML = `<div style="background:var(--s1,#fff);color:var(--t1,#111);border-radius:14px;max-width:640px;width:100%;max-height:88vh;display:flex;flex-direction:column;padding:12px">
     <div style="display:flex;gap:8px;margin-bottom:8px"><input type="search" id="pk-cari" placeholder="Cari kode / keterangan…" style="flex:1"><button class="btn" id="pk-tutup">Tutup</button></div>
+    <div id="pk-tab" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
     <div id="pk-grid" style="overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px"></div></div>`
   document.body.appendChild(bg)
+  let pkJ = 0
   const isi = () => { const q = bg.querySelector("#pk-cari").value.trim().toUpperCase(); const out = []
-    katalog.jenis.forEach((j, i) => (j.varian || []).forEach((v, k) => { if (!q || `${j.nama} ${v.kode} ${v.ket || ""}`.toUpperCase().includes(q)) out.push({ i, k, j, v }) }))
+    bg.querySelector("#pk-tab").innerHTML = katalog.jenis.map((j, i) => `<button class="btsm" data-j="${i}" style="${i === pkJ ? "background:var(--g);color:#0a0a0a;font-weight:800" : "opacity:.75"}">${escH(j.nama)}</button>`).join("")
+    bg.querySelectorAll("#pk-tab [data-j]").forEach(b => b.onclick = () => { pkJ = +b.dataset.j; isi() })
+    katalog.jenis.forEach((j, i) => { if (i !== pkJ && !q) return; (j.varian || []).forEach((v, k) => { if (!q || `${j.nama} ${v.kode} ${v.ket || ""}`.toUpperCase().includes(q)) out.push({ i, k, j, v }) }) })
     bg.querySelector("#pk-grid").innerHTML = out.slice(0, 400).map(x => { const st = +(_stokKatalog[namaKainKatalog(x.j, x.v)] || 0)
       return `<div data-i="${x.i}" data-k="${x.k}" style="cursor:pointer;border:1px solid var(--b);border-radius:8px;overflow:hidden"><div style="height:40px;background:${escH(x.v.hex)}"></div><div style="padding:4px 6px;font-size:10px"><b style="font-size:11px">${escH(x.v.kode)}</b> ${escH(x.v.ket || "")}<div style="color:var(--t2)">${escH(x.j.nama)} · ${st > 0 ? +st.toFixed(1) + " m" : "stok 0"}</div></div></div>` }).join("")
     bg.querySelectorAll("[data-i]").forEach(el => el.onclick = () => { const j = katalog.jenis[+el.dataset.i], v = j.varian[+el.dataset.k]; bg.remove(); setelah(namaKainKatalog(j, v)) }) }
@@ -2440,6 +2458,57 @@ function tandaiWarnaSelect(sel) {
   chip.innerHTML = kotakWarna(w.v.hex, 14) + `<b>${escH(w.v.kode)}</b> ${escH(w.v.ket || "")} <span style="opacity:.7">· ${escH(w.j.nama)}</span>`
 }
 
+
+// ── HITUNG STOK KAIN (opname): staff menghitung fisik → Admin menyetujui → stok diset ──
+let _stokKainOp = {}
+async function loadOpname() {
+  const sel = document.getElementById("op-kain"); if (!sel) return
+  _stokKainOp = (await db.collection("config").doc("stok_kain").get()).data() || {}
+  const nama = [...new Set([...Object.keys(_stokKainOp).filter(k => _stokKainOp[k] > 0), ...(settings.kain || []).map(k => k.nama)])].sort()
+  const v = sel.value; sel.innerHTML = '<option value="">— Pilih —</option>' + nama.map(n => `<option>${escH(n)}</option>`).join(""); sel.value = v
+  const semua = await fsAll("opname_kain")
+  const menunggu = semua.filter(o => o.status === "menunggu")
+  const terakhir = {}; semua.filter(o => o.status === "disetujui").forEach(o => { if (!terakhir[o.kain] || o.tanggal > terakhir[o.kain]) terakhir[o.kain] = o.tanggal })
+  window._opTerakhir = terakhir
+  const batas = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10)
+  const telat = Object.keys(_stokKainOp).filter(k => _stokKainOp[k] > 0 && (!terakhir[k] || terakhir[k] < batas))
+  const el = document.getElementById("op-list")
+  el.innerHTML = (telat.length ? `<div style="font-size:12px;color:var(--r);margin-bottom:8px">⚠ Belum dihitung &gt; 7 hari: ${telat.map(k => { const w = warnaKain(k); return (w ? kotakWarna(w.v.hex) : "") + escH(k) }).join(", ")}</div>` : `<div style="font-size:12px;color:var(--g);margin-bottom:8px">✓ Semua kain sudah dihitung dalam 7 hari terakhir</div>`)
+    + (menunggu.length ? `<div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;margin-bottom:4px">Menunggu persetujuan Admin (${menunggu.length})</div>` + menunggu.map(o => { const w = warnaKain(o.kain), sel = +(o.hitung - o.sistem).toFixed(2)
+      return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--b);font-size:12px">
+        <span style="flex:1;min-width:180px">${w ? kotakWarna(w.v.hex) : ""}<b>${escH(o.kain)}</b> · hitung <b>${o.hitung} m</b> · sistem ${o.sistem} m · <b style="color:${sel === 0 ? "var(--g)" : "var(--r)"}">selisih ${sel > 0 ? "+" : ""}${sel} m</b><br><span style="color:var(--t2)">${escH(o.oleh || "")} · ${fmtTgl(o.tanggal)}${o.ket ? " · " + escH(o.ket) : ""}</span></span>
+        ${role === "admin" ? `<button class="btsm" style="background:var(--g);color:#0a0a0a" onclick="putusOpname('${o._id}',true)">✓ Setujui & set stok</button><button class="btsm" onclick="putusOpname('${o._id}',false)">✕ Tolak</button>` : `<span style="color:var(--t2)">menunggu Admin</span>`}</div>` }).join("") : "")
+}
+function opInfo() {
+  const k = document.getElementById("op-kain").value, m = document.getElementById("op-meter").value, el = document.getElementById("op-info")
+  tandaiWarnaSelect(document.getElementById("op-kain"))
+  if (!k) { el.textContent = ""; return }
+  const sis = +(_stokKainOp[k] || 0)
+  // Staff tidak melihat angka sistem sebelum menghitung (supaya benar-benar dihitung)
+  el.innerHTML = (role === "admin" ? `Stok sistem: <b>${sis} m</b>` : "Hitung fisik dulu, angka sistem dicek Admin") + (window._opTerakhir?.[k] ? ` · terakhir dihitung ${fmtTgl(window._opTerakhir[k])}` : " · belum pernah dihitung")
+}
+function opPilihKatalog() { pilihDariKatalog(nama => { const sel = document.getElementById("op-kain"); if (![...sel.options].some(o => o.value === nama)) sel.add(new Option(nama, nama)); sel.value = nama; opInfo() }) }
+async function kirimOpname() {
+  const kain = document.getElementById("op-kain").value, mStr = document.getElementById("op-meter").value
+  if (!kain || mStr === "") return toast("Pilih kain dan isi hasil hitung (meter)", "w")
+  const hitung = +(+mStr).toFixed(2), sistem = +(+(( (await db.collection("config").doc("stok_kain").get()).data() || {})[kain] || 0)).toFixed(2)
+  if (!await confirm2(`Kirim hasil hitung ${kain}: ${hitung} m?`)) return
+  await fsAdd("opname_kain", { kain, hitung, sistem, ket: document.getElementById("op-ket").value.trim(), oleh: unama || uname || "", olehUid: uid || "", tanggal: hariIniISO(), status: role === "admin" ? "menunggu" : "menunggu" })
+  document.getElementById("op-meter").value = ""; document.getElementById("op-ket").value = ""
+  toast(role === "admin" ? "Tercatat — setujui di daftar bawah untuk mengubah stok" : "📨 Hasil hitung dikirim ke Admin"); loadOpname()
+}
+async function putusOpname(id, setuju) {
+  if (role !== "admin") return
+  const o = await fsGet("opname_kain", id); if (!o) return loadOpname()
+  if (setuju) {
+    const ref = db.collection("config").doc("stok_kain"), st = (await ref.get()).data() || {}, dari = +(st[o.kain] || 0)
+    if (!await confirm2(`Set stok ${o.kain}: ${dari} m → ${o.hitung} m?`)) return
+    st[o.kain] = o.hitung; await ref.set(st)
+    await fsAdd("koreksi_stok", { jenis: "kain", pemegang: "", kunci: o.kain, dari, ke: o.hitung, alasan: `Hitung fisik oleh ${o.oleh || "staff"}${o.ket ? " (" + o.ket + ")" : ""}`, oleh: unama || uname || "admin", tanggal: hariIniISO() })
+  }
+  await db.collection("opname_kain").doc(id).update({ status: setuju ? "disetujui" : "ditolak", diputusOleh: unama || uname || "admin", diputusTgl: hariIniISO() })
+  toast(setuju ? "✅ Stok kain diperbarui" : "Hasil hitung ditolak"); loadOpname(); loadStokKain()
+}
 // ── PETUGAS GUDANG: hanya Admin & petugas gudang yang mencatat kain masuk / pengambilan kain ──
 // Izin per bagian: kainMasuk, ambilKain, bahan. Data lama tanpa izin = semua bagian.
 const IZIN_GUDANG = { kainMasuk: "Kain Masuk", ambilKain: "Pengambilan Kain", bahan: "Bahan Pendukung", katalog: "Atur Katalog Kain" };
@@ -3510,6 +3579,9 @@ async function submitKainMasuk() {
   const sup   = document.getElementById("km-supplier").value.trim();
   const ket   = document.getElementById("km-ket").value.trim();
   if(!tgl||!kain||!meter) return toast("Tanggal, kain, dan jumlah wajib diisi!","w");
+  // Staff wajib memilih kain dari katalog (jenis + kode warna) supaya stok per warna jelas
+  await muatKatalog().catch(() => {})
+  if (role !== "admin" && katalog.jenis.length && !warnaKain(kain)) { toast("Pilih kain lewat 🎨 Pilih dari katalog — kode & warna wajib supaya stok per warna jelas", "w"); return kmPilihKatalog() }
   if(!wajibOrder("km-ord")) return;
   const kmOrd = document.getElementById("km-ord").value, hargaMeter = parseRpIn(document.getElementById("km-harga").value);
   if(!await confirm2(`Simpan masuk ${meter}m ${kain}${namaOrder(kmOrd)==="STOK"?" untuk stok umum":" untuk order "+namaOrder(kmOrd)}?`)) return;
