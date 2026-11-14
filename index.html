@@ -2654,6 +2654,8 @@ async function cariWarnaFoto(setelah) {
     // Peringatan cek ulang: kasus yang rawan tertukar
     const peringatan = [], L = rgbKeLab(koreksi(kain))[0]
     if (!putih) peringatan.push("Foto <b>tanpa kertas putih</b> — warna bisa melenceng karena lampu.")
+    if (putih && Math.max(...putih) > 250) peringatan.push("Foto <b>terlalu terang</b> (kertas putih silau) — hasil kurang akurat, foto ulang tanpa sinar matahari langsung.")
+    { const [, A, B] = rgbKeLab(koreksi(kain)); if (L >= 30 && Math.hypot(A, B) < 10) peringatan.push("Warna <b>putih/krem/abu-abu</b> banyak yang mirip — wajib dicocokkan di buku katalog.") }
     if (hasil[0] && hasil[0].d > 10) peringatan.push("Warna kain <b>kurang mirip</b> dengan semua kode — mungkin warnanya tidak ada di katalog ini.")
     const dekat = hasil.slice(1).filter(x => hasil[0] && x.d - hasil[0].d < 2)
     if (dekat.length) peringatan.push(`Ada kode lain yang <b>hampir sama</b>: ${dekat.map(x => escH(x.j.nama + " " + x.v.kode)).join(", ")} — bandingkan langsung di buku katalog.`)
