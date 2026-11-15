@@ -696,8 +696,10 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
 <!-- STOK -->
 <div class="sec" id="s-stok">
   <div class="ph"><div class="pt">📊 Stok</div><div class="ps">Monitor stok dari guntingan, jahitan, hingga barang jadi</div></div>
-  <div class="card hanya-admin" style="display:none;margin-bottom:14px">
-    <div class="ct">🛠 Koreksi Stok (Admin) — tercatat siapa & alasannya</div>
+  <div class="card" id="ks-card" style="margin-bottom:14px">
+    <div class="ct" id="ks-judul">🛠 Koreksi Stok — tercatat siapa, alasan & foto bukti</div>
+    <div id="ks-info" style="font-size:11px;color:var(--t2);margin:-4px 0 10px"></div>
+    <div id="ks-usulan" style="margin-bottom:10px"></div>
     <div class="g2" style="margin-bottom:10px">
       <div class="fg"><label>Jenis stok</label><select id="ks-jenis" onchange="ksIsi()">
         <option value="">— Pilih —</option><option value="kain">Stok kain (meter)</option><option value="ambil_kain">Kain dipegang operator cutting (pcs)</option>
@@ -709,7 +711,14 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
       <div class="fg"><label>Angka yang benar</label><input type="number" id="ks-baru" min="0" step="any" placeholder="0"></div>
     </div>
     <div class="fg" style="margin-bottom:10px"><label>Alasan (wajib)</label><input type="text" id="ks-alasan" placeholder="cth: hitung fisik 11 Nov, salah input setoran Lina"></div>
-    <button class="btn btg" onclick="simpanKoreksiStok()">💾 Simpan Koreksi</button>
+    <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📸 Foto Bukti <span id="ks-foto-wajib">(wajib — foto barang / hitungan fisik)</span></div>
+    <div class="fgrid" id="ks-fg"></div>
+    <div class="farea" onclick="document.getElementById('ks-fi').click()">
+      <input type="file" accept="image/*" multiple style="display:none" id="ks-fi" onchange="onFoto('ks',this)">
+      <div style="font-size:18px;margin-bottom:3px">📷</div>
+      <div style="font-size:11px;font-weight:600;color:var(--t2)">Klik atau drag foto</div>
+    </div>
+    <button class="btn btg" id="ks-btn" onclick="simpanKoreksiStok()">💾 Simpan Koreksi</button>
     <div style="margin-top:12px;font-size:11px;font-weight:700;color:var(--t2)">RIWAYAT KOREKSI</div><div id="ks-log" style="font-size:12px"></div>
   </div>
   <div style="display:flex;gap:4px;margin-bottom:14px;background:var(--s2);padding:4px;border-radius:10px;border:1px solid var(--b)">
@@ -1170,7 +1179,7 @@ let cfmCallback = null;
 let cfmRejectCallback = null;
 let mdetIdx = -1, modalData = {}, mdetItem = null;
 let rrVisible = false;
-const fF = {j:[], g:[], a:[], qc:[], ke:[], by:[]};
+const fF = {j:[], g:[], a:[], qc:[], ke:[], by:[], ks:[]};
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 const td  = () => new Date().toISOString().split("T")[0];
@@ -1620,7 +1629,7 @@ function go(name) {
   if (name==="kasbon")     loadKasbonHist();
   if (name==="bayar")      loadBayarHist();
   if (name==="qc")         loadQCHist();
-  if (name==="stok")       { switchStokTab("gunting"); loadKoreksiLog(); }
+  if (name==="stok")       { switchStokTab("gunting"); ksAturTampilan(); loadKoreksiLog(); loadKoreksiUsulan(); }
   if (name==="keluar")     loadKeluarHist();
   if (name==="ringkasan")  loadRingkasan();
   if (name==="setting")    { renderItemTable(); renderKainTags(); renderGudangTags(); isiPilihanGudang(); loadUpahKosong(); }
@@ -2192,7 +2201,7 @@ async function bukaAsal(pre, item) {
         <summary style="cursor:pointer;font-size:13px"><b>Ukuran ${escH(uk)}</b> — di sistem <b>${sek}</b> pcs${r.selisih ? ` · <span style="color:var(--r);font-weight:700">selisih ${r.selisih > 0 ? "+" : ""}${r.selisih}</span>` : ""}</summary>
         <div style="font-size:11.5px;margin:6px 0;padding:6px 8px;background:var(--s2);border-radius:6px">
           Jumlah dari catatan: <b>${r.total}</b> pcs · Angka di sistem: <b>${sek}</b> pcs
-          ${r.selisih > 0 ? `<div style="color:var(--r);margin-top:3px">⚠ ${r.selisih} pcs <b>tidak ada catatannya</b> — kemungkinan data lama sebelum pencatatan, impor/restore, atau stok tidak berkurang saat setoran. Kalau fisiknya memang tidak ada, Admin koreksi di Stok → Koreksi Stok.</div>` : ""}
+          ${r.selisih > 0 ? `<div style="color:var(--r);margin-top:3px">⚠ ${r.selisih} pcs <b>tidak ada catatannya</b> — kemungkinan data lama sebelum pencatatan, impor/restore, atau stok tidak berkurang saat setoran. Kalau fisiknya memang tidak ada, ajukan koreksi di Stok → Koreksi Stok (dengan foto bukti, disetujui Pak Adi).</div>` : ""}
           ${r.selisih < 0 ? `<div style="color:#b45309;margin-top:3px">Angka di sistem ${-r.selisih} pcs lebih kecil dari catatan (stok dibatasi tidak boleh minus, atau ada pengurangan tanpa catatan).</div>` : ""}
           ${sek > 0 ? `<div style="margin-top:4px"><b>Sisa ${sek} pcs berasal dari:</b><br>• ${[...(r.selisih > 0 ? [`<span style="color:var(--r)">${r.selisih} pcs tanpa catatan</span>`] : []), ...asal].join("<br>• ")}</div>` : ""}
         </div>
@@ -2459,30 +2468,107 @@ function ksTampil() {
   document.getElementById("ks-baru-wrap").style.display = document.getElementById("ks-barang").value === "__baru" ? "" : "none";
   const k = ksKunci(); document.getElementById("ks-skrg").textContent = k ? (ksPeta()[k] || 0) : "—";
 }
+// Koreksi stok: Owner (Pak Adi) langsung simpan; selain Owner (Admin lain / CS / staff) → usulan + foto bukti → disetujui Owner.
+const ksBolehLangsung = () => isOwner;
+const ksNamaJenis = { kain:"Kain", ambil_kain:"Kain dipegang operator", guntingan:"Guntingan", jahitan:"Dipegang penjahit", jadi:"Barang jadi" };
+function ksAturTampilan() {
+  const langsung = ksBolehLangsung();
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.innerHTML = v; };
+  set("ks-info", langsung ? "Anda Owner — koreksi langsung tersimpan. Usulan dari CS/staff muncul di bawah untuk disetujui." : "Koreksi dari Anda dikirim sebagai <b>usulan</b> dan baru mengubah stok setelah <b>disetujui Pak Adi</b>. Wajib lampirkan foto bukti.");
+  set("ks-btn", langsung ? "💾 Simpan Koreksi" : "📤 Ajukan Koreksi (perlu persetujuan Pak Adi)");
+  set("ks-foto-wajib", langsung ? "(opsional untuk Owner)" : "(wajib — foto barang / hitungan fisik)");
+}
+// Terapkan angka baru ke config/stok_* + catat di koreksi_stok
+async function ksTerapkan({ jenis, pemegang, kunci, ke, alasan, fotos, diajukanOleh, usulanId }) {
+  const cfg = KS[jenis];
+  const data = (await fsGet("config", cfg.doc)) || {};   // baca ulang supaya tidak menimpa perubahan orang lain
+  const peta = cfg.nested ? (data[pemegang] = data[pemegang] || {}) : data;
+  const dari = +(peta[kunci] || 0);
+  peta[kunci] = ke;
+  await fsSet("config", cfg.doc, data);
+  await fsAdd("koreksi_stok", { jenis, pemegang: pemegang || "", kunci, dari, ke, alasan, fotos: fotos || [], oleh: unama || uname || "admin",
+    ...(diajukanOleh ? { diajukanOleh, disetujuiOleh: unama || uname || "admin", usulanId } : {}), tanggal: hariIniISO() });
+  return dari;
+}
 async function simpanKoreksiStok() {
-  if (role !== "admin") return toast("Hanya Admin", "w");
+  if (role === "guest") return toast("Login dulu", "w");
   const j = document.getElementById("ks-jenis").value, cfg = KS[j], orang = document.getElementById("ks-orang").value;
   const kunci = ksKunci(), baruStr = document.getElementById("ks-baru").value, alasan = document.getElementById("ks-alasan").value.trim();
   if (!cfg || (cfg.nested && !orang) || !kunci || baruStr === "") return toast("Lengkapi jenis stok, pemegang, barang & angka yang benar", "w");
   if (!alasan) return toast("Alasan wajib diisi", "w");
+  const langsung = ksBolehLangsung();
+  if (!langsung && !fF.ks.length) return toast("Foto bukti wajib dilampirkan", "w");
   const baru = Math.max(0, +baruStr);
-  const data = (await fsGet("config", cfg.doc)) || {};   // baca ulang supaya tidak menimpa perubahan orang lain
-  const peta = cfg.nested ? (data[orang] = data[orang] || {}) : data;
+  const data = (await fsGet("config", cfg.doc)) || {};
+  const peta = cfg.nested ? (data[orang] || {}) : data;
   const dari = +(peta[kunci] || 0);
   if (dari === baru) return toast("Angkanya sama, tidak ada yang diubah", "w");
-  if (!await confirm2(`Ubah ${kunci.replace("||", " ")}${cfg.nested ? " (" + orang + ")" : ""} dari ${dari} menjadi ${baru}?`)) return;
-  peta[kunci] = baru;
-  await fsSet("config", cfg.doc, data);
-  await fsAdd("koreksi_stok", { jenis: j, pemegang: orang || "", kunci, dari, ke: baru, alasan, oleh: unama || uname || "admin", tanggal: hariIniISO() });
-  toast("Koreksi stok disimpan & tercatat");
-  ["ks-baru","ks-alasan","ks-nama","ks-uk"].forEach(id => document.getElementById(id).value = "");
-  await ksIsi(); loadKoreksiLog();
+  const label = `${kunci.replace("||", " ")}${cfg.nested ? " (" + orang + ")" : ""}`;
+  if (!await confirm2(langsung ? `Ubah ${label} dari ${dari} menjadi ${baru}?` : `Ajukan koreksi ${label} dari ${dari} menjadi ${baru}? Stok baru berubah setelah disetujui Pak Adi.`)) return;
+  const btn = document.getElementById("ks-btn"); if (btn) btn.disabled = true;
+  try {
+    const fotos = await uploadFotos(fF.ks);
+    if (langsung) {
+      await ksTerapkan({ jenis: j, pemegang: orang, kunci, ke: baru, alasan, fotos });
+      toast("Koreksi stok disimpan & tercatat");
+    } else {
+      await fsAdd("koreksi_usulan", { jenis: j, pemegang: orang || "", kunci, dari, ke: baru, alasan, fotos, status: "pending", tanggal: hariIniISO() });
+      toast("Usulan koreksi terkirim — menunggu persetujuan Pak Adi");
+      mintaAdmin("Mohon setujui koreksi stok", `${ksNamaJenis[j] || j}: ${label} dari ${dari} → ${baru}\nAlasan: ${alasan}\n(foto bukti terlampir di aplikasi)`, "stok", { isi: "koreksi" });
+    }
+    ["ks-baru","ks-alasan","ks-nama","ks-uk"].forEach(id => document.getElementById(id).value = "");
+    clearF("ks");
+    await ksIsi(); loadKoreksiLog(); loadKoreksiUsulan();
+  } catch (e) { showAlert("Gagal menyimpan koreksi", e.message || String(e)); }
+  finally { if (btn) btn.disabled = false; }
+}
+const ksFotoHtml = (fotos) => (fotos || []).length ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">${fotos.map((f, i) => `<img src="${f}" style="width:46px;height:46px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--b)" onclick='openLb(${attrJ(fotos)},${i})'>`).join("")}</div>` : "";
+async function loadKoreksiUsulan() {
+  const el = document.getElementById("ks-usulan"); if (!el) return;
+  if (role === "guest") { el.innerHTML = ""; return; }
+  let docs = (await fsAll("koreksi_usulan").catch(() => [])).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+  const owner = ksBolehLangsung();
+  // Owner: semua yang menunggu. Lainnya: usulan sendiri (menunggu + 10 terakhir yang sudah diputus)
+  docs = owner ? docs.filter(d => d.status === "pending") : docs.filter(d => d.createdBy === uid).filter((d, i, arr) => d.status === "pending" || arr.filter(x => x.status !== "pending").indexOf(d) < 10);
+  if (!docs.length) { el.innerHTML = ""; return; }
+  const cfgN = j => KS[j]?.nested;
+  el.innerHTML = `<div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">⏳ ${owner ? "USULAN KOREKSI MENUNGGU PERSETUJUAN ANDA" : "USULAN KOREKSI SAYA"}</div>` + docs.map(d => {
+    const st = d.status === "pending" ? '<span style="color:#d97706;font-weight:700">Menunggu</span>' : d.status === "disetujui" ? '<span style="color:var(--g);font-weight:700">✓ Disetujui</span>' : '<span style="color:var(--r);font-weight:700">✗ Ditolak</span>';
+    return `<div style="border:1px solid var(--b);border-left:3px solid ${d.status === "pending" ? "#d97706" : d.status === "disetujui" ? "var(--g)" : "var(--r)"};border-radius:var(--rads);padding:8px 10px;margin-bottom:6px;font-size:12px">
+      <div style="display:flex;justify-content:space-between;gap:8px"><span><b>${escH(ksNamaJenis[d.jenis] || d.jenis)}</b>${cfgN(d.jenis) && d.pemegang ? " (" + escH(d.pemegang) + ")" : ""} · ${escH(String(d.kunci).replace("||", " "))}</span>${st}</div>
+      <div style="margin-top:2px">Dari <b>${d.dari}</b> → <b>${d.ke}</b> · ${escH(d.alasan || "")}</div>
+      <div style="color:var(--t2)">Diajukan ${escH(d.createdByNama || "—")} · ${fmtTgl(d.tanggal)}${d.status !== "pending" ? ` · diputus ${escH(d.diputusOleh || "-")}${d.alasanTolak ? " — " + escH(d.alasanTolak) : ""}` : ""}</div>
+      ${ksFotoHtml(d.fotos)}
+      ${owner && d.status === "pending" ? `<div style="display:flex;gap:6px;margin-top:6px"><button class="btn-s" style="background:var(--g);color:#fff" onclick="setujuiKoreksi('${d._id}')">✓ Setujui</button><button class="btn-s" style="color:var(--r)" onclick="tolakKoreksi('${d._id}')">✗ Tolak</button></div>` : ""}
+      ${!owner && d.status === "pending" ? `<button type="button" class="btsm" style="background:#25d366;color:#fff;margin-top:4px" onclick='mintaAdmin("Mohon setujui koreksi stok", ${attrJ(`${ksNamaJenis[d.jenis] || d.jenis}: ${String(d.kunci).replace("||", " ")}${d.pemegang ? " (" + d.pemegang + ")" : ""} dari ${d.dari} → ${d.ke}\nAlasan: ${d.alasan}`)}, "stok", {isi:"koreksi"})'>📲 Ingatkan Pak Adi</button>` : ""}
+    </div>`;
+  }).join("");
+}
+async function setujuiKoreksi(id) {
+  if (!ksBolehLangsung()) return toast("Hanya Pak Adi (Owner) yang bisa menyetujui", "w");
+  const snap = await db.collection("koreksi_usulan").doc(id).get(); if (!snap.exists) return toast("Usulan tidak ditemukan", "w");
+  const u = snap.data(); if (u.status !== "pending") return toast("Usulan ini sudah diputus", "w");
+  const cfg = KS[u.jenis]; if (!cfg) return toast("Jenis stok tidak dikenal", "w");
+  const data = (await fsGet("config", cfg.doc)) || {};
+  const skrg = +((cfg.nested ? (data[u.pemegang] || {}) : data)[u.kunci] || 0);
+  const label = `${String(u.kunci).replace("||", " ")}${cfg.nested && u.pemegang ? " (" + u.pemegang + ")" : ""}`;
+  const ubah = skrg !== +u.dari ? `\n\n⚠ Angka sekarang ${skrg} (saat diajukan ${u.dari}) — ada transaksi setelah usulan dibuat.` : "";
+  if (!await confirm2(`Setujui koreksi ${label}: jadikan ${u.ke}?${ubah}`)) return;
+  await ksTerapkan({ jenis: u.jenis, pemegang: u.pemegang, kunci: u.kunci, ke: +u.ke, alasan: u.alasan, fotos: u.fotos, diajukanOleh: u.createdByNama || "", usulanId: id });
+  await db.collection("koreksi_usulan").doc(id).update({ status: "disetujui", diputusOleh: unama || uname || "owner", diputusAt: firebase.firestore.FieldValue.serverTimestamp(), angkaSaatDisetujui: skrg });
+  toast("Koreksi disetujui & stok diubah");
+  loadKoreksiUsulan(); loadKoreksiLog(); if (document.getElementById("ks-jenis").value) ksIsi();
+}
+async function tolakKoreksi(id) {
+  if (!ksBolehLangsung()) return toast("Hanya Pak Adi (Owner) yang bisa menolak", "w");
+  const alasan = prompt("Alasan menolak (akan terlihat oleh yang mengajukan):"); if (alasan === null) return;
+  await db.collection("koreksi_usulan").doc(id).update({ status: "ditolak", alasanTolak: alasan.trim(), diputusOleh: unama || uname || "owner", diputusAt: firebase.firestore.FieldValue.serverTimestamp() });
+  toast("Usulan ditolak"); loadKoreksiUsulan();
 }
 async function loadKoreksiLog() {
-  const el = document.getElementById("ks-log"); if (!el || role !== "admin") return;
+  const el = document.getElementById("ks-log"); if (!el || role === "guest") return;
   const docs = (await fsAll("koreksi_stok")).sort((a, b) => String(b.createdAt?.seconds || b.tanggal).localeCompare(String(a.createdAt?.seconds || a.tanggal))).slice(0, 20);
-  const nm = { kain:"Kain", ambil_kain:"Kain dipegang operator", guntingan:"Guntingan", jahitan:"Dipegang penjahit", jadi:"Barang jadi" };
-  el.innerHTML = docs.length ? docs.map(d => `<div style="padding:6px 0;border-bottom:1px solid var(--b)">${fmtTgl(d.tanggal)} · <b>${escH(nm[d.jenis] || d.jenis)}</b>${d.pemegang ? " (" + escH(d.pemegang) + ")" : ""} · ${escH(String(d.kunci).replace("||", " "))}: ${d.dari} → <b>${d.ke}</b> <span style="color:var(--t2)">— ${escH(d.alasan)} · ${escH(d.oleh)}</span></div>`).join("") : '<div class="empty" style="padding:8px">Belum ada koreksi.</div>';
+  el.innerHTML = docs.length ? docs.map(d => `<div style="padding:6px 0;border-bottom:1px solid var(--b)">${fmtTgl(d.tanggal)} · <b>${escH(ksNamaJenis[d.jenis] || d.jenis)}</b>${d.pemegang ? " (" + escH(d.pemegang) + ")" : ""} · ${escH(String(d.kunci).replace("||", " "))}: ${d.dari} → <b>${d.ke}</b> <span style="color:var(--t2)">— ${escH(d.alasan)} · ${d.diajukanOleh ? "diajukan " + escH(d.diajukanOleh) + ", disetujui " + escH(d.disetujuiOleh || d.oleh) : escH(d.oleh)}</span>${ksFotoHtml(d.fotos)}</div>`).join("") : '<div class="empty" style="padding:8px">Belum ada koreksi.</div>';
 }
 
 // ── KATALOG KAIN: jenis kain + varian warna (kode, keterangan, contoh warna, foto) ──
@@ -2986,6 +3072,7 @@ async function jalankanLink(p) {
   else if (p.isi === "usulan-kain") { go("kain-masuk"); await loadKainUsulan(); sorotBagian("kain-usulan-wrap") }
   else if (p.isi === "katalog") { go("katalog"); await loadKatalog(); if (p.cari) { document.getElementById("kt-cari").value = p.cari; renderKatalog() } sorotBagian("kt-alat"); toast(p.cari ? `Kode "${p.cari}" dicari staff — tambahkan lewat + Warna bila belum ada` : "Tambahkan kain/warna yang diminta staff") }
   else if (p.isi === "stok") { go("stok"); sorotBagian("s-stok") }
+  else if (p.isi === "koreksi") { go("stok"); await loadKoreksiUsulan(); sorotBagian("ks-usulan") }
 }
 window.addEventListener("hashchange", () => { const { p } = bacaHash(); if (p.isi) jalankanLink(p) })
 // ── PETUGAS GUDANG: hanya Admin & petugas gudang yang mencatat kain masuk / pengambilan kain ──
@@ -4448,7 +4535,7 @@ async function doExport(fmt) {
 // ── BACKUP ────────────────────────────────────────────────────────────────────
 async function downloadBackup() {
   toast("Mengumpulkan data...");
-  const cols = ["transaksi","kasbon","pembayaran","qc","keluar","alih_tugas","kain_masuk","kain_ambil","koreksi_stok","hapus_log"];
+  const cols = ["transaksi","kasbon","pembayaran","qc","keluar","alih_tugas","kain_masuk","kain_ambil","koreksi_stok","hapus_log","koreksi_usulan"];
   const backup = { exportDate: new Date().toISOString(), collections:{} };
   for(const col of cols) backup.collections[col] = await fsAll(col);
   const cfg = {};

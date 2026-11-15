@@ -106,4 +106,10 @@ Push ke `main` → otomatis live di GitHub Pages (biasanya 1-2 menit).
 - `bukuAsal(pre, orang, src)` menyusun ulang saldo dari catatan: g = `kain_ambil`(+) − `transaksi gunting`; a = `gunting`(+) − `ambil` (semua operator); j = `ambil`(+) − `jahit` − `qc` ± `alih_tugas`; plus `koreksi_stok` (delta) & `hapus_log`.
 - `sisaFIFO` membandingkan dengan angka di `config/stok_*`: selisih + = angka tanpa catatan (data lama / impor); sisa ditelusuri FIFO ke tanggal & penginput (`createdByNama`).
 - Hapus transaksi/data (`delTx`, `delTxFromRing`, `delRecord`) kini dicatat dulu ke **`hapus_log`** `{col, docId, data, olehNama, tanggal}` lewat `catatHapus`. Hapus TIDAK mengembalikan stok (perilaku lama) — rincian menampilkan entri itu sebagai "DIHAPUS".
-- Backup ikut menyertakan `koreksi_stok` & `hapus_log`.
+- Backup ikut menyertakan `koreksi_stok`, `hapus_log` & `koreksi_usulan`.
+
+## Koreksi Stok dengan Persetujuan Owner (fitur 2026-11)
+- Kartu Koreksi Stok (`#ks-card`) kini tampil untuk semua yang login. **Hanya Owner (`isOwner`) yang langsung mengubah stok** (`ksBolehLangsung`); selain Owner (Admin lain, CS, staff) → dokumen `koreksi_usulan` `{jenis, pemegang, kunci, dari, ke, alasan, fotos, status:'pending'|'disetujui'|'ditolak', diputusOleh, alasanTolak, angkaSaatDisetujui}`.
+- Foto bukti (`fF.ks`, `#ks-fg/#ks-fi`) **wajib** untuk usulan, opsional untuk Owner. Setelah kirim usulan otomatis buka WA ke Pak Adi (deep link `#stok?isi=koreksi`).
+- Panel `#ks-usulan` (`loadKoreksiUsulan`): Owner lihat semua yang menunggu + Setujui/Tolak; pengaju lihat usulannya sendiri + tombol "Ingatkan Pak Adi".
+- `setujuiKoreksi` membaca ulang angka sekarang (peringatan bila berubah sejak diajukan), lalu `ksTerapkan` → set `config/stok_*` + `koreksi_stok` dengan `fotos`, `diajukanOleh`, `disetujuiOleh`, `usulanId`. Tolak wajib alasan (dokumen disimpan, tidak dihapus).
