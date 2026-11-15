@@ -100,3 +100,10 @@ Push ke `main` → otomatis live di GitHub Pages (biasanya 1-2 menit).
 - Cari warna dari foto: koreksi kertas putih di ruang linear, CIEDE2000, rata-rata 3 titik, wajib centang "cek ulang".
 - Katalog publik untuk customer (tanpa stok): `custom-order-harmoni/katalog-kain.html` (`?merek=`, `?foto=1`), dibagikan lewat tombol "📤 Link katalog untuk customer".
 - Link "📲 WA Adi untuk diisi" memakai deep link `#halaman?isi=upah|opname|usulan-kain|katalog|stok&item=…` (`settings.waAdmin`).
+
+## Asal Angka Stok & Log Hapus (fitur 2026-11)
+- Kartu di daftar "Pilih dari …" (Setor Guntingan `g`, Ambil Jahitan `a`, Setor Jahitan `j`) punya tombol **🔍 Asal** → modal `#asal-mo` (`bukaAsal(pre,item)`) dan tag umur "tertua sejak …" (`tandaiUmurPilihan`).
+- `bukuAsal(pre, orang, src)` menyusun ulang saldo dari catatan: g = `kain_ambil`(+) − `transaksi gunting`; a = `gunting`(+) − `ambil` (semua operator); j = `ambil`(+) − `jahit` − `qc` ± `alih_tugas`; plus `koreksi_stok` (delta) & `hapus_log`.
+- `sisaFIFO` membandingkan dengan angka di `config/stok_*`: selisih + = angka tanpa catatan (data lama / impor); sisa ditelusuri FIFO ke tanggal & penginput (`createdByNama`).
+- Hapus transaksi/data (`delTx`, `delTxFromRing`, `delRecord`) kini dicatat dulu ke **`hapus_log`** `{col, docId, data, olehNama, tanggal}` lewat `catatHapus`. Hapus TIDAK mengembalikan stok (perilaku lama) — rincian menampilkan entri itu sebagai "DIHAPUS".
+- Backup ikut menyertakan `koreksi_stok` & `hapus_log`.

@@ -1009,6 +1009,17 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
   </div>
 </div>
 
+<div class="mo" id="asal-mo" style="display:none" onclick="if(event.target===this)tutupAsal()">
+  <div class="mbox" style="max-width:560px;width:94%;max-height:86vh;overflow:auto;padding:18px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:10px">
+      <div><div style="font-size:14px;font-weight:800">🔍 Asal angka: <span id="asal-judul"></span></div><div id="asal-sub" style="font-size:11px;color:var(--t2);margin-top:2px"></div></div>
+      <button onclick="tutupAsal()" style="background:transparent;border:none;color:var(--t2);font-size:22px;cursor:pointer;line-height:1">×</button>
+    </div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Setiap baris = catatan yang menambah (+) atau mengurangi (−) angka ini, lengkap dengan siapa yang input. Merah muda = catatan yang sudah dihapus; kuning = koreksi manual Admin.</div>
+    <div id="asal-isi"></div>
+  </div>
+</div>
+
 <!-- LOGIN MODAL -->
 <div class="mo" id="login-mo" style="display:none">
   <div class="mbox">
@@ -1988,9 +1999,11 @@ function renderPilihan(pre, listId, wrapId, data, kosong) {
   const items = Object.keys(data).sort();
   if (wrap) wrap.style.display = "";
   list.innerHTML = items.length ? items.map(it => `<div style="margin-bottom:6px;background:var(--s2);border:1px solid var(--b);border-radius:var(--rads);padding:8px 11px;font-size:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <div style="flex:1;min-width:140px"><b>${escH(it)}</b><div style="color:var(--t2);margin-top:2px">${Object.entries(data[it]).map(([u,q])=>`${escH(u)}: <b>${q}</b>`).join(" · ")}</div></div>
+      <div style="flex:1;min-width:140px"><b>${escH(it)}</b><div style="color:var(--t2);margin-top:2px">${Object.entries(data[it]).map(([u,q])=>`${escH(u)}: <b>${q}</b>`).join(" · ")}</div><div data-asal-item="${encodeURIComponent(it)}" style="font-size:10.5px;margin-top:2px"></div></div>
+      <button type="button" class="btn-s" title="Lihat dari mana angka ini & siapa yang input" onclick="bukaAsal('${pre}', decodeURIComponent('${encodeURIComponent(it)}'))">🔍 Asal</button>
       <button type="button" class="btn-s" onclick="pilihDari('${pre}', decodeURIComponent('${encodeURIComponent(it)}'))">➕ Pakai</button>
     </div>`).join("") : `<div class="empty" style="padding:8px 0;font-size:12px">${kosong}</div>`;
+  if (items.length) tandaiUmurPilihan(pre, listId);
 }
 // Cari item di daftar upah: nama persis → nama tanpa beda spasi/tanda baca → nama daftar yang terkandung di nama item (terpanjang)
 const kunciItem = t => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
@@ -2050,6 +2063,151 @@ async function loadPilihJahit() {
   if (!pj) { if(wrap) wrap.style.display="none"; return; }
   const sj = (await fsGet("config","stok_jahitan")) || {};
   renderPilihan("j","j-pil-list","j-pil-wrap",kelompokStok(sj[pj]),"Penjahit ini tidak sedang memegang bahan. Catat dulu di Ambil Jahitan.");
+}
+
+// ── ASAL ANGKA STOK: rincian dari mana angka di daftar "Pilih dari …" berasal & siapa yang input ──
+// Angka di daftar dibaca dari config/stok_* (saldo berjalan). Rincian ini menyusun ulang saldo itu dari catatan
+// transaksi (kain_ambil, transaksi gunting/ambil/jahit, qc, alih_tugas, koreksi_stok) + catatan hapus (hapus_log).
+// Sisa stok ditelusuri FIFO supaya kelihatan sisa itu dari setoran tanggal berapa (umur stok).
+const ASAL_CFG = {
+  g: { judul: "Kain dipegang operator (belum disetor jadi guntingan)", orangSel: "g-op", doc: "stok_ambil_kain", nested: true, koreksi: "ambil_kain" },
+  a: { judul: "Stok guntingan (semua operator)", orangSel: null, doc: "stok_guntingan", nested: false, koreksi: "guntingan" },
+  j: { judul: "Bahan dipegang penjahit", orangSel: "j-pjt", doc: "stok_jahitan", nested: true, koreksi: "jahitan" },
+};
+let _asalSrc = null, _asalSrcAt = 0;
+async function muatSumberAsal(paksa) {
+  if (!paksa && _asalSrc && Date.now() - _asalSrcAt < 60000) return _asalSrc;
+  const ambil = c => fsAll(c).catch(() => []);
+  const [tr, ka, qc, at, ks, hl] = await Promise.all([ambil("transaksi"), ambil("kain_ambil"), ambil("qc"), ambil("alih_tugas"), ambil("koreksi_stok"), ambil("hapus_log")]);
+  _asalSrc = { tr, ka, qc, at, ks, hl }; _asalSrcAt = Date.now();
+  return _asalSrc;
+}
+const _detik = d => d?.createdAt?.seconds || 0;
+const _olehNama = d => d.createdByNama || (d.createdBy ? "uid " + String(d.createdBy).slice(0, 6) : "");
+// Hasil: { item: { ukuran: [entri] } }, entri = {tgl, detik, qty(+/-), label, oleh, order, ket, catatan, efek:false bila hanya info}
+function bukuAsal(pre, orang, src) {
+  const buku = {};
+  const tambah = (item, uk, e) => { if (!item || uk == null) return; ((buku[item] = buku[item] || {})[uk] = buku[item][uk] || []).push(e); };
+  const pecah = k => { const i = String(k).indexOf("||"); return i < 0 ? [k, ""] : [k.slice(0, i), k.slice(i + 2)]; };
+  const dariTx = (d, tanda, label) => (d.items || []).forEach(i => tambah(i.nama, i.ukuran, { tgl: d.tanggal, detik: _detik(d), qty: tanda * (+i.pcs || 0), label, oleh: _olehNama(d), order: d.order || "", ket: d.keterangan || "", catatan: d.lebihStok ? "Melebihi stok — alasan Admin: " + (d.lebihStok.alasan || "-") : "", efek: true }));
+  const cfg = ASAL_CFG[pre];
+  if (pre === "g") {
+    src.ka.filter(d => d.operator === orang).forEach(d => (d.rows || []).forEach(r => { if (+r.pcs > 0) tambah(d.item, r.ukuran, { tgl: d.tanggal, detik: _detik(d), qty: +r.pcs, label: "Pengambilan Kain", oleh: _olehNama(d), order: d.order || "", ket: d.ket || "", catatan: d.lebihStok ? "Melebihi stok kain — alasan Admin: " + (d.lebihStok.alasan || "-") : "", efek: true }); }));
+    src.tr.filter(d => d.type === "gunting" && d.orang === orang).forEach(d => dariTx(d, -1, "Setor Guntingan"));
+  } else if (pre === "a") {
+    src.tr.filter(d => d.type === "gunting").forEach(d => dariTx(d, +1, "Setor Guntingan · " + (d.orang || "-")));
+    src.tr.filter(d => d.type === "ambil").forEach(d => dariTx(d, -1, "Diambil penjahit · " + (d.orang || "-")));
+  } else if (pre === "j") {
+    src.tr.filter(d => d.type === "ambil" && d.orang === orang).forEach(d => dariTx(d, +1, "Ambil Jahitan"));
+    src.tr.filter(d => d.type === "jahit" && d.orang === orang).forEach(d => dariTx(d, -1, "Setor Jahitan"));
+    src.qc.filter(d => d.penjahit === orang).forEach(d => (d.items || []).forEach(i => {
+      const keluar = (+i.ok || 0) + ((+d.totalReject > 0 && d.nasibReject === "perbaiki") ? 0 : (+i.reject || 0));
+      if (keluar > 0) tambah(i.nama, i.ukuran, { tgl: d.tanggal, detik: _detik(d), qty: -keluar, label: "QC / Finishing", oleh: _olehNama(d), order: d.order || "", ket: d.ket || "", catatan: "", efek: true });
+    }));
+    src.at.forEach(d => (d.items || []).forEach(m => {
+      const [item, uk] = pecah(m.item);
+      if (d.dari === orang) tambah(item, uk, { tgl: d.tgl, detik: _detik(d), qty: -(+m.qty || 0), label: "Alih tugas ke " + d.ke, oleh: _olehNama(d), order: "", ket: d.alasan || "", catatan: "", efek: true });
+      if (d.ke === orang) tambah(item, uk, { tgl: d.tgl, detik: _detik(d), qty: +(+m.qty || 0), label: "Alih tugas dari " + d.dari, oleh: _olehNama(d), order: "", ket: d.alasan || "", catatan: "", efek: true });
+    }));
+  }
+  // Koreksi stok manual oleh Admin (mengubah angka langsung)
+  src.ks.filter(d => d.jenis === cfg.koreksi && (!cfg.nested || d.pemegang === orang)).forEach(d => {
+    const [item, uk] = pecah(d.kunci);
+    tambah(item, uk, { tgl: d.tanggal, detik: _detik(d), qty: (+d.ke || 0) - (+d.dari || 0), label: `Koreksi stok manual (${d.dari} → ${d.ke})${!cfg.nested && d.pemegang ? " · " + d.pemegang : ""}`, oleh: d.oleh || _olehNama(d), order: "", ket: d.alasan || "", catatan: "", efek: true, koreksi: true });
+  });
+  // Catatan yang dihapus — stoknya TIDAK ikut dikembalikan, jadi angka di sistem masih memuat efeknya
+  src.hl.forEach(h => {
+    const d = h.data || {}; let tanda = 0, label = "", cocok = false;
+    if (h.col === "transaksi") {
+      if (pre === "g" && d.type === "gunting" && d.orang === orang) { cocok = true; tanda = -1; label = "Setor Guntingan"; }
+      if (pre === "a" && d.type === "gunting") { cocok = true; tanda = +1; label = "Setor Guntingan · " + (d.orang || "-"); }
+      if (pre === "a" && d.type === "ambil") { cocok = true; tanda = -1; label = "Diambil penjahit · " + (d.orang || "-"); }
+      if (pre === "j" && d.type === "ambil" && d.orang === orang) { cocok = true; tanda = +1; label = "Ambil Jahitan"; }
+      if (pre === "j" && d.type === "jahit" && d.orang === orang) { cocok = true; tanda = -1; label = "Setor Jahitan"; }
+      if (cocok) (d.items || []).forEach(i => tambah(i.nama, i.ukuran, { tgl: d.tanggal, detik: _detik(d), qty: tanda * (+i.pcs || 0), label: "🗑 " + label + " (DIHAPUS)", oleh: _olehNama(d), order: d.order || "", ket: d.keterangan || "", catatan: `Dihapus oleh ${h.olehNama || "-"} tgl ${h.tanggal || "-"} — stok tidak dikembalikan, angkanya masih terhitung`, efek: true, hapus: true }));
+    } else if (h.col === "kain_ambil" && pre === "g" && d.operator === orang) {
+      (d.rows || []).forEach(r => { if (+r.pcs > 0) tambah(d.item, r.ukuran, { tgl: d.tanggal, detik: _detik(d), qty: +r.pcs, label: "🗑 Pengambilan Kain (DIHAPUS)", oleh: _olehNama(d), order: d.order || "", ket: d.ket || "", catatan: `Dihapus oleh ${h.olehNama || "-"} tgl ${h.tanggal || "-"} — stok tidak dikembalikan`, efek: true, hapus: true }); });
+    }
+  });
+  Object.values(buku).forEach(m => Object.values(m).forEach(arr => arr.sort((x, y) => String(x.tgl || "").localeCompare(String(y.tgl || "")) || x.detik - y.detik)));
+  return buku;
+}
+// FIFO: dari daftar entri & angka sistem sekarang → dari entri masuk mana saja sisa itu berasal
+function sisaFIFO(entri, sekarang) {
+  const antre = []; let total = 0;
+  entri.forEach(e => {
+    total += e.qty;
+    if (e.qty > 0) antre.push({ e, sisa: e.qty });
+    else { let k = -e.qty; while (k > 0 && antre.length) { const a = antre[0], m = Math.min(a.sisa, k); a.sisa -= m; k -= m; if (!a.sisa) antre.shift(); } }
+  });
+  let selisih = (+sekarang || 0) - total;   // + : angka sistem lebih besar dari catatan; − : lebih kecil
+  if (selisih < 0) { let k = -selisih; while (k > 0 && antre.length) { const a = antre[0], m = Math.min(a.sisa, k); a.sisa -= m; k -= m; if (!a.sisa) antre.shift(); } }
+  return { total, selisih, asal: antre.filter(a => a.sisa > 0) };
+}
+const umurHari = tgl => { if (!tgl) return null; const d = new Date(tgl + "T00:00:00"); return isNaN(d) ? null : Math.max(0, Math.floor((Date.now() - d) / 864e5)); };
+const tglPendek = tgl => { if (!tgl) return "?"; const d = new Date(tgl + "T00:00:00"); return isNaN(d) ? tgl : d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "2-digit" }); };
+// Tag "tertua sejak …" di kartu daftar pilihan
+async function tandaiUmurPilihan(pre, listId) {
+  const cfg = ASAL_CFG[pre]; if (!cfg) return;
+  const orang = cfg.orangSel ? document.getElementById(cfg.orangSel)?.value : "";
+  if (cfg.nested && !orang) return;
+  try {
+    const src = await muatSumberAsal(), buku = bukuAsal(pre, orang, src), data = _pil[pre] || {};
+    document.querySelectorAll(`#${listId} [data-asal-item]`).forEach(el => {
+      const item = decodeURIComponent(el.dataset.asalItem); let tertua = null, adaSelisih = false;
+      Object.entries(data[item] || {}).forEach(([uk, q]) => {
+        const r = sisaFIFO((buku[item] || {})[uk] || [], q);
+        if (r.selisih > 0) adaSelisih = true;
+        r.asal.forEach(a => { if (a.e.tgl && (!tertua || a.e.tgl < tertua)) tertua = a.e.tgl; });
+      });
+      const u = umurHari(tertua);
+      el.innerHTML = (tertua ? `<span style="color:${u > 30 ? "var(--r)" : u > 7 ? "#d97706" : "var(--t2)"};font-weight:${u > 7 ? 700 : 500}">${u > 30 ? "⚠ " : ""}tertua sejak ${tglPendek(tertua)} (${u} hari)</span>` : "")
+        + (adaSelisih ? `${tertua ? " · " : ""}<span style="color:var(--r);font-weight:700">⚠ ada angka tanpa catatan</span>` : "");
+    });
+  } catch (e) { console.warn("tandaiUmurPilihan:", e); }
+}
+async function bukaAsal(pre, item) {
+  const cfg = ASAL_CFG[pre]; if (!cfg) return;
+  const orang = cfg.orangSel ? document.getElementById(cfg.orangSel)?.value : "";
+  const mo = document.getElementById("asal-mo"), isi = document.getElementById("asal-isi");
+  document.getElementById("asal-judul").textContent = item;
+  document.getElementById("asal-sub").textContent = cfg.judul + (orang ? " · " + orang : "");
+  isi.innerHTML = '<div class="empty" style="padding:14px">⏳ Menyusun rincian…</div>';
+  mo.style.display = "flex";
+  try {
+    const [src, stokDoc] = await Promise.all([muatSumberAsal(true), fsGet("config", cfg.doc)]);
+    const peta = cfg.nested ? ((stokDoc || {})[orang] || {}) : jumlahkanStok(stokDoc || {});
+    const buku = bukuAsal(pre, orang, src)[item] || {};
+    const uks = [...new Set([...Object.keys(buku), ...Object.keys(peta).filter(k => k.startsWith(item + "||")).map(k => k.slice(item.length + 2))])]
+      .filter(uk => (peta[item + "||" + uk] || 0) > 0 || (buku[uk] || []).length).sort((a, b) => (parseFloat(a) - parseFloat(b)) || a.localeCompare(b));
+    const baris = e => `<div style="padding:6px 0;border-bottom:1px dashed var(--b);font-size:11.5px;${e.hapus ? "opacity:.85;background:#fef2f2;" : e.koreksi ? "background:#fffbeb;" : ""}">
+        <div style="display:flex;gap:8px;justify-content:space-between"><span>${tglPendek(e.tgl)} · <b>${escH(e.label)}</b>${e.order ? " · " + escH(e.order) : ""}</span>
+        <b style="font-family:var(--m);color:${e.qty >= 0 ? "var(--g)" : "var(--r)"}">${e.qty >= 0 ? "+" : ""}${e.qty}</b></div>
+        <div style="color:var(--t2)">Diinput oleh: <b>${escH(e.oleh || "— (data lama, belum tercatat)")}</b>${e.ket ? " · " + escH(e.ket) : ""}</div>
+        ${e.catatan ? `<div style="color:#b45309">${escH(e.catatan)}</div>` : ""}</div>`;
+    isi.innerHTML = uks.length ? uks.map(uk => {
+      const sek = +(peta[item + "||" + uk] || 0), en = buku[uk] || [], r = sisaFIFO(en, sek);
+      const asal = r.asal.map(a => `${a.sisa} pcs dari ${escH(a.e.label)} ${tglPendek(a.e.tgl)}${umurHari(a.e.tgl) != null ? " (" + umurHari(a.e.tgl) + " hari)" : ""} — input ${escH(a.e.oleh || "data lama")}`);
+      return `<details style="margin-bottom:8px;border:1px solid var(--b);border-radius:var(--rads);padding:8px 10px" ${uks.length <= 2 ? "open" : ""}>
+        <summary style="cursor:pointer;font-size:13px"><b>Ukuran ${escH(uk)}</b> — di sistem <b>${sek}</b> pcs${r.selisih ? ` · <span style="color:var(--r);font-weight:700">selisih ${r.selisih > 0 ? "+" : ""}${r.selisih}</span>` : ""}</summary>
+        <div style="font-size:11.5px;margin:6px 0;padding:6px 8px;background:var(--s2);border-radius:6px">
+          Jumlah dari catatan: <b>${r.total}</b> pcs · Angka di sistem: <b>${sek}</b> pcs
+          ${r.selisih > 0 ? `<div style="color:var(--r);margin-top:3px">⚠ ${r.selisih} pcs <b>tidak ada catatannya</b> — kemungkinan data lama sebelum pencatatan, impor/restore, atau stok tidak berkurang saat setoran. Kalau fisiknya memang tidak ada, Admin koreksi di Stok → Koreksi Stok.</div>` : ""}
+          ${r.selisih < 0 ? `<div style="color:#b45309;margin-top:3px">Angka di sistem ${-r.selisih} pcs lebih kecil dari catatan (stok dibatasi tidak boleh minus, atau ada pengurangan tanpa catatan).</div>` : ""}
+          ${sek > 0 ? `<div style="margin-top:4px"><b>Sisa ${sek} pcs berasal dari:</b><br>• ${[...(r.selisih > 0 ? [`<span style="color:var(--r)">${r.selisih} pcs tanpa catatan</span>`] : []), ...asal].join("<br>• ")}</div>` : ""}
+        </div>
+        ${en.length ? en.map(baris).join("") : '<div class="empty" style="padding:6px;font-size:11px">Tidak ada catatan transaksi untuk ukuran ini.</div>'}
+      </details>`;
+    }).join("") : '<div class="empty" style="padding:14px">Tidak ada data.</div>';
+  } catch (e) { isi.innerHTML = `<div class="empty" style="padding:14px">Gagal memuat rincian: ${escH(e.message || e)}</div>`; }
+}
+function tutupAsal() { document.getElementById("asal-mo").style.display = "none"; }
+// Catat setiap penghapusan (siapa, kapan, isi lengkap) ke hapus_log — supaya angka stok tetap bisa ditelusuri
+async function catatHapus(col, docId) {
+  try {
+    const snap = await db.collection(col).doc(docId).get(); if (!snap.exists) return;
+    await fsAdd("hapus_log", { col, docId, data: snap.data(), olehNama: unama || uname || "", tanggal: hariIniISO() });
+  } catch (e) { console.warn("catatHapus:", e); }
 }
 
 // ── ORDER DARI CUSTOM ORDER (divisi Konveksi) ────────────────────────────────
@@ -3340,6 +3498,7 @@ function mkDelBtn(col, docId, cbName) {
 }
 async function delRecord(col, docId, btn, cb) {
   if(!await confirm2("Hapus data ini?")) return;
+  await catatHapus(col, docId);
   await fsDel(col, docId);
   btn.closest(".card")?.remove() || btn.closest("tr")?.remove();
   toast("Data dihapus.");
@@ -3491,6 +3650,7 @@ async function loadRiwayat() {
 
 async function delTx(docId, btn) {
   if(!await confirm2("Hapus transaksi ini?")) return;
+  await catatHapus("transaksi", docId);
   await fsDel("transaksi", docId);
   btn.closest(".card")?.remove();
   toast("Transaksi dihapus.");
@@ -3699,6 +3859,7 @@ function bayarSekarang() {
 // ── EDIT RINGAN & HAPUS TRANSAKSI (dari Ringkasan Detail) ─────────────────────
 async function delTxFromRing(id, name) {
   if(!await confirm2("Hapus transaksi ini?")) return;
+  await catatHapus("transaksi", id);
   await fsDel("transaksi", id);
   toast("Transaksi dihapus.");
   await loadRingkasan();
@@ -4287,7 +4448,7 @@ async function doExport(fmt) {
 // ── BACKUP ────────────────────────────────────────────────────────────────────
 async function downloadBackup() {
   toast("Mengumpulkan data...");
-  const cols = ["transaksi","kasbon","pembayaran","qc","keluar","alih_tugas","kain_masuk","kain_ambil"];
+  const cols = ["transaksi","kasbon","pembayaran","qc","keluar","alih_tugas","kain_masuk","kain_ambil","koreksi_stok","hapus_log"];
   const backup = { exportDate: new Date().toISOString(), collections:{} };
   for(const col of cols) backup.collections[col] = await fsAll(col);
   const cfg = {};
