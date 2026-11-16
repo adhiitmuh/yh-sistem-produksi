@@ -1270,7 +1270,9 @@ async function fsAll(col) {
 // ── Upah Ambil Jahitan vs Setor Jahitan ──
 // Dulu pekerjaan penjahit dicatat lewat Ambil Jahitan saja (upah dibayar dari situ). Sejak alur bersambung,
 // barang yang sama bisa dicatat lagi di Setor Jahitan → upah dobel. Aturan: upah Ambil tetap dihitung, KECUALI
-// pcs yang sudah dicatat di Setor Jahitan oleh penjahit yang sama untuk item & ukuran yang sama (dicocokkan FIFO).
+// pcs yang sudah dicatat di Setor Jahitan oleh penjahit yang sama untuk item & ukuran yang sama. Setoran dicocokkan dengan
+// Ambil TERBARU sebelum tanggal setor (maks. 60 hari sebelumnya, s/d 3 hari sesudahnya), order yang sama didahulukan —
+// supaya setoran baru tidak memakan catatan Ambil lama (pekerjaan lain yang sudah dibayar).
 // Hasil: d._upah (upah dipakai), d._upahDobel (bagian Ambil yang sudah tercakup Setor).
 function tandaiUpahAmbil(docs) {
   const norm = t => String(t || "").trim().toUpperCase().replace(/\s+/g, " ");
@@ -1281,13 +1283,17 @@ function tandaiUpahAmbil(docs) {
   const urut = (a, b) => (a.tanggal || "").localeCompare(b.tanggal || "") || ((a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
   docs.filter(d => d.type === "ambil").sort(urut).forEach(d => {
     const total = +d.totalUpah || +d.perkiraanUpah || 0, it = pecah(d), pcsTot = it.reduce((t, x) => t + x.pcs, 0);
-    d._upahAsli = total; d._upahDobel = 0;
+    d._upahAsli = total; d._upahDobel = 0; d._pasangan = [];
     it.forEach(x => { const rate = x.upah || (pcsTot ? total / pcsTot : 0); const k = norm(d.orang) + "|" + norm(x.nama) + "|" + norm(x.uk);
       (antre[k] = antre[k] || []).push({ d, sisa: x.pcs, rate }); });
   });
+  const geser = (t, n) => { const x = new Date((t || "2000-01-01") + "T00:00:00"); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
   docs.filter(d => d.type === "jahit").sort(urut).forEach(s => pecah(s).forEach(x => {
-    let butuh = x.pcs; const q = antre[norm(s.orang) + "|" + norm(x.nama) + "|" + norm(x.uk)] || [];
-    for (const a of q) { if (butuh <= 0) break; const ambil = Math.min(a.sisa, butuh); if (!ambil) continue; a.sisa -= ambil; butuh -= ambil; a.d._upahDobel += ambil * a.rate; }
+    let butuh = x.pcs; const dari = geser(s.tanggal, -60), sampai = geser(s.tanggal, 3);
+    const q = (antre[norm(s.orang) + "|" + norm(x.nama) + "|" + norm(x.uk)] || [])
+      .filter(a => a.sisa > 0 && (a.d.tanggal || "") >= dari && (a.d.tanggal || "") <= sampai)
+      .sort((a, b) => ((s.orderId && b.d.orderId === s.orderId) - (s.orderId && a.d.orderId === s.orderId)) || (b.d.tanggal || "").localeCompare(a.d.tanggal || ""));
+    for (const a of q) { if (butuh <= 0) break; const ambil = Math.min(a.sisa, butuh); a.sisa -= ambil; butuh -= ambil; a.d._upahDobel += ambil * a.rate; a.d._pasangan.push({ tgl: s.tanggal, pcs: ambil, nama: x.nama, uk: x.uk }); }
   }));
   docs.forEach(d => { d._upah = d.type === "ambil" ? Math.max(0, Math.round((d._upahAsli || 0) - (d._upahDobel || 0))) : (+d.totalUpah || 0); });
   return docs;
@@ -4694,7 +4700,7 @@ async function cekUpahDobel() {
         <br>Sudah dibayar: <b>${fmtRp(p.bayar)}</b>${p.pending ? ` · menunggu verifikasi ${fmtRp(p.pending)}` : ""} · Kasbon aktif: <b>${fmtRp(p.kasbon)}</b>
         <br>Saldo (upah − kasbon − dibayar): <b style="color:${saldo < 0 ? "var(--r)" : "var(--g)"}">${fmtRp(Math.round(saldo))}</b></div>
         <details><summary style="cursor:pointer;font-size:12px;color:var(--t2)">${p.list.length} catatan Ambil yang barangnya juga ada di Setor Jahitan</summary>
-          <div style="font-size:11px;color:var(--t2);margin-top:6px">${p.list.sort((a, b) => (a.tanggal || "").localeCompare(b.tanggal || "")).map(d => `${fmtTgl(d.tanggal)} ${d.order ? "[" + d.order + "] " : ""}${(d.items || []).map(i => i.nama + " " + pcsItem(i) + " pcs").join(", ")} — upah ${fmtRp(d._upahAsli)}, dobel <b style="color:var(--r)">${fmtRp(Math.round(d._upahDobel))}</b>`).join("<br>")}</div></details></div>`; }).join("");
+          <div style="font-size:11px;color:var(--t2);margin-top:6px">${p.list.sort((a, b) => (a.tanggal || "").localeCompare(b.tanggal || "")).map(d => `${fmtTgl(d.tanggal)} ${d.order ? "[" + d.order + "] " : ""}${(d.items || []).map(i => i.nama + " " + pcsItem(i) + " pcs").join(", ")} — upah ${fmtRp(d._upahAsli)}, dobel <b style="color:var(--r)">${fmtRp(Math.round(d._upahDobel))}</b><br><span style="padding-left:14px">↳ sama dengan Setor Jahitan ${(d._pasangan || []).map(x => `${fmtTgl(x.tgl)}: ${x.nama}${x.uk ? " " + x.uk : ""} ${x.pcs} pcs`).join("; ")}</span>`).join("<br>")}</div></details></div>`; }).join("");
 }
 </script>
 </body>
