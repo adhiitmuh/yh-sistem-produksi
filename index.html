@@ -764,6 +764,8 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
     <div style="font-size:12px;color:var(--t2);margin-bottom:8px">Barang yang dicatat dua kali — di <b>Ambil Jahitan</b> dan lagi di <b>Setor Jahitan</b> (penjahit, item & ukuran sama) — upahnya hanya dihitung sekali. Pekerjaan yang hanya dicatat di Ambil Jahitan tetap dihitung. Cek di sini sebelum membayar.</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;margin-bottom:8px">Upah penjahit hanya dari <b>Setor Jahitan</b> mulai <input type="date" id="upah-batas" style="width:auto;padding:5px 8px"> <button class="btsm" onclick="simpanBatasUpah()">Simpan</button> <span style="color:var(--t2)">— Ambil sebelum tanggal ini tetap berupah (cara pencatatan lama).</span></div>
     <button class="btsm" onclick="cekUpahDobel()">🔍 Cek sekarang</button>
+    <button class="btsm" id="btn-nol-lama" style="display:none;background:var(--gold,#eab308);color:#0a0a0a" onclick="nolkanStokLama()">🧹 Nolkan stok jahitan lama</button>
+    <div id="nol-lama-hasil" style="margin-top:10px"></div>
     <div id="cek-dobel-hasil" style="margin-top:10px"></div>
   </div>
 </div>
@@ -1286,9 +1288,9 @@ function tandaiUpahAmbil(docs) {
   docs.filter(d => d.type === "ambil").sort(urut).forEach(d => {
     const baru = (d.tanggal || "") >= upahSetorMulai();
     const total = baru ? 0 : (+d.totalUpah || +d.perkiraanUpah || 0), it = pecah(d), pcsTot = it.reduce((t, x) => t + x.pcs, 0);
-    d._ambilBaru = baru; d._upahAsli = total; d._upahDobel = 0; d._pasangan = [];
+    d._ambilBaru = baru; d._upahAsli = total; d._antre = []; d._upahDobel = 0; d._pasangan = [];
     it.forEach(x => { const rate = baru ? 0 : (x.upah || (pcsTot ? total / pcsTot : 0)); const k = norm(d.orang) + "|" + norm(x.nama) + "|" + norm(x.uk);
-      (antre[k] = antre[k] || []).push({ d, sisa: x.pcs, rate }); });
+      const e = { d, sisa: x.pcs, rate, nama: x.nama, uk: x.uk }; (antre[k] = antre[k] || []).push(e); d._antre.push(e); });
   });
   const geser = (t, n) => { const x = new Date((t || "2000-01-01") + "T00:00:00"); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
   docs.filter(d => d.type === "jahit").sort(urut).forEach(s => pecah(s).forEach(x => {
@@ -1298,6 +1300,7 @@ function tandaiUpahAmbil(docs) {
       .sort((a, b) => ((s.orderId && b.d.orderId === s.orderId) - (s.orderId && a.d.orderId === s.orderId)) || (b.d.tanggal || "").localeCompare(a.d.tanggal || ""));
     for (const a of q) { if (butuh <= 0) break; const ambil = Math.min(a.sisa, butuh); a.sisa -= ambil; butuh -= ambil; a.d._upahDobel += ambil * a.rate; if (a.rate) a.d._pasangan.push({ tgl: s.tanggal, pcs: ambil, nama: x.nama, uk: x.uk }); }
   }));
+  docs.forEach(d => { if (d._antre) { d._sisaItems = d._antre.map(e => ({ nama: e.nama, uk: e.uk, sisa: e.sisa })); delete d._antre; } });
   docs.forEach(d => { d._upah = d.type === "ambil" ? Math.max(0, Math.round((d._upahAsli || 0) - (d._upahDobel || 0))) : (+d.totalUpah || 0); });
   return docs;
 }
@@ -1673,7 +1676,7 @@ function go(name) {
   if (name==="qc")         loadQCHist();
   if (name==="stok")       { switchStokTab("gunting"); ksAturTampilan(); loadKoreksiLog(); loadKoreksiUsulan(); }
   if (name==="keluar")     loadKeluarHist();
-  if (name==="ringkasan")  { loadRingkasan(); const ub = document.getElementById("upah-batas"); if (ub) ub.value = upahSetorMulai(); }
+  if (name==="ringkasan")  { loadRingkasan(); const ub = document.getElementById("upah-batas"); if (ub) ub.value = upahSetorMulai(); const bn = document.getElementById("btn-nol-lama"); if (bn) bn.style.display = isOwner ? "" : "none"; }
   if (name==="setting")    { renderItemTable(); renderKainTags(); renderGudangTags(); isiPilihanGudang(); loadUpahKosong(); }
   if (name==="modal")      loadModalDashboard();
   if (name==="kain-masuk") { loadKainList(); loadKainMasukHist(); loadStokKain(); loadKainUsulan(); loadOpname(); const l = document.getElementById("km-lama-link"); if (l) l.style.display = role === "admin" ? "" : "none"; kmTampilPilihan() }
@@ -4680,6 +4683,39 @@ window.addEventListener("DOMContentLoaded", () => {
 </script>
 <script>
 // ── Cek upah dobel: barang yang dicatat di Ambil Jahitan DAN Setor Jahitan ──
+// ── Nolkan stok "dipegang penjahit" yang berasal dari Ambil Jahitan sebelum tanggal batas & belum pernah disetor ──
+// (cara pencatatan lama: pekerjaan dicatat di Ambil saja → barangnya tidak pernah "keluar" dari pegangan penjahit)
+let _nolRencana = null;
+async function nolkanStokLama() {
+  if (!isOwner) return toast("Khusus Owner", "w");
+  const box = document.getElementById("nol-lama-hasil"); box.innerHTML = '<div class="empty" style="padding:8px">Menghitung…</div>';
+  const [tx, sj] = await Promise.all([fsAll("transaksi"), fsGet("config", "stok_jahitan")]);
+  const norm = t => String(t || "").trim().toUpperCase().replace(/\s+/g, " "), batas = upahSetorMulai();
+  const lama = {};   // penjahit → kunci ternormalisasi → pcs lama yang belum disetor
+  tx.filter(d => d.type === "ambil" && (d.tanggal || "") < batas).forEach(d => (d._sisaItems || []).forEach(x => { if (x.sisa > 0) { const m = lama[norm(d.orang)] = lama[norm(d.orang)] || {}; const k = norm(x.nama) + "||" + norm(x.uk); m[k] = (m[k] || 0) + x.sisa; } }));
+  const rencana = [];
+  Object.entries(sj || {}).forEach(([pj, peta]) => Object.entries(peta || {}).forEach(([kunci, q]) => {
+    const [n, u] = kunci.split("||"), l = lama[norm(pj)]?.[norm(n) + "||" + norm(u)] || 0, kini = +q || 0;
+    const kurang = Math.min(kini, l); if (kurang > 0) rencana.push({ pj, kunci, dari: kini, ke: kini - kurang, kurang });
+  }));
+  _nolRencana = rencana;
+  if (!rencana.length) { box.innerHTML = '<div style="color:var(--g);font-weight:700;font-size:13px">✓ Tidak ada stok jahitan lama (sebelum ' + fmtTgl(batas) + ') yang masih tercatat dipegang penjahit.</div>'; return; }
+  const per = {}; rencana.forEach(r => (per[r.pj] = per[r.pj] || []).push(r));
+  box.innerHTML = `<div style="font-size:13px;margin-bottom:6px">Barang dari <b>Ambil Jahitan sebelum ${fmtTgl(batas)}</b> yang belum pernah disetor tapi masih tercatat <b>dipegang penjahit</b>: <b>${rencana.reduce((t, r) => t + r.kurang, 0)} pcs</b> di ${Object.keys(per).length} penjahit. Ambil sesudah tanggal batas <b>tidak</b> diubah.</div>`
+    + Object.entries(per).map(([pj, l]) => `<div style="border:1px solid var(--b);border-radius:10px;padding:8px 12px;margin-bottom:6px;font-size:12px"><b>🪡 ${escH(pj)}</b> — ${l.reduce((t, r) => t + r.kurang, 0)} pcs<div style="color:var(--t2);margin-top:3px">${l.map(r => `${escH(r.kunci.replace("||", " "))}: ${r.dari} → <b>${r.ke}</b>`).join(" · ")}</div></div>`).join("")
+    + `<button class="btsm" style="background:var(--r,#dc2626);color:#fff" onclick="terapkanNolLama()">✓ Nolkan ${rencana.length} baris stok ini</button>
+       <div style="font-size:11px;color:var(--t2);margin-top:4px">Upah tidak berubah. Setiap perubahan tercatat di riwayat Koreksi Stok (bisa dikoreksi lagi bila perlu).</div>`;
+}
+async function terapkanNolLama() {
+  if (!isOwner || !_nolRencana?.length) return;
+  if (!await confirm2(`Nolkan ${_nolRencana.reduce((t, r) => t + r.kurang, 0)} pcs stok jahitan lama di ${new Set(_nolRencana.map(r => r.pj)).size} penjahit?`)) return;
+  const data = (await fsGet("config", "stok_jahitan")) || {}, alasan = `Stok lama: Ambil Jahitan sebelum ${fmtTgl(upahSetorMulai())} tidak pernah dicatat disetor (pencatatan lama) — dinolkan`;
+  const log = [];
+  _nolRencana.forEach(r => { const peta = data[r.pj] = data[r.pj] || {}; const dari = +(peta[r.kunci] || 0), ke = Math.max(0, dari - r.kurang); peta[r.kunci] = ke; log.push({ pj: r.pj, kunci: r.kunci, dari, ke }); });
+  await fsSet("config", "stok_jahitan", data);
+  for (const l of log) await fsAdd("koreksi_stok", { jenis: "jahitan", pemegang: l.pj, kunci: l.kunci, dari: l.dari, ke: l.ke, alasan, fotos: [], oleh: unama || uname || "admin", tanggal: hariIniISO() });
+  toast(`✅ ${log.length} baris stok jahitan lama dinolkan`); _nolRencana = null; nolkanStokLama();
+}
 async function simpanBatasUpah() {
   if (role !== "admin") return; const v = document.getElementById("upah-batas").value; if (!v) return toast("Pilih tanggal");
   if (!await confirm2(`Mulai ${fmtTgl(v)}, Ambil Jahitan tidak lagi berupah — upah penjahit hanya dari Setor Jahitan. Simpan?`)) return;
@@ -4688,7 +4724,7 @@ async function simpanBatasUpah() {
 const pcsItem = i => Number(i.pcs || i.qty || i.jumlah) || (i.ukuran && typeof i.ukuran === "object" ? Object.values(i.ukuran).reduce((a, b) => a + (Number(b) || 0), 0) : 0);
 async function cekUpahDobel() {
   if (role !== "admin") return;
-  const box = document.getElementById("cek-dobel-hasil"); box.innerHTML = '<div class="empty" style="padding:8px">Memeriksa…</div>'; document.getElementById("upah-batas").value = upahSetorMulai();
+  const box = document.getElementById("cek-dobel-hasil"); box.innerHTML = '<div class="empty" style="padding:8px">Memeriksa…</div>'; document.getElementById("upah-batas").value = upahSetorMulai(); document.getElementById("btn-nol-lama").style.display = isOwner ? "" : "none";
   const [tx, by, kb] = await Promise.all([fsAll("transaksi"), fsAll("pembayaran"), fsAll("kasbon")]);
   const org = {};
   const o = n => org[n] = org[n] || { nama: n, lama: 0, benar: 0, dobel: 0, bayar: 0, pending: 0, kasbon: 0, list: [] };
