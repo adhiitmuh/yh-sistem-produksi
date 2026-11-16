@@ -761,7 +761,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
   <div class="rgrid" id="ring-content"></div>
   <div class="card hanya-admin" id="cek-dobel-card" style="display:none;margin-top:14px">
     <div class="ct">🔍 Cek upah dobel dari Ambil Jahitan</div>
-    <div style="font-size:12px;color:var(--t2);margin-bottom:8px">Dulu catatan <b>Ambil Jahitan</b> ikut menyimpan upah sehingga upah penjahit terhitung dua kali (ambil + setor). Sekarang upah hanya dari <b>Setor Jahitan</b>. Cek di sini sebelum membayar.</div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:8px">Barang yang dicatat dua kali — di <b>Ambil Jahitan</b> dan lagi di <b>Setor Jahitan</b> (penjahit, item & ukuran sama) — upahnya hanya dihitung sekali. Pekerjaan yang hanya dicatat di Ambil Jahitan tetap dihitung. Cek di sini sebelum membayar.</div>
     <button class="btsm" onclick="cekUpahDobel()">🔍 Cek sekarang</button>
     <div id="cek-dobel-hasil" style="margin-top:10px"></div>
   </div>
@@ -1263,7 +1263,34 @@ async function fsQuery(col, ...wheres) {
 }
 async function fsAll(col) {
   const snap = await db.collection(col).get();
-  return snap.docs.map(d => ({_id: d.id, ...d.data()}));
+  const docs = snap.docs.map(d => ({_id: d.id, ...d.data()}));
+  if (col === "transaksi") tandaiUpahAmbil(docs);
+  return docs;
+}
+// ── Upah Ambil Jahitan vs Setor Jahitan ──
+// Dulu pekerjaan penjahit dicatat lewat Ambil Jahitan saja (upah dibayar dari situ). Sejak alur bersambung,
+// barang yang sama bisa dicatat lagi di Setor Jahitan → upah dobel. Aturan: upah Ambil tetap dihitung, KECUALI
+// pcs yang sudah dicatat di Setor Jahitan oleh penjahit yang sama untuk item & ukuran yang sama (dicocokkan FIFO).
+// Hasil: d._upah (upah dipakai), d._upahDobel (bagian Ambil yang sudah tercakup Setor).
+function tandaiUpahAmbil(docs) {
+  const norm = t => String(t || "").trim().toUpperCase().replace(/\s+/g, " ");
+  const pecah = d => (d.items || []).flatMap(i => i.ukuran && typeof i.ukuran === "object"
+    ? Object.entries(i.ukuran).map(([u, n]) => ({ nama: i.nama, uk: u, pcs: +n || 0, upah: +i.upah || 0 }))
+    : [{ nama: i.nama, uk: i.ukuran || "", pcs: +(i.pcs || i.qty || i.jumlah) || 0, upah: +i.upah || 0 }]);
+  const antre = {};
+  const urut = (a, b) => (a.tanggal || "").localeCompare(b.tanggal || "") || ((a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+  docs.filter(d => d.type === "ambil").sort(urut).forEach(d => {
+    const total = +d.totalUpah || +d.perkiraanUpah || 0, it = pecah(d), pcsTot = it.reduce((t, x) => t + x.pcs, 0);
+    d._upahAsli = total; d._upahDobel = 0;
+    it.forEach(x => { const rate = x.upah || (pcsTot ? total / pcsTot : 0); const k = norm(d.orang) + "|" + norm(x.nama) + "|" + norm(x.uk);
+      (antre[k] = antre[k] || []).push({ d, sisa: x.pcs, rate }); });
+  });
+  docs.filter(d => d.type === "jahit").sort(urut).forEach(s => pecah(s).forEach(x => {
+    let butuh = x.pcs; const q = antre[norm(s.orang) + "|" + norm(x.nama) + "|" + norm(x.uk)] || [];
+    for (const a of q) { if (butuh <= 0) break; const ambil = Math.min(a.sisa, butuh); if (!ambil) continue; a.sisa -= ambil; butuh -= ambil; a.d._upahDobel += ambil * a.rate; }
+  }));
+  docs.forEach(d => { d._upah = d.type === "ambil" ? Math.max(0, Math.round((d._upahAsli || 0) - (d._upahDobel || 0))) : (+d.totalUpah || 0); });
+  return docs;
 }
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
@@ -2314,7 +2341,7 @@ async function hitungBiayaOrder(orderId, ka, tr) {
   tr.filter(d => d.type === "gunting").forEach(d => Object.entries(d.sisaPerKain || {}).forEach(([k,m]) => { meter[k] = (meter[k]||0) - (+m||0); }));
   let kain = 0; const tanpaHarga = [];
   Object.entries(meter).forEach(([k,m]) => { if (m <= 0) return; const h = harga(k); if (h) kain += m * h; else tanpaHarga.push(k); });
-  const upah = t => tr.filter(d => d.type === t).reduce((s,d) => s + (+d.totalUpah||0), 0);
+  const upah = t => tr.filter(d => d.type === t || (t === "jahit" && d.type === "ambil")).reduce((s,d) => s + upahTx(d), 0);   // Ambil (catatan lama) dikurangi bagian dobel
   const bahan = await hitungBiayaBahan(orderId, tr);
   return { kain: Math.round(kain), upahGunting: Math.round(upah("gunting")), upahJahit: Math.round(upah("jahit")), kainTanpaHarga: tanpaHarga, bahanAktual: bahan.aktual, bahanStandar: bahan.standar };
 }
@@ -3302,7 +3329,7 @@ async function submitAmbil() {
   if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
   try {
     const fotos = await uploadFotos(fF.a);
-    await fsAdd("transaksi",{type:"ambil",tanggal:tgl,orang:pj,order:namaOrder(document.getElementById("a-ord").value),orderId:idOrder(document.getElementById("a-ord").value),deadline:document.getElementById("a-ddl").value,items:it,totalPcs:tp,totalUpah:0,perkiraanUpah:tu,...(cekA.catatan?{lebihStok:cekA.catatan}:{}),keterangan:document.getElementById("a-ket").value,fotos});
+    await fsAdd("transaksi",{type:"ambil",tanggal:tgl,orang:pj,order:namaOrder(document.getElementById("a-ord").value),orderId:idOrder(document.getElementById("a-ord").value),deadline:document.getElementById("a-ddl").value,items:it,totalPcs:tp,totalUpah:tu,...(cekA.catatan?{lebihStok:cekA.catatan}:{}),keterangan:document.getElementById("a-ket").value,fotos});
     // Kurangi stok guntingan (FIFO), tambah stok jahitan
     const sg=(await fsGet("config","stok_guntingan"))||{};
     const sj=(await fsGet("config","stok_jahitan"))||{};
@@ -3733,7 +3760,7 @@ async function loadRiwayat() {
     return `<div class="card">
       <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> ${typeLbl} — <b>${who}</b>${d.order?" ["+d.order+"]":""}</div>
       <div>${itemsBadge(d.items)}</div>
-      ${d.type==="ambil"?(perkiraanAmbil(d)?`<div class="ket">Perkiraan upah ${fmtRp(perkiraanAmbil(d))} — dibayar saat Setor Jahitan</div>`:""):d.totalUpah!=null?`<div class="ket">Upah: ${fmtRp(d.totalUpah)}</div>`:""}
+      ${d.type==="ambil"?(perkiraanAmbil(d)?`<div class="ket">Upah: ${fmtRp(upahTx(d))}${d._upahDobel>0?` <span style="color:var(--r)">(${fmtRp(perkiraanAmbil(d))} − ${fmtRp(Math.round(d._upahDobel))} sudah dicatat di Setor Jahitan)</span>`:""}</div>`:""):d.totalUpah!=null?`<div class="ket">Upah: ${fmtRp(d.totalUpah)}</div>`:""}
       ${fotoThumb(d.fotos)}
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
       ${actions}
@@ -3823,9 +3850,8 @@ async function loadRingkasan() {
   ringData = map;
   renderRingkasan();
 }
-// Upah hanya dihitung dari Setor Jahitan & Setor Guntingan. Ambil Jahitan = penjahit mengambil bahan → BUKAN upah
-// (dulu Ambil ikut menyimpan totalUpah sehingga upah penjahit terhitung dobel).
-function upahTx(d) { return d && d.type === "ambil" ? 0 : (+d?.totalUpah || 0); }
+// Upah dipakai per transaksi — Ambil Jahitan dikurangi bagian yang sudah dicatat di Setor Jahitan (lihat tandaiUpahAmbil).
+function upahTx(d) { if (!d) return 0; if (d._upah != null) return d._upah; return d.type === "ambil" ? (+d.totalUpah || +d.perkiraanUpah || 0) : (+d.totalUpah || 0); }
 const perkiraanAmbil = d => d && d.type === "ambil" ? (+d.perkiraanUpah || +d.totalUpah || 0) : 0;
 function statusBayarTx(d) {
   const upah = upahTx(d);
@@ -3893,7 +3919,7 @@ function showRingDetail(name) {
       </div>
       ${statusBayarTx(d) ? `<div style="margin-bottom:6px">${statusBayarTx(d)}</div>` : ""}
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px">${items}</div>
-      ${d.type==="ambil"?(perkiraanAmbil(d)?`<div style="color:var(--t2);font-size:11px">Perkiraan upah ${fmtRp(perkiraanAmbil(d))} · dibayar saat Setor Jahitan (tidak dihitung di sini)</div>`:""):d.totalUpah?`<div style="color:var(--g);font-weight:700">Upah: ${fmtRp(d.totalUpah)}</div>`:""}
+      ${d.type==="ambil"?(perkiraanAmbil(d)?`<div style="color:var(--g);font-weight:700">Upah: ${fmtRp(upahTx(d))}</div>${d._upahDobel>0?`<div style="color:var(--r);font-size:11px">${fmtRp(Math.round(d._upahDobel))} tidak dihitung — barang yang sama sudah dicatat di Setor Jahitan</div>`:""}`:""):d.totalUpah?`<div style="color:var(--g);font-weight:700">Upah: ${fmtRp(d.totalUpah)}</div>`:""}
       ${d.keterangan?`<div class="ket">${d.keterangan}</div>`:""}
       ${actions}
     </div>`;
@@ -4644,45 +4670,31 @@ window.addEventListener("DOMContentLoaded", () => {
 });
 </script>
 <script>
-// ── Cek upah dobel: catatan Ambil Jahitan lama yang menyimpan upah ──
+// ── Cek upah dobel: barang yang dicatat di Ambil Jahitan DAN Setor Jahitan ──
 const pcsItem = i => Number(i.pcs || i.qty || i.jumlah) || (i.ukuran && typeof i.ukuran === "object" ? Object.values(i.ukuran).reduce((a, b) => a + (Number(b) || 0), 0) : 0);
 async function cekUpahDobel() {
   if (role !== "admin") return;
   const box = document.getElementById("cek-dobel-hasil"); box.innerHTML = '<div class="empty" style="padding:8px">Memeriksa…</div>';
   const [tx, by, kb] = await Promise.all([fsAll("transaksi"), fsAll("pembayaran"), fsAll("kasbon")]);
   const org = {};
-  const o = n => org[n] = org[n] || { nama: n, dobel: 0, benar: 0, bayar: 0, pending: 0, kasbon: 0, ambil: [], item: {} };
-  tx.forEach(d => { const n = d.orang; if (!n) return;
-    if (d.type === "ambil" && (+d.totalUpah || 0) > 0) { o(n).dobel += +d.totalUpah; o(n).ambil.push(d); }
-    if (d.type === "jahit") o(n).benar += +d.totalUpah || 0;
-    if (d.type === "ambil" || d.type === "jahit") (d.items || []).forEach(i => { const k = i.nama || "?"; const x = o(n).item[k] = o(n).item[k] || { ambil: 0, setor: 0 }; x[d.type === "ambil" ? "ambil" : "setor"] += pcsItem(i); }); });
+  const o = n => org[n] = org[n] || { nama: n, lama: 0, benar: 0, dobel: 0, bayar: 0, pending: 0, kasbon: 0, list: [] };
+  tx.forEach(d => { const n = d.orang; if (!n || !["ambil", "jahit"].includes(d.type)) return;
+    o(n).lama += d.type === "ambil" ? (d._upahAsli || 0) : (+d.totalUpah || 0); o(n).benar += upahTx(d);
+    if (d._upahDobel > 0) { o(n).dobel += d._upahDobel; o(n).list.push(d); } });
   by.forEach(d => { if (!d.penjahit || !org[d.penjahit]) return; const j = (d.jumlah || 0) + (d.potong_kasbon || 0); if (d.status === "pending") org[d.penjahit].pending += j; else { org[d.penjahit].bayar += j; org[d.penjahit].kasbon -= d.potong_kasbon || 0; } });
   kb.forEach(d => { if (d.penjahit && org[d.penjahit]) org[d.penjahit].kasbon += d.jumlah || 0; });
   const list = Object.values(org).filter(p => p.dobel > 0).sort((a, b) => b.dobel - a.dobel);
-  const totDobel = list.reduce((t, p) => t + p.dobel, 0);
-  if (!list.length) { box.innerHTML = '<div style="color:var(--g);font-weight:700;font-size:13px">✓ Tidak ada catatan Ambil Jahitan yang menyimpan upah — tidak ada yang dobel.</div>'; return; }
-  box.innerHTML = `<div style="font-size:13px;margin-bottom:8px"><b>${list.length} penjahit</b> · total upah yang dulu terhitung dobel <b style="color:var(--r)">${fmtRp(totDobel)}</b> (${list.reduce((t, p) => t + p.ambil.length, 0)} catatan Ambil). Angka ini <b>sudah tidak dihitung</b> di Ringkasan.</div>`
-    + list.map(p => {
-      const lebih = p.bayar - p.benar, saldo = p.benar - p.kasbon - p.bayar;
-      const items = Object.entries(p.item).filter(([, x]) => x.ambil > 0).map(([n, x]) => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0;border-top:1px solid var(--b)"><span>${n}</span><span style="white-space:nowrap">ambil ${x.ambil} · setor ${x.setor} ${x.setor >= x.ambil ? '<b style="color:var(--g)">✓ sudah disetor</b>' : x.setor > 0 ? `<b style="color:var(--a)">sisa ${x.ambil - x.setor} pcs dipegang</b>` : '<b style="color:var(--a)">belum disetor</b>'}</span></div>`).join("");
+  const tot = list.reduce((t, p) => t + p.dobel, 0);
+  if (!list.length) { box.innerHTML = '<div style="color:var(--g);font-weight:700;font-size:13px">✓ Tidak ada barang yang dicatat dua kali (Ambil + Setor) — tidak ada upah dobel.</div>'; return; }
+  box.innerHTML = `<div style="font-size:13px;margin-bottom:8px"><b>${list.length} penjahit</b> punya barang yang dicatat dua kali (Ambil Jahitan + Setor Jahitan). Upah dobel yang <b>sudah tidak dihitung</b>: <b style="color:var(--r)">${fmtRp(Math.round(tot))}</b>. Catatan Ambil lain (pekerjaan yang hanya dicatat di Ambil) tetap dihitung seperti biasa.</div>`
+    + list.map(p => { const saldo = p.benar - p.kasbon - p.bayar;
       return `<div style="border:1px solid var(--b);border-radius:10px;padding:10px 12px;margin-bottom:8px">
         <div style="font-weight:800;font-size:14px">🪡 ${p.nama}</div>
-        <div style="font-size:12px;margin:4px 0;line-height:1.7">Upah versi lama (dobel): <s>${fmtRp(p.benar + p.dobel)}</s><br>Upah yang benar (Setor Jahitan): <b style="color:var(--g)">${fmtRp(p.benar)}</b><br>Sudah dibayar (terverifikasi): <b>${fmtRp(p.bayar)}</b>${p.pending ? ` · menunggu verifikasi ${fmtRp(p.pending)}` : ""}
-        <br>Kasbon aktif: <b>${fmtRp(p.kasbon)}</b>
-        <br>Saldo (upah − kasbon − dibayar): <b style="color:${saldo < 0 ? "var(--r)" : "var(--g)"}">${fmtRp(saldo)}</b>${saldo < 0 ? ` <span style="color:var(--r)">— minus karena ${p.bayar > p.benar ? "pembayaran" : "kasbon"} lebih besar dari upah setoran</span>` : ""}
-        ${lebih > 0 ? `<br><b style="color:var(--r)">⚠ Tercatat dibayar ${fmtRp(lebih)} lebih dari upah yang benar</b>` : ""}</div>
-        <details><summary style="cursor:pointer;font-size:12px;color:var(--t2)">${p.ambil.length} catatan Ambil (dulu ikut dihitung ${fmtRp(p.dobel)}) · per item</summary>${items}
-          <div style="font-size:11px;color:var(--t2);margin-top:6px">${p.ambil.sort((a, b) => (a.tanggal || "").localeCompare(b.tanggal || "")).map(d => `${fmtTgl(d.tanggal)} ${d.order ? "[" + d.order + "] " : ""}${(d.items || []).map(i => i.nama + " " + pcsItem(i) + " pcs").join(", ")} — ${fmtRp(d.totalUpah)}`).join("<br>")}</div></details></div>`;
-    }).join("")
-    + `<button class="btsm" style="background:var(--gold,#eab308);color:#0a0a0a;white-space:normal;max-width:100%;text-align:left;height:auto;line-height:1.3;padding:8px 12px" onclick="rapikanUpahAmbil()">🧹 Rapikan data: ubah upah di ${list.reduce((t, p) => t + p.ambil.length, 0)} catatan Ambil jadi "perkiraan"</button>
-       <div style="font-size:11px;color:var(--t2);margin-top:4px">Opsional — hasil hitung sudah benar tanpa ini. Merapikan supaya data lama tidak membingungkan (upah dipindah ke kolom perkiraan, tidak dihapus).</div>`;
-}
-async function rapikanUpahAmbil() {
-  if (role !== "admin") return;
-  if (!await confirm2("Pindahkan upah di semua catatan Ambil Jahitan lama ke kolom 'perkiraan upah'? Total upah penjahit tidak berubah (sudah dihitung dari Setor Jahitan).")) return;
-  const tx = (await fsAll("transaksi")).filter(d => d.type === "ambil" && (+d.totalUpah || 0) > 0); let n = 0;
-  for (const d of tx) { await db.collection("transaksi").doc(d._id).update({ totalUpah: 0, perkiraanUpah: +d.totalUpah }); n++; }
-  toast(`✅ ${n} catatan Ambil dirapikan`); cekUpahDobel(); if (typeof loadRingkasan === "function") loadRingkasan();
+        <div style="font-size:12px;margin:4px 0;line-height:1.7">Upah kalau dobel: <s>${fmtRp(Math.round(p.lama))}</s> → upah yang benar: <b style="color:var(--g)">${fmtRp(Math.round(p.benar))}</b> (dobel ${fmtRp(Math.round(p.dobel))})
+        <br>Sudah dibayar: <b>${fmtRp(p.bayar)}</b>${p.pending ? ` · menunggu verifikasi ${fmtRp(p.pending)}` : ""} · Kasbon aktif: <b>${fmtRp(p.kasbon)}</b>
+        <br>Saldo (upah − kasbon − dibayar): <b style="color:${saldo < 0 ? "var(--r)" : "var(--g)"}">${fmtRp(Math.round(saldo))}</b></div>
+        <details><summary style="cursor:pointer;font-size:12px;color:var(--t2)">${p.list.length} catatan Ambil yang barangnya juga ada di Setor Jahitan</summary>
+          <div style="font-size:11px;color:var(--t2);margin-top:6px">${p.list.sort((a, b) => (a.tanggal || "").localeCompare(b.tanggal || "")).map(d => `${fmtTgl(d.tanggal)} ${d.order ? "[" + d.order + "] " : ""}${(d.items || []).map(i => i.nama + " " + pcsItem(i) + " pcs").join(", ")} — upah ${fmtRp(d._upahAsli)}, dobel <b style="color:var(--r)">${fmtRp(Math.round(d._upahDobel))}</b>`).join("<br>")}</div></details></div>`; }).join("");
 }
 </script>
 </body>
