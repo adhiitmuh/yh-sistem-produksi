@@ -113,3 +113,9 @@ Push ke `main` → otomatis live di GitHub Pages (biasanya 1-2 menit).
 - Foto bukti (`fF.ks`, `#ks-fg/#ks-fi`) **wajib** untuk usulan, opsional untuk Owner. Setelah kirim usulan otomatis buka WA ke Pak Adi (deep link `#stok?isi=koreksi`).
 - Panel `#ks-usulan` (`loadKoreksiUsulan`): Owner lihat semua yang menunggu + Setujui/Tolak; pengaju lihat usulannya sendiri + tombol "Ingatkan Pak Adi".
 - `setujuiKoreksi` membaca ulang angka sekarang (peringatan bila berubah sejak diajukan), lalu `ksTerapkan` → set `config/stok_*` + `koreksi_stok` dengan `fotos`, `diajukanOleh`, `disetujuiOleh`, `usulanId`. Tolak wajib alasan (dokumen disimpan, tidak dihapus).
+
+## Upah penjahit & operator gunting
+- Upah operator gunting = **Setor Guntingan**; upah penjahit = **Setor Jahitan**. Ambil Jahitan hanya tanda penjahit membawa potongan.
+- Data lama (sebelum `settings.upahSetorMulai`, default 2026-11-11) mencatat pekerjaan di Ambil Jahitan saja dan sudah dibayar dari situ → Ambil sebelum tanggal batas tetap berupah; sesudahnya tidak.
+- `tandaiUpahAmbil(docs)` (dipanggil otomatis di `fsAll("transaksi")`) mengisi `_upah` per transaksi: Ambil lama dikurangi pcs yang dicatat lagi di Setor Jahitan (penjahit+item+ukuran, cocokkan ke Ambil terbaru s/d tanggal setor, order sama didahulukan). Semua total upah memakai `upahTx(d)`.
+- Ringkasan (Admin): kotak "Cek upah dobel" + atur tanggal batas. Pengaman langkah: `cekTersedia` menolak staff bila melebihi stok tahap sebelumnya (hanya Admin bisa memaksa dengan alasan).

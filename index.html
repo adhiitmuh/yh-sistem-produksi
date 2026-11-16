@@ -762,6 +762,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
   <div class="card hanya-admin" id="cek-dobel-card" style="display:none;margin-top:14px">
     <div class="ct">🔍 Cek upah dobel dari Ambil Jahitan</div>
     <div style="font-size:12px;color:var(--t2);margin-bottom:8px">Barang yang dicatat dua kali — di <b>Ambil Jahitan</b> dan lagi di <b>Setor Jahitan</b> (penjahit, item & ukuran sama) — upahnya hanya dihitung sekali. Pekerjaan yang hanya dicatat di Ambil Jahitan tetap dihitung. Cek di sini sebelum membayar.</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;margin-bottom:8px">Upah penjahit hanya dari <b>Setor Jahitan</b> mulai <input type="date" id="upah-batas" style="width:auto;padding:5px 8px"> <button class="btsm" onclick="simpanBatasUpah()">Simpan</button> <span style="color:var(--t2)">— Ambil sebelum tanggal ini tetap berupah (cara pencatatan lama).</span></div>
     <button class="btsm" onclick="cekUpahDobel()">🔍 Cek sekarang</button>
     <div id="cek-dobel-hasil" style="margin-top:10px"></div>
   </div>
@@ -1271,8 +1272,9 @@ async function fsAll(col) {
 // Dulu pekerjaan penjahit dicatat lewat Ambil Jahitan saja (upah dibayar dari situ). Sejak alur bersambung,
 // barang yang sama bisa dicatat lagi di Setor Jahitan → upah dobel. Aturan: upah Ambil tetap dihitung, KECUALI
 // pcs yang sudah dicatat di Setor Jahitan oleh penjahit yang sama untuk item & ukuran yang sama. Setoran dicocokkan dengan
-// Ambil TERBARU sebelum tanggal setor (maks. 60 hari sebelumnya, s/d 3 hari sesudahnya), order yang sama didahulukan —
-// supaya setoran baru tidak memakan catatan Ambil lama (pekerjaan lain yang sudah dibayar).
+// Ambil TERBARU s/d tanggal setor (+3 hari), order yang sama didahulukan; Ambil lama yang masih "dipegang" juga bisa dipakai.
+// Mulai tanggal batas (settings.upahSetorMulai, default 11 Nov 2026) Ambil Jahitan TIDAK berupah — upah penjahit hanya dari Setor.
+const upahSetorMulai = () => settings?.upahSetorMulai || "2026-11-11";
 // Hasil: d._upah (upah dipakai), d._upahDobel (bagian Ambil yang sudah tercakup Setor).
 function tandaiUpahAmbil(docs) {
   const norm = t => String(t || "").trim().toUpperCase().replace(/\s+/g, " ");
@@ -1282,18 +1284,19 @@ function tandaiUpahAmbil(docs) {
   const antre = {};
   const urut = (a, b) => (a.tanggal || "").localeCompare(b.tanggal || "") || ((a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
   docs.filter(d => d.type === "ambil").sort(urut).forEach(d => {
-    const total = +d.totalUpah || +d.perkiraanUpah || 0, it = pecah(d), pcsTot = it.reduce((t, x) => t + x.pcs, 0);
-    d._upahAsli = total; d._upahDobel = 0; d._pasangan = [];
-    it.forEach(x => { const rate = x.upah || (pcsTot ? total / pcsTot : 0); const k = norm(d.orang) + "|" + norm(x.nama) + "|" + norm(x.uk);
+    const baru = (d.tanggal || "") >= upahSetorMulai();
+    const total = baru ? 0 : (+d.totalUpah || +d.perkiraanUpah || 0), it = pecah(d), pcsTot = it.reduce((t, x) => t + x.pcs, 0);
+    d._ambilBaru = baru; d._upahAsli = total; d._upahDobel = 0; d._pasangan = [];
+    it.forEach(x => { const rate = baru ? 0 : (x.upah || (pcsTot ? total / pcsTot : 0)); const k = norm(d.orang) + "|" + norm(x.nama) + "|" + norm(x.uk);
       (antre[k] = antre[k] || []).push({ d, sisa: x.pcs, rate }); });
   });
   const geser = (t, n) => { const x = new Date((t || "2000-01-01") + "T00:00:00"); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
   docs.filter(d => d.type === "jahit").sort(urut).forEach(s => pecah(s).forEach(x => {
-    let butuh = x.pcs; const dari = geser(s.tanggal, -60), sampai = geser(s.tanggal, 3);
+    let butuh = x.pcs; const sampai = geser(s.tanggal, 3);
     const q = (antre[norm(s.orang) + "|" + norm(x.nama) + "|" + norm(x.uk)] || [])
-      .filter(a => a.sisa > 0 && (a.d.tanggal || "") >= dari && (a.d.tanggal || "") <= sampai)
+      .filter(a => a.sisa > 0 && (a.d.tanggal || "") <= sampai)
       .sort((a, b) => ((s.orderId && b.d.orderId === s.orderId) - (s.orderId && a.d.orderId === s.orderId)) || (b.d.tanggal || "").localeCompare(a.d.tanggal || ""));
-    for (const a of q) { if (butuh <= 0) break; const ambil = Math.min(a.sisa, butuh); a.sisa -= ambil; butuh -= ambil; a.d._upahDobel += ambil * a.rate; a.d._pasangan.push({ tgl: s.tanggal, pcs: ambil, nama: x.nama, uk: x.uk }); }
+    for (const a of q) { if (butuh <= 0) break; const ambil = Math.min(a.sisa, butuh); a.sisa -= ambil; butuh -= ambil; a.d._upahDobel += ambil * a.rate; if (a.rate) a.d._pasangan.push({ tgl: s.tanggal, pcs: ambil, nama: x.nama, uk: x.uk }); }
   }));
   docs.forEach(d => { d._upah = d.type === "ambil" ? Math.max(0, Math.round((d._upahAsli || 0) - (d._upahDobel || 0))) : (+d.totalUpah || 0); });
   return docs;
@@ -1670,7 +1673,7 @@ function go(name) {
   if (name==="qc")         loadQCHist();
   if (name==="stok")       { switchStokTab("gunting"); ksAturTampilan(); loadKoreksiLog(); loadKoreksiUsulan(); }
   if (name==="keluar")     loadKeluarHist();
-  if (name==="ringkasan")  loadRingkasan();
+  if (name==="ringkasan")  { loadRingkasan(); const ub = document.getElementById("upah-batas"); if (ub) ub.value = upahSetorMulai(); }
   if (name==="setting")    { renderItemTable(); renderKainTags(); renderGudangTags(); isiPilihanGudang(); loadUpahKosong(); }
   if (name==="modal")      loadModalDashboard();
   if (name==="kain-masuk") { loadKainList(); loadKainMasukHist(); loadStokKain(); loadKainUsulan(); loadOpname(); const l = document.getElementById("km-lama-link"); if (l) l.style.display = role === "admin" ? "" : "none"; kmTampilPilihan() }
@@ -3766,7 +3769,7 @@ async function loadRiwayat() {
     return `<div class="card">
       <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> ${typeLbl} — <b>${who}</b>${d.order?" ["+d.order+"]":""}</div>
       <div>${itemsBadge(d.items)}</div>
-      ${d.type==="ambil"?(perkiraanAmbil(d)?`<div class="ket">Upah: ${fmtRp(upahTx(d))}${d._upahDobel>0?` <span style="color:var(--r)">(${fmtRp(perkiraanAmbil(d))} − ${fmtRp(Math.round(d._upahDobel))} sudah dicatat di Setor Jahitan)</span>`:""}</div>`:""):d.totalUpah!=null?`<div class="ket">Upah: ${fmtRp(d.totalUpah)}</div>`:""}
+      ${d.type==="ambil"&&d._ambilBaru?`<div class="ket">Tanda ambil — upah dihitung saat Setor Jahitan${perkiraanAmbil(d)?` (perkiraan ${fmtRp(perkiraanAmbil(d))})`:""}</div>`:d.type==="ambil"?(perkiraanAmbil(d)?`<div class="ket">Upah: ${fmtRp(upahTx(d))}${d._upahDobel>0?` <span style="color:var(--r)">(${fmtRp(perkiraanAmbil(d))} − ${fmtRp(Math.round(d._upahDobel))} sudah dicatat di Setor Jahitan)</span>`:""}</div>`:""):d.totalUpah!=null?`<div class="ket">Upah: ${fmtRp(d.totalUpah)}</div>`:""}
       ${fotoThumb(d.fotos)}
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
       ${actions}
@@ -3925,7 +3928,7 @@ function showRingDetail(name) {
       </div>
       ${statusBayarTx(d) ? `<div style="margin-bottom:6px">${statusBayarTx(d)}</div>` : ""}
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px">${items}</div>
-      ${d.type==="ambil"?(perkiraanAmbil(d)?`<div style="color:var(--g);font-weight:700">Upah: ${fmtRp(upahTx(d))}</div>${d._upahDobel>0?`<div style="color:var(--r);font-size:11px">${fmtRp(Math.round(d._upahDobel))} tidak dihitung — barang yang sama sudah dicatat di Setor Jahitan</div>`:""}`:""):d.totalUpah?`<div style="color:var(--g);font-weight:700">Upah: ${fmtRp(d.totalUpah)}</div>`:""}
+      ${d.type==="ambil"&&d._ambilBaru?`<div style="color:var(--t2);font-size:11px">Tanda ambil — upah dihitung saat Setor Jahitan${perkiraanAmbil(d)?` (perkiraan ${fmtRp(perkiraanAmbil(d))})`:""}</div>`:d.type==="ambil"?(perkiraanAmbil(d)?`<div style="color:var(--g);font-weight:700">Upah: ${fmtRp(upahTx(d))}</div>${d._upahDobel>0?`<div style="color:var(--r);font-size:11px">${fmtRp(Math.round(d._upahDobel))} tidak dihitung — barang yang sama sudah dicatat di Setor Jahitan</div>`:""}`:""):d.totalUpah?`<div style="color:var(--g);font-weight:700">Upah: ${fmtRp(d.totalUpah)}</div>`:""}
       ${d.keterangan?`<div class="ket">${d.keterangan}</div>`:""}
       ${actions}
     </div>`;
@@ -4677,10 +4680,15 @@ window.addEventListener("DOMContentLoaded", () => {
 </script>
 <script>
 // ── Cek upah dobel: barang yang dicatat di Ambil Jahitan DAN Setor Jahitan ──
+async function simpanBatasUpah() {
+  if (role !== "admin") return; const v = document.getElementById("upah-batas").value; if (!v) return toast("Pilih tanggal");
+  if (!await confirm2(`Mulai ${fmtTgl(v)}, Ambil Jahitan tidak lagi berupah — upah penjahit hanya dari Setor Jahitan. Simpan?`)) return;
+  settings.upahSetorMulai = v; await saveSettings(); toast("✅ Tanggal batas disimpan"); cekUpahDobel(); if (typeof loadRingkasan === "function") loadRingkasan();
+}
 const pcsItem = i => Number(i.pcs || i.qty || i.jumlah) || (i.ukuran && typeof i.ukuran === "object" ? Object.values(i.ukuran).reduce((a, b) => a + (Number(b) || 0), 0) : 0);
 async function cekUpahDobel() {
   if (role !== "admin") return;
-  const box = document.getElementById("cek-dobel-hasil"); box.innerHTML = '<div class="empty" style="padding:8px">Memeriksa…</div>';
+  const box = document.getElementById("cek-dobel-hasil"); box.innerHTML = '<div class="empty" style="padding:8px">Memeriksa…</div>'; document.getElementById("upah-batas").value = upahSetorMulai();
   const [tx, by, kb] = await Promise.all([fsAll("transaksi"), fsAll("pembayaran"), fsAll("kasbon")]);
   const org = {};
   const o = n => org[n] = org[n] || { nama: n, lama: 0, benar: 0, dobel: 0, bayar: 0, pending: 0, kasbon: 0, list: [] };
