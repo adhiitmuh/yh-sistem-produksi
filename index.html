@@ -759,6 +759,12 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
     <button id="rtab-cutting" onclick="switchRingTab('cutting')" style="flex:1;padding:7px;border:none;border-radius:8px;font-family:var(--f);font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--t2);transition:all .15s">✂️ Operator Cutting</button>
   </div>
   <div class="rgrid" id="ring-content"></div>
+  <div class="card hanya-admin" id="cek-dobel-card" style="display:none;margin-top:14px">
+    <div class="ct">🔍 Cek upah dobel dari Ambil Jahitan</div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:8px">Dulu catatan <b>Ambil Jahitan</b> ikut menyimpan upah sehingga upah penjahit terhitung dua kali (ambil + setor). Sekarang upah hanya dari <b>Setor Jahitan</b>. Cek di sini sebelum membayar.</div>
+    <button class="btsm" onclick="cekUpahDobel()">🔍 Cek sekarang</button>
+    <div id="cek-dobel-hasil" style="margin-top:10px"></div>
+  </div>
 </div>
 
 <!-- RIWAYAT -->
@@ -4637,5 +4643,45 @@ window.addEventListener("DOMContentLoaded", () => {
   checkFirstRun();
 });
 </script>
+<script>
+// ── Cek upah dobel: catatan Ambil Jahitan lama yang menyimpan upah ──
+const pcsItem = i => Number(i.pcs || i.qty || i.jumlah) || (i.ukuran && typeof i.ukuran === "object" ? Object.values(i.ukuran).reduce((a, b) => a + (Number(b) || 0), 0) : 0);
+async function cekUpahDobel() {
+  if (role !== "admin") return;
+  const box = document.getElementById("cek-dobel-hasil"); box.innerHTML = '<div class="empty" style="padding:8px">Memeriksa…</div>';
+  const [tx, by] = await Promise.all([fsAll("transaksi"), fsAll("pembayaran")]);
+  const org = {};
+  const o = n => org[n] = org[n] || { nama: n, dobel: 0, benar: 0, bayar: 0, pending: 0, ambil: [], item: {} };
+  tx.forEach(d => { const n = d.orang; if (!n) return;
+    if (d.type === "ambil" && (+d.totalUpah || 0) > 0) { o(n).dobel += +d.totalUpah; o(n).ambil.push(d); }
+    if (d.type === "jahit") o(n).benar += +d.totalUpah || 0;
+    if (d.type === "ambil" || d.type === "jahit") (d.items || []).forEach(i => { const k = i.nama || "?"; const x = o(n).item[k] = o(n).item[k] || { ambil: 0, setor: 0 }; x[d.type === "ambil" ? "ambil" : "setor"] += pcsItem(i); }); });
+  by.forEach(d => { if (!d.penjahit || !org[d.penjahit]) return; const j = (d.jumlah || 0) + (d.potong_kasbon || 0); if (d.status === "pending") org[d.penjahit].pending += j; else org[d.penjahit].bayar += j; });
+  const list = Object.values(org).filter(p => p.dobel > 0).sort((a, b) => b.dobel - a.dobel);
+  const totDobel = list.reduce((t, p) => t + p.dobel, 0);
+  if (!list.length) { box.innerHTML = '<div style="color:var(--g);font-weight:700;font-size:13px">✓ Tidak ada catatan Ambil Jahitan yang menyimpan upah — tidak ada yang dobel.</div>'; return; }
+  box.innerHTML = `<div style="font-size:13px;margin-bottom:8px"><b>${list.length} penjahit</b> · total upah yang dulu terhitung dobel <b style="color:var(--r)">${fmtRp(totDobel)}</b> (${list.reduce((t, p) => t + p.ambil.length, 0)} catatan Ambil). Angka ini <b>sudah tidak dihitung</b> di Ringkasan.</div>`
+    + list.map(p => {
+      const lebih = p.bayar - p.benar;
+      const items = Object.entries(p.item).filter(([, x]) => x.ambil > 0).map(([n, x]) => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0;border-top:1px solid var(--b)"><span>${n}</span><span style="white-space:nowrap">ambil ${x.ambil} · setor ${x.setor} ${x.setor >= x.ambil ? '<b style="color:var(--g)">✓ sudah disetor</b>' : x.setor > 0 ? `<b style="color:var(--a)">sisa ${x.ambil - x.setor} pcs dipegang</b>` : '<b style="color:var(--a)">belum disetor</b>'}</span></div>`).join("");
+      return `<div style="border:1px solid var(--b);border-radius:10px;padding:10px 12px;margin-bottom:8px">
+        <div style="font-weight:800;font-size:14px">🪡 ${p.nama}</div>
+        <div style="font-size:12px;margin:4px 0;line-height:1.7">Upah versi lama (dobel): <s>${fmtRp(p.benar + p.dobel)}</s><br>Upah yang benar (Setor Jahitan): <b style="color:var(--g)">${fmtRp(p.benar)}</b><br>Sudah dibayar (terverifikasi): <b>${fmtRp(p.bayar)}</b>${p.pending ? ` · menunggu verifikasi ${fmtRp(p.pending)}` : ""}
+        ${lebih > 0 ? `<br><b style="color:var(--r)">⚠ Kelebihan bayar ${fmtRp(lebih)}</b>` : `<br>Sisa yang perlu dibayar (sebelum kasbon): <b>${fmtRp(-lebih)}</b>`}</div>
+        <details><summary style="cursor:pointer;font-size:12px;color:var(--t2)">${p.ambil.length} catatan Ambil (dulu ikut dihitung ${fmtRp(p.dobel)}) · per item</summary>${items}
+          <div style="font-size:11px;color:var(--t2);margin-top:6px">${p.ambil.sort((a, b) => (a.tanggal || "").localeCompare(b.tanggal || "")).map(d => `${fmtTgl(d.tanggal)} ${d.order ? "[" + d.order + "] " : ""}${(d.items || []).map(i => i.nama + " " + pcsItem(i) + " pcs").join(", ")} — ${fmtRp(d.totalUpah)}`).join("<br>")}</div></details></div>`;
+    }).join("")
+    + `<button class="btsm" style="background:var(--gold,#eab308);color:#0a0a0a;white-space:normal;max-width:100%;text-align:left;height:auto;line-height:1.3;padding:8px 12px" onclick="rapikanUpahAmbil()">🧹 Rapikan data: ubah upah di ${list.reduce((t, p) => t + p.ambil.length, 0)} catatan Ambil jadi "perkiraan"</button>
+       <div style="font-size:11px;color:var(--t2);margin-top:4px">Opsional — hasil hitung sudah benar tanpa ini. Merapikan supaya data lama tidak membingungkan (upah dipindah ke kolom perkiraan, tidak dihapus).</div>`;
+}
+async function rapikanUpahAmbil() {
+  if (role !== "admin") return;
+  if (!await confirm2("Pindahkan upah di semua catatan Ambil Jahitan lama ke kolom 'perkiraan upah'? Total upah penjahit tidak berubah (sudah dihitung dari Setor Jahitan).")) return;
+  const tx = (await fsAll("transaksi")).filter(d => d.type === "ambil" && (+d.totalUpah || 0) > 0); let n = 0;
+  for (const d of tx) { await db.collection("transaksi").doc(d._id).update({ totalUpah: 0, perkiraanUpah: +d.totalUpah }); n++; }
+  toast(`✅ ${n} catatan Ambil dirapikan`); cekUpahDobel(); if (typeof loadRingkasan === "function") loadRingkasan();
+}
+</script>
 </body>
 </html>
+
