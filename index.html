@@ -80,6 +80,8 @@ textarea{resize:vertical;min-height:52px;font-size:12px}
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .btn{border:none;border-radius:var(--rads);font-family:var(--f);font-weight:700;cursor:pointer;transition:all .18s;display:inline-flex;align-items:center;justify-content:center;gap:6px}
 .btn:hover{transform:translateY(-2px)}.btn:active{transform:scale(.97)}
+.btn-tutup{border:2px solid rgba(128,128,128,.75)!important;background:rgba(128,128,128,.14)!important;color:inherit!important;font-weight:800!important;padding:8px 14px!important;font-size:13px!important;border-radius:10px!important;min-height:38px}
+.btn-tutup:hover{border-color:var(--r,#d33)!important;color:var(--r,#d33)!important}
 .btp{background:linear-gradient(135deg,#FFFBD5,#f5f0b0);color:#282828;padding:10px 18px;font-size:13px;width:100%;box-shadow:0 4px 16px rgba(255,251,213,.2)}
 .btp:hover{box-shadow:0 8px 24px rgba(255,251,213,.3)!important}
 .btg{background:linear-gradient(135deg,#059669,#10b981);color:#fff;padding:10px 18px;font-size:13px;width:100%;box-shadow:0 4px 16px rgba(16,185,129,.25)}
@@ -2643,7 +2645,7 @@ async function riwayatKatalog() {
   const kotak = (x, l) => x ? `<span style="display:inline-flex;flex-direction:column;align-items:center;font-size:10px;color:var(--t2)"><span style="width:34px;height:34px;border-radius:7px;background:${escH(x.hex || "#ccc")};border:1px solid rgba(128,128,128,.4)"></span>${l}</span>` : ""
   const label = { ubah: "✏️ Ubah", hapus: "🗑 Hapus warna", "hapus foto": "🖼 Hapus foto" }
   bg.innerHTML = `<div style="background:var(--s1,#fff);color:var(--t1,#111);border-radius:14px;max-width:560px;width:100%;max-height:90vh;overflow:auto;padding:14px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b style="font-size:16px">🕘 Riwayat perubahan katalog</b><button class="btn" id="rk-tutup">Tutup</button></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b style="font-size:16px">🕘 Riwayat perubahan katalog</b><button class="btn btn-tutup" id="rk-tutup">✕ Tutup</button></div>
     <div style="font-size:12px;color:var(--t2);margin-bottom:8px">Kalau ada yang salah pencet, tekan <b>↩ Kembalikan</b> — warna/keterangan/foto kembali seperti sebelumnya.</div>
     ${daftar.length ? daftar.map(r => `<div style="border-top:1px solid var(--b);padding:8px 0;display:flex;gap:10px;align-items:center">
       <div style="display:flex;gap:4px;align-items:center">${kotak(r.sebelum, "sebelum")}${r.sesudah ? "→" + kotak(r.sesudah, "sesudah") : ""}</div>
@@ -2686,7 +2688,7 @@ async function bagikanKatalog() {
     <label style="display:flex;gap:6px;align-items:center;font-size:12px;margin-bottom:8px"><input type="checkbox" id="bk-semua" ${merek ? "" : "checked"}> Semua merek ${merek ? `(tidak dicentang = hanya ${escH(merek)})` : ""}</label>
     ${role === "admin" || bolehKatalog() ? `<div class="fg" style="margin-bottom:8px"><label>No. WA tujuan pesan customer (CS Harmoni)</label><input type="tel" id="bk-wa" value="${escH(katalog.waCS || "")}" placeholder="08xx…"></div>` : ""}
     <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btg" id="bk-salin" style="flex:1">📋 Salin link</button><button class="btn" id="bk-wa-kirim" style="flex:1;background:#25d366;color:#fff">📲 Kirim via WA</button><a class="btn" href="${escH(link)}" id="bk-buka" target="_blank" style="flex:1;text-align:center;text-decoration:none">👁 Lihat</a></div>
-    <button class="btn" id="bk-tutup" style="width:100%;margin-top:8px">Tutup</button></div>`
+    <button class="btn btn-tutup" id="bk-tutup" style="width:100%;margin-top:8px">✕ Tutup</button></div>`
   document.body.appendChild(bg)
   const linkNow = () => { const pakaiMerek = !(bg.querySelector("#bk-semua").checked || !merek), foto = bg.querySelector("#bk-foto").checked
     return LINK_KATALOG_PUBLIK + (pakaiMerek || foto ? "?" + [pakaiMerek ? "merek=" + encodeURIComponent(merek) : "", foto ? "foto=1" : ""].filter(Boolean).join("&") : "") }
@@ -2751,15 +2753,21 @@ async function detailWarna(i, k, pilih) {
       ${v.ket ? `<div style="font-size:13px;color:var(--r);font-weight:700">${escH(v.ket)}</div>` : ""}
       <div style="font-size:12px;margin:6px 0">Nama di stok: <b>${escH(nama)}</b> · Stok: <b style="color:${stok > 0 ? "var(--g)" : "var(--t2)"}">${+stok.toFixed(2)} m</b></div>
       ${pilih ? `<button class="btn btg" id="dw-pilih" style="width:100%;margin:6px 0">✓ Pakai kain ini</button>` : ""}
+      ${!pilih ? `<button class="btn btg" id="dw-masuk" style="width:100%;margin:6px 0;padding:10px">➕ Input stok masuk kain ini</button>` : ""}
       ${boleh ? `<div style="border-top:1px solid var(--b);margin-top:10px;padding-top:10px;display:grid;gap:8px">
         <div class="fg"><label>Keterangan</label><input type="text" id="dw-ket" value="${escH(v.ket || "")}" placeholder="cth: SMA, PRAMUKA, POLRI"></div>
         <div class="fg"><label>Contoh warna</label><input type="color" id="dw-hex" value="${escH(v.hex || "#cccccc")}" style="height:38px;padding:2px"></div>
         <div class="fg"><label>Foto kain (opsional)</label><input type="file" id="dw-foto" accept="image/*"><button type="button" class="btsm" id="dw-tempel" style="margin-top:6px">📋 Tempel foto</button>${v.adaFoto && isOwner ? ` <button type="button" class="btsm" id="dw-hapusfoto" style="margin-top:6px">Hapus foto</button>` : ""}</div>
         <div style="display:flex;gap:6px"><button class="btn btg" id="dw-simpan" style="flex:1">Simpan</button>${isOwner ? `<button class="btn" id="dw-hapus" style="background:var(--rdim,#fee);color:var(--r)">Hapus warna</button>` : ""}</div>
         <div style="font-size:11px;color:var(--t2)">${isOwner ? "Semua perubahan tercatat di 🕘 Riwayat dan bisa dikembalikan." : "Perubahan tercatat & bisa dikembalikan Owner. Hapus warna/foto hanya bisa oleh Owner."}</div></div>` : ""}
-      <button class="btn" id="dw-tutup" style="width:100%;margin-top:8px">Tutup</button></div></div>`
+      <button class="btn btn-tutup" id="dw-tutup" style="width:100%;margin-top:8px">✕ Tutup</button></div></div>`
   document.body.appendChild(bg)
   const tutup = () => bg.remove()
+  const bMasuk = bg.querySelector("#dw-masuk")
+  if (bMasuk) bMasuk.onclick = async () => { tutup(); document.querySelectorAll('body > div[style*="position:fixed"][style*="inset:0"]').forEach(x => x.remove()); go("kain-masuk"); await loadKainList(); await pastikanNamaKain(nama)
+    const sel = document.getElementById("km-kain"); sel.value = nama; tandaiWarnaSelect(sel); kmTampilPilihan()
+    const m = document.getElementById("km-meter"); m?.scrollIntoView({ behavior: "smooth", block: "center" }); setTimeout(() => m?.focus(), 300)
+    toast("Kain " + nama + " dipilih — isi jumlah meter lalu Simpan", "s") }
   bg.addEventListener("click", e => { if (e.target === bg) tutup() }); bg.querySelector("#dw-tutup").onclick = tutup
   if (pilih) bg.querySelector("#dw-pilih").onclick = () => { tutup(); pilih(nama) }
   if (!boleh) return
@@ -2907,7 +2915,7 @@ async function cariWarnaFoto(setelah) {
   _stokKatalog = (await db.collection("config").doc("stok_kain").get()).data() || {}
   const bg = document.createElement("div"); bg.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;display:flex;align-items:center;justify-content:center;padding:10px"
   bg.innerHTML = `<div style="background:var(--s1,#fff);color:var(--t1,#111);border-radius:14px;max-width:560px;width:100%;max-height:92vh;overflow:auto;padding:14px">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:16px">📷 Cari warna dari foto</b><button class="btn" id="cw-tutup">Tutup</button></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:16px">📷 Cari warna dari foto</b><button class="btn btn-tutup" id="cw-tutup">✕ Tutup</button></div>
     <details id="cw-panduan" open style="margin:8px 0;background:var(--gdim,rgba(0,150,100,.07));border-radius:10px;padding:8px 10px"><summary style="cursor:pointer;font-weight:700;font-size:12px">Panduan foto</summary>${PANDUAN_FOTO}</details>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
       <label class="btn btg" style="cursor:pointer;margin:0">📷 Ambil / pilih foto<input type="file" id="cw-file" accept="image/*" capture="environment" style="display:none"></label>
@@ -2983,7 +2991,7 @@ async function pilihDariKatalog(setelah) {
   if (!katalog.jenis.length) return toast("Katalog kain masih kosong — isi di menu 🎨 Katalog Kain", "w")
   const bg = document.createElement("div"); bg.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8000;display:flex;align-items:center;justify-content:center;padding:12px"
   bg.innerHTML = `<div style="background:var(--s1,#fff);color:var(--t1,#111);border-radius:14px;max-width:640px;width:100%;max-height:88vh;display:flex;flex-direction:column;padding:12px">
-    <div style="display:flex;gap:8px;margin-bottom:8px"><input type="search" id="pk-cari" placeholder="Cari kode / keterangan…" style="flex:1"><button class="btsm" id="pk-foto" style="background:var(--bl);color:#fff">📷 Dari foto</button><button class="btn" id="pk-tutup">Tutup</button></div>
+    <div style="display:flex;gap:8px;margin-bottom:8px"><input type="search" id="pk-cari" placeholder="Cari kode / keterangan…" style="flex:1"><button class="btsm" id="pk-foto" style="background:var(--bl);color:#fff">📷 Dari foto</button><button class="btn btn-tutup" id="pk-tutup">✕ Tutup</button></div>
     <div id="pk-tab" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
     <div id="pk-grid" style="overflow:auto;flex:1 1 auto;min-height:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));grid-auto-rows:max-content;align-content:start;gap:8px"></div></div>`
   document.body.appendChild(bg)
