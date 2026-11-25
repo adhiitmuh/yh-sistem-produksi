@@ -3058,7 +3058,7 @@ function opInfo() {
   const k = document.getElementById("op-kain").value, m = document.getElementById("op-meter").value, el = document.getElementById("op-info")
   tandaiWarnaSelect(document.getElementById("op-kain"))
   if (!k) { el.textContent = ""; return }
-  const sis = +(_stokKainOp[k] || 0)
+  const sis = +(+(_stokKainOp[k] || 0)).toFixed(2)
   // Staff tidak melihat angka sistem sebelum menghitung (supaya benar-benar dihitung)
   el.innerHTML = (role === "admin" ? `Stok sistem: <b>${sis} m</b>` : "Hitung fisik dulu, angka sistem dicek Admin") + (window._opTerakhir?.[k] ? ` · terakhir dihitung ${fmtTgl(window._opTerakhir[k])}` : " · belum pernah dihitung")
 }
@@ -4103,7 +4103,7 @@ async function loadStokKain() {
   const el = document.getElementById("stok-kain-wrap"); if(!el) return;
   const keys = Object.keys(data).filter(k=>data[k]>0).sort();
   if(!keys.length){el.innerHTML='';return;}
-  el.innerHTML = `<div class="card" style="margin-bottom:0"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Stok Kain</div><div style="display:flex;flex-wrap:wrap;gap:6px">${keys.map(k=>{const w=warnaKain(k);return `<span class="tag" title="${w?escH((w.v.ket||"")+" "+w.j.nama):""}">${w?kotakWarna(w.v.hex):""}${k}: <b>${data[k]}m</b></span>`}).join("")}</div></div>`;
+  el.innerHTML = `<div class="card" style="margin-bottom:0"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Stok Kain</div><div style="display:flex;flex-wrap:wrap;gap:6px">${keys.map(k=>{const w=warnaKain(k);return `<span class="tag" title="${w?escH((w.v.ket||"")+" "+w.j.nama):""}">${w?kotakWarna(w.v.hex):""}${k}: <b>${+(+data[k]).toFixed(2)}m</b></span>`}).join("")}</div>${keys.some(k=>!warnaKain(k))?`<div style="font-size:11px;color:var(--t2);margin-top:6px">Kain tanpa kotak warna = nama lama (belum per kode warna). Untuk memindahkannya ke per warna: hitung fisik per kode warna di 📏 Hitung Stok Kain (pilih dari katalog), lalu hitung nama lama itu = 0.</div>`:""}</div>`;
 }
 
 // ── ALIH TUGAS ────────────────────────────────────────────────────────────────
