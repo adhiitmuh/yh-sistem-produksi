@@ -447,6 +447,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
       <div class="fg"><label>Harga per meter (opsional)</label><input type="text" inputmode="numeric" id="km-harga" placeholder="Rp 0" oninput="fmtRpIn(this)"><div style="font-size:10px;color:var(--t2);margin-top:3px">Untuk menghitung biaya kain per order</div></div>
     </div>
     <div class="fg" style="margin-bottom:10px"><label>Keterangan</label><input type="text" id="km-ket" placeholder="Opsional..."></div>
+    <div class="fg" style="margin-bottom:10px"><label>📷 Foto kain yang datang (opsional)</label><input type="file" id="km-foto" accept="image/*" onchange="_kmFotoTempel=null;kmInfoFoto()"><button type="button" class="btsm" style="margin-top:6px" onclick="kmTempelFoto()">📋 Tempel foto</button><div id="km-foto-info" style="font-size:11px;color:var(--t2);margin-top:4px">Foto dari kain aslinya paling akurat untuk katalog.</div></div>
     <button class="btn btg" onclick="submitKainMasuk()">✓ Simpan Kain Masuk</button>
   </div>
   <div class="tw"><div class="th2"><span class="tt">Riwayat Kain Masuk</span><span class="bdg" id="km-cnt">0</span></div><div id="km-hist"></div></div>
@@ -3019,6 +3020,18 @@ function kmTampilPilihan() {
     : nama ? `<span style="font-size:20px">🧵</span><span><b>${escH(nama)}</b> <span style="font-size:11px;opacity:.7">(tanpa kode warna)</span><br><span style="font-size:11px;opacity:.7">Ketuk untuk pilih dari katalog</span></span>`
     : `<span style="font-size:20px">🎨</span><span><b>Pilih kain & warna dari katalog</b><br><span style="font-size:11px;opacity:.7">UNIONE · PASSUKA · VENOZA · ORLANDO · RIBSTOP — cari kode, mis. 714</span></span>`
   btn.style.borderStyle = nama ? "solid" : "dashed"
+  kmInfoFoto()
+}
+// Foto kain saat kain masuk: kalau warna itu belum punya foto katalog, foto ini otomatis jadi foto katalog
+let _kmFotoTempel = null
+async function kmTempelFoto() {
+  try { for (const it of await navigator.clipboard.read()) { const t = it.types.find(x => x.startsWith("image/")); if (t) { _kmFotoTempel = new File([await it.getType(t)], "kain.png", { type: t }); document.getElementById("km-foto").value = ""; kmInfoFoto(); return toast("Foto ditempel ✓") } } toast("Tidak ada gambar di clipboard", "w") }
+  catch (e) { toast("Tidak bisa menempel — pilih file foto saja", "w") }
+}
+function kmInfoFoto() {
+  const el = document.getElementById("km-foto-info"); if (!el) return
+  const ada = !!(_kmFotoTempel || document.getElementById("km-foto")?.files?.[0]), w = warnaKain(document.getElementById("km-kain")?.value)
+  el.innerHTML = (ada ? "✓ Foto siap · " : "") + (!w ? "Foto disimpan sebagai bukti kain masuk." : w.v.adaFoto ? `${escH(w.j.nama)} ${escH(w.v.kode)} sudah punya foto katalog — foto ini disimpan sebagai bukti kain masuk.` : `<b style="color:var(--g)">${escH(w.j.nama)} ${escH(w.v.kode)} belum punya foto di katalog — foto ini otomatis jadi foto katalog.</b>`)
 }
 async function kmPilihKatalog() {
   pilihDariKatalog(async nama => { await pastikanNamaKain(nama); const sel = document.getElementById("km-kain"); sel.value = nama; tandaiWarnaSelect(sel); kmTampilPilihan() })
@@ -4210,14 +4223,20 @@ async function submitKainMasuk() {
   if(!wajibOrder("km-ord")) return;
   const kmOrd = document.getElementById("km-ord").value, hargaMeter = parseRpIn(document.getElementById("km-harga").value);
   if(!await confirm2(`Simpan masuk ${meter}m ${kain}${namaOrder(kmOrd)==="STOK"?" untuk stok umum":" untuk order "+namaOrder(kmOrd)}?`)) return;
-  await fsAdd("kain_masuk",{tanggal:tgl,kain,meter,supplier:sup,ket,orderId:idOrder(kmOrd),order:namaOrder(kmOrd),hargaMeter,totalHarga:Math.round(hargaMeter*meter)});
+  const fFoto = _kmFotoTempel || document.getElementById("km-foto").files[0]
+  let foto = ""; if (fFoto) { try { [foto] = await uploadFotos([fFoto]) } catch (e) { toast("Foto gagal diproses — data tetap disimpan tanpa foto", "w") } }
+  await fsAdd("kain_masuk",{tanggal:tgl,kain,meter,supplier:sup,ket,orderId:idOrder(kmOrd),order:namaOrder(kmOrd),hargaMeter,totalHarga:Math.round(hargaMeter*meter),...(foto?{foto}:{})});
+  const wF = warnaKain(kain)
+  if (foto && wF && !wF.v.adaFoto) { try { const sebelum = { ...wF.v }
+    await db.collection("katalog_foto").doc(idFotoKatalog(wF.j, wF.v)).set({ foto, jenis: wF.j.nama, kode: wF.v.kode }); wF.v.adaFoto = true; await simpanKatalog()
+    catatRiwayatKatalog("foto dari kain masuk", wF.j, wF.v, sebelum, { ...wF.v }); toast("📷 Foto jadi foto katalog " + kain) } catch (e) { console.warn("foto katalog:", e) } }
   // update stok kain
   const kStok = (await db.collection("config").doc("stok_kain").get()).data()||{};
   kStok[kain] = (kStok[kain]||0) + meter;
   await db.collection("config").doc("stok_kain").set(kStok);
   toast("Kain masuk disimpan!");
   kirimProgresOrder(kmOrd);
-  ["km-tgl","km-kain","km-meter","km-supplier","km-ket","km-ord","km-harga"].forEach(id=>document.getElementById(id).value="");
+  ["km-tgl","km-kain","km-meter","km-supplier","km-ket","km-ord","km-harga","km-foto"].forEach(id=>document.getElementById(id).value=""); _kmFotoTempel = null;
   kmTampilPilihan(); document.querySelector('#km-admin-lama .kt-chip')?.remove();
   await loadKainMasukHist();
 }
@@ -4229,6 +4248,7 @@ async function loadKainMasukHist() {
       <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> ${(w => w ? kotakWarna(w.v.hex, 13) : "")(warnaKain(d.kain))}<b>${escH(d.kain)}</b>${(w => w && w.v.ket ? ` <span style="color:var(--r);font-size:11px;font-weight:700">${escH(w.v.ket)}</span>` : "")(warnaKain(d.kain))} — ${d.meter}m${d.supplier?" dari "+d.supplier:""}</div>
       <div style="font-size:11px;color:var(--t2);margin-top:3px">${d.order?(d.order==="STOK"?"📦 Stok umum":"Untuk order <b>"+escH(d.order)+"</b>"):"Order belum dicatat"}${d.hargaMeter?" · Rp "+fmt(d.hargaMeter)+"/m = <b>Rp "+fmt(d.totalHarga||0)+"</b>":""}</div>
       ${d.ket?`<div class="ket">${d.ket}</div>`:""}
+      ${d.foto?`<img src="${d.foto}" alt="foto kain" style="margin-top:6px;width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--b);cursor:pointer" onclick="const w=window.open();w.document.write('<img src=\''+this.src+'\' style=\'max-width:100%\'>')">`:""}
       <div style="margin-top:6px">${mkDelBtn("kain_masuk",d._id)}</div>
     </div>`);
 }
