@@ -653,7 +653,8 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
 <!-- QC -->
 <div class="sec" id="s-qc">
   <div class="ph"><div class="pt">✅ QC & Finishing</div><div class="ps">Item lolos → masuk stok. Reject → dicatat</div></div>
-  <div id="qc-hanya-admin" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:10px;background:rgba(234,88,12,.08);border:1px solid rgba(234,88,12,.35);font-size:12px">🔒 <b>QC hanya disimpan oleh Admin.</b> Barang yang lolos QC otomatis masuk stok barang jadi, jadi pemeriksaan & penyimpanannya dilakukan Admin. Serahkan barang ke Admin untuk di-QC.</div>
+  <div id="qc-tunggu"></div>
+  <div id="qc-hanya-admin" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:10px;background:rgba(234,88,12,.08);border:1px solid rgba(234,88,12,.35);font-size:12px">🔒 <b>Hasil QC dari staff menunggu persetujuan Admin.</b> Stok barang jadi baru bertambah setelah Admin menekan ✓ Setujui (stok di tangan penjahit juga baru berkurang saat itu).</div>
   <div class="card">
     <div class="g2" style="margin-bottom:12px">
       <div class="fg"><label>Tanggal</label><input type="date" id="qc-tgl"></div>
@@ -1431,7 +1432,6 @@ function applyRole() {
 
   const isAdmin = role === "admin";
   const qcN = document.getElementById("qc-hanya-admin"); if (qcN) qcN.style.display = role === "staff" ? "" : "none";
-  document.querySelectorAll("#s-qc .btg").forEach(b => { b.disabled = role !== "admin"; b.style.opacity = role === "admin" ? "" : ".5" });
   const tmt = document.getElementById("t-modal");
   if (tmt) tmt.style.display = isAdmin ? "block" : "none";
   const bfc = document.getElementById("backfill-card");
@@ -1679,7 +1679,7 @@ function go(name) {
   if (name==="riwayat")    { loadRiwayat(); loadStats(); }
   if (name==="kasbon")     loadKasbonHist();
   if (name==="bayar")      loadBayarHist();
-  if (name==="qc")         loadQCHist();
+  if (name==="qc")         { loadQCHist(); loadQCTunggu(); }
   if (name==="stok")       { switchStokTab("gunting"); ksAturTampilan(); loadKoreksiLog(); loadKoreksiUsulan(); }
   if (name==="keluar")     loadKeluarHist();
   if (name==="ringkasan")  { loadRingkasan(); const ub = document.getElementById("upah-batas"); if (ub) ub.value = upahSetorMulai(); const bn = document.getElementById("btn-nol-lama"); if (bn) bn.style.display = isOwner ? "" : "none"; }
@@ -2341,7 +2341,7 @@ async function hitungProduksiOrder(orderId) {
     gunting: jumlahPcs(tr.filter(d => d.type === "gunting")),
     ambil: jumlahPcs(tr.filter(d => d.type === "ambil")),
     jahit: jumlahPcs(tr.filter(d => d.type === "jahit")),
-    qc: qc.reduce((t, d) => t + (d.items || []).reduce((s, i) => s + (+i.ok || 0), 0), 0),
+    qc: qc.filter(d => !d.status || d.status === "disetujui").reduce((t, d) => t + (d.items || []).reduce((s, i) => s + (+i.ok || 0), 0), 0),
   };
 }
 // Biaya produksi aktual satu order: kain (meter diambil − sisa kembali) × harga/m + upah gunting & jahit
@@ -2465,7 +2465,7 @@ async function loadLacak() {
   const pcs = d => +d.totalPcs || (d.items||[]).reduce((s,i) => s + (+i.pcs||0), 0);
   ka.forEach(d => tambah(d.orderId, "kain", (d.rows||[]).reduce((s,r) => s + (+r.pcs||0), 0), d.tanggal));
   tr.forEach(d => { if (["gunting","ambil","jahit"].includes(d.type)) tambah(d.orderId, d.type, pcs(d), d.tanggal); });
-  qc.forEach(d => tambah(d.orderId, "qc", (d.items||[]).reduce((s,i) => s + (+i.ok||0), 0), d.tanggal));
+  qc.filter(d => !d.status || d.status === "disetujui").forEach(d => tambah(d.orderId, "qc", (d.items||[]).reduce((s,i) => s + (+i.ok||0), 0), d.tanggal));
   document.getElementById("lo-cnt").textContent = orders.length;
   const tahap = [["kain","Kain diambil"],["gunting","Digunting"],["ambil","Ke penjahit"],["jahit","Dijahit"],["qc","Lolos QC"]];
   lo.innerHTML = orders.length ? orders.map(o => {
@@ -3460,8 +3460,46 @@ function tampilReject(n) {
   if (w) w.style.display = n > 0 ? "" : "none";
   if (f) f.style.display = n > 0 ? "" : "none";
 }
+// Terapkan hasil QC ke stok: kurangi stok di tangan penjahit, tambah barang lolos ke stok barang jadi
+async function terapkanQC(d) {
+  const nasib = d.nasibReject || "perbaiki", adaReject = (+d.totalReject || 0) > 0;
+  const sj = (await db.collection("config").doc("stok_jahitan").get()).data()||{};
+  const pjStok = {...(sj[d.penjahit]||{})};
+  const sm = (await db.collection("config").doc("stok").get()).data()||{};
+  (d.items || []).forEach(it => {
+    const key = it.nama+"||"+it.ukuran;
+    // reject yang dikembalikan untuk diperbaiki tetap tercatat di tangan penjahit
+    pjStok[key] = Math.max(0,(pjStok[key]||0)-(+it.ok||0)-(adaReject&&nasib==="perbaiki"?0:(+it.reject||0)));
+    sm[key] = (sm[key]||0) + (+it.ok||0);
+  });
+  sj[d.penjahit] = pjStok;
+  await db.collection("config").doc("stok_jahitan").set(sj);
+  await db.collection("config").doc("stok").set(sm);
+}
+// QC dari staff yang menunggu persetujuan Admin
+async function loadQCTunggu() {
+  const el = document.getElementById("qc-tunggu"); if (!el) return
+  const list = (await fsAll("qc")).filter(d => d.status === "menunggu")
+  el.innerHTML = !list.length ? "" : `<div class="card" style="margin-bottom:12px;border:1.5px solid rgba(234,88,12,.4)"><div class="ct">⏳ QC menunggu persetujuan Admin (${list.length})</div>` + list.map(d => `
+    <div style="border-top:1px solid var(--b);padding:8px 0">
+      <div><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${escH(d.penjahit)}</b>${d.operator ? " — " + escH(d.operator) : ""} <span style="font-size:11px;color:var(--t2)">· dikirim ${escH(d.createdByNama || "staff")}</span></div>
+      <div>${itemsBadge((d.items||[]).map(i=>({nama:i.nama,ukuran:i.ukuran,qty:"✔"+i.ok+" ✘"+i.reject})))}</div>
+      ${d.totalReject ? `<div style="font-size:12px;color:var(--r);font-weight:700">✘ ${d.totalReject} reject — ${escH(d.alasanReject||"")}</div>` : ""}${fotoThumb(d.fotos)}
+      ${role === "admin" ? `<div style="display:flex;gap:6px;margin-top:6px"><button class="btsm" style="background:var(--g);color:#0a0a0a" onclick="putusQC('${d._id}',true)">✓ Setujui & masukkan stok</button><button class="btsm" onclick="putusQC('${d._id}',false)">✕ Tolak</button></div>` : `<div style="font-size:11px;color:var(--t2);margin-top:4px">Menunggu Admin</div>`}
+    </div>`).join("") + "</div>"
+}
+async function putusQC(id, setuju) {
+  if (role !== "admin") return
+  const d = (await db.collection("qc").doc(id).get()).data(); if (!d || d.status !== "menunggu") { toast("QC ini sudah diproses", "w"); return loadQCTunggu() }
+  let alasan = ""
+  if (!setuju) { alasan = (prompt("Alasan menolak QC ini:") || "").trim(); if (!alasan) return }
+  else if (!await confirm2(`Setujui QC ${d.penjahit}? ${(d.items||[]).reduce((t,i)=>t+(+i.ok||0),0)} pcs lolos masuk stok barang jadi.`)) return
+  await db.collection("qc").doc(id).update(setuju ? { status: "disetujui", disetujuiOleh: unama || uname || "admin", disetujuiAt: new Date().toISOString() } : { status: "ditolak", alasanTolak: alasan, ditolakOleh: unama || uname || "admin" })
+  if (setuju) { await terapkanQC(d); if (d.orderId) kirimProgresOrder(d.orderId) }
+  toast(setuju ? "✓ QC disetujui — stok diperbarui" : "QC ditolak")
+  await loadQCTunggu(); await loadQCHist()
+}
 async function submitQC() {
-  if (role !== "admin") return showAlert("QC hanya oleh Admin", "Barang yang lolos QC langsung masuk stok barang jadi, jadi QC harus diperiksa & disimpan Admin. Serahkan barang ke Admin.");
   const pj  = document.getElementById("qc-pjt").value;
   const tgl = document.getElementById("qc-tgl").value;
   const op  = document.getElementById("qc-op").value.trim();
@@ -3478,29 +3516,25 @@ async function submitQC() {
     if(!(fF.qc||[]).length) return toast("Ada reject — wajib foto bukti barang yang rusak","w");
     if(alasan.startsWith("Lainnya") && !ket) return toast("Tulis alasan reject di Keterangan","w");
   }
-  if(!await confirm2("Simpan data QC?")) return;
+  const langsung = role === "admin";
+  if(!await confirm2(langsung ? "Simpan data QC? Barang lolos langsung masuk stok." : "Kirim hasil QC ke Admin? Stok bertambah setelah Admin menyetujui.")) return;
   const btn = document.querySelector("#s-qc .btg");
   const origTxt = btn ? btn.textContent : "";
   if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
   try {
     const fotos = await uploadFotos(fF["qc"]||[]);
-    await fsAdd("qc", {penjahit:pj, operator:op, order:ord, orderId:idOrder(ordId), tanggal:tgl, ket, fotos, items,
-      ...(totReject>0?{totalReject:totReject, alasanReject:alasan, nasibReject:nasib}:{})});
-    kirimProgresOrder(ordId);
-    // update stok: deduct from stok_jahitan, add ok to stok utama
-    const sj = (await db.collection("config").doc("stok_jahitan").get()).data()||{};
-    const pjStok = {...(sj[pj]||{})};
-    const sm = (await db.collection("config").doc("stok").get()).data()||{};
-    items.forEach(it => {
-      const key = it.nama+"||"+it.ukuran;
-      // reject yang dikembalikan untuk diperbaiki tetap tercatat di tangan penjahit
-      pjStok[key] = Math.max(0,(pjStok[key]||0)-it.ok-(totReject>0&&nasib==="perbaiki"?0:it.reject));
-      sm[key] = (sm[key]||0) + it.ok;
-    });
-    sj[pj] = pjStok;
-    await db.collection("config").doc("stok_jahitan").set(sj);
-    await db.collection("config").doc("stok").set(sm);
-    toast("✓ QC disimpan!");
+    const dataQC = {penjahit:pj, operator:op, order:ord, orderId:idOrder(ordId), tanggal:tgl, ket, fotos, items,
+      ...(totReject>0?{totalReject:totReject, alasanReject:alasan, nasibReject:nasib}:{})};
+    if (langsung) {
+      await fsAdd("qc", {...dataQC, status:"disetujui", disetujuiOleh: unama || uname || "admin"});
+      await terapkanQC(dataQC); kirimProgresOrder(ordId);
+      toast("✓ QC disimpan — barang lolos masuk stok");
+    } else {
+      await fsAdd("qc", {...dataQC, status:"menunggu"});
+      toast("✓ QC terkirim — menunggu persetujuan Admin");
+      mintaAdmin("Mohon cek & setujui QC", `${pj}: ${items.reduce((t,i)=>t+(+i.ok||0),0)} lolos, ${totReject} reject`, "qc", { isi: "qc" });
+    }
+    await loadQCTunggu();
     document.getElementById("qc-rows").innerHTML=""; qcRows=[];
     ["qc-pjt","qc-op","qc-ord","qc-ket","qc-alasan"].forEach(id=>document.getElementById(id).value="");
     document.getElementById("qc-nasib").value="perbaiki"; tampilReject(0);
@@ -3678,7 +3712,7 @@ async function loadQCHist() {
   const docs = await fsAll("qc");
   renderHistList("qc-hist","qc-cnt",docs,d=>`
     <div class="card">
-      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.penjahit}</b>${d.operator?" — "+d.operator:""}</div>
+      <div class="card-h"><span class="cl">${fmtTgl(d.tanggal)}</span> <b>${d.penjahit}</b>${d.operator?" — "+d.operator:""} ${d.status==="menunggu"?'<span style="font-size:11px;color:#c2410c;font-weight:700">⏳ menunggu Admin</span>':d.status==="ditolak"?`<span style="font-size:11px;color:var(--r);font-weight:700">✕ ditolak${d.alasanTolak?": "+escH(d.alasanTolak):""}</span>`:d.disetujuiOleh?`<span style="font-size:11px;color:var(--g)">✓ disetujui ${escH(d.disetujuiOleh)}</span>`:""}</div>
       <div>${itemsBadge(d.items.map(i=>({nama:i.nama,ukuran:i.ukuran,qty:"✔"+i.ok+" ✘"+i.reject})))}</div>
       ${d.order?`<div style="font-size:11px;color:var(--t2);margin-top:4px">Order: ${escH(d.order)}</div>`:""}
       ${d.totalReject?`<div style="font-size:12px;color:var(--r);font-weight:700;margin-top:4px">✘ ${d.totalReject} reject — ${escH(d.alasanReject||"")} · ${d.nasibReject==="rusak"?"afkir":"dikembalikan ke penjahit"}</div>`:""}
