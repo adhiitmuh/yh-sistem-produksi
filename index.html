@@ -653,6 +653,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
 <!-- QC -->
 <div class="sec" id="s-qc">
   <div class="ph"><div class="pt">✅ QC & Finishing</div><div class="ps">Item lolos → masuk stok. Reject → dicatat</div></div>
+  <div id="qc-hanya-admin" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:10px;background:rgba(234,88,12,.08);border:1px solid rgba(234,88,12,.35);font-size:12px">🔒 <b>QC hanya disimpan oleh Admin.</b> Barang yang lolos QC otomatis masuk stok barang jadi, jadi pemeriksaan & penyimpanannya dilakukan Admin. Serahkan barang ke Admin untuk di-QC.</div>
   <div class="card">
     <div class="g2" style="margin-bottom:12px">
       <div class="fg"><label>Tanggal</label><input type="date" id="qc-tgl"></div>
@@ -1429,6 +1430,8 @@ function applyRole() {
   if (mc)    mc.style.display    = loggedIn ? "flex" : "none";
 
   const isAdmin = role === "admin";
+  const qcN = document.getElementById("qc-hanya-admin"); if (qcN) qcN.style.display = role === "staff" ? "" : "none";
+  document.querySelectorAll("#s-qc .btg").forEach(b => { b.disabled = role !== "admin"; b.style.opacity = role === "admin" ? "" : ".5" });
   const tmt = document.getElementById("t-modal");
   if (tmt) tmt.style.display = isAdmin ? "block" : "none";
   const bfc = document.getElementById("backfill-card");
@@ -3458,6 +3461,7 @@ function tampilReject(n) {
   if (f) f.style.display = n > 0 ? "" : "none";
 }
 async function submitQC() {
+  if (role !== "admin") return showAlert("QC hanya oleh Admin", "Barang yang lolos QC langsung masuk stok barang jadi, jadi QC harus diperiksa & disimpan Admin. Serahkan barang ke Admin.");
   const pj  = document.getElementById("qc-pjt").value;
   const tgl = document.getElementById("qc-tgl").value;
   const op  = document.getElementById("qc-op").value.trim();
