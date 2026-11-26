@@ -701,6 +701,18 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
 <!-- STOK -->
 <div class="sec" id="s-stok">
   <div class="ph"><div class="pt">📊 Stok</div><div class="ps">Monitor stok dari guntingan, jahitan, hingga barang jadi</div></div>
+  <div style="display:flex;gap:4px;margin-bottom:14px;background:var(--s2);padding:4px;border-radius:10px;border:1px solid var(--b)">
+    <button id="stab-ringkas" onclick="switchStokTab('ringkas')" style="flex:1;padding:8px;border:none;border-radius:8px;font-family:var(--f);font-size:12px;font-weight:700;cursor:pointer;background:var(--a);color:#0a0a0a;transition:all .15s">📈 Ringkasan</button>
+    <button id="stab-gunting" onclick="switchStokTab('gunting')" style="flex:1;padding:8px;border:none;border-radius:8px;font-family:var(--f);font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--t2);transition:all .15s">✂️ Guntingan</button>
+    <button id="stab-jahitan" onclick="switchStokTab('jahitan')" style="flex:1;padding:8px;border:none;border-radius:8px;font-family:var(--f);font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--t2);transition:all .15s">🪡 Jahitan</button>
+    <button id="stab-produksi" onclick="switchStokTab('produksi')" style="flex:1;padding:8px;border:none;border-radius:8px;font-family:var(--f);font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--t2);transition:all .15s">📦 Produksi</button>
+  </div>
+  <div id="stok-panel-ringkas"><div style="display:flex;gap:7px;margin-bottom:8px;flex-wrap:wrap;align-items:center"><input type="text" id="rk-q" placeholder="Cari nama item..." oninput="loadStokRingkas()" style="flex:2;min-width:150px"><button onclick="loadStokRingkas(true)" style="padding:7px 13px;background:var(--s2);border:1px solid var(--b);color:var(--t);border-radius:var(--rads);cursor:pointer;font-size:12px">🔄 Muat ulang</button></div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:10px;line-height:1.5">Semua tahap dalam satu tempat, dijumlah dari semua operator & penjahit. <b>Perkiraan jadi</b> = barang jadi + menunggu QC + yang masih diproses dikurangi rata-rata reject. Kecepatan dihitung dari 4 minggu terakhir (lolos QC & stok keluar).</div>
+    <div id="stok-ringkas-body"><div class="empty">Memuat…</div></div></div>
+  <div id="stok-panel-gunting" style="display:none"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:11px;color:var(--t2)">Bahan mentah per operator cutting</div><button onclick="loadStokGunting()" style="padding:6px 12px;background:var(--s2);border:1px solid var(--b);color:var(--t);border-radius:var(--rads);cursor:pointer;font-size:11px;font-family:var(--f);font-weight:600">🔄 Refresh</button></div><div id="stok-gunting-body"></div></div>
+  <div id="stok-panel-jahitan" style="display:none"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:11px;color:var(--t2)">Bahan di tangan penjahit (sudah diambil, belum disetor)</div><button onclick="loadStokJahitan()" style="padding:6px 12px;background:var(--s2);border:1px solid var(--b);color:var(--t);border-radius:var(--rads);cursor:pointer;font-size:11px;font-family:var(--f);font-weight:600">🔄 Refresh</button></div><div id="stok-jahitan-body"></div></div>
+  <div id="stok-panel-produksi" style="display:none"><div style="display:flex;gap:7px;margin-bottom:10px;flex-wrap:wrap"><input type="text" id="stok-q" placeholder="Cari nama item..." oninput="filterStok()" style="flex:2;min-width:150px"><button onclick="loadStok()" style="padding:7px 13px;background:var(--s2);border:1px solid var(--b);color:var(--t);border-radius:var(--rads);cursor:pointer;font-size:12px;font-family:var(--f);font-weight:600">🔄 Refresh</button></div><div class="tw"><div class="th2"><span class="tt">Stok Barang Jadi</span><span class="bdg" id="stok-cnt">0 item</span></div><div id="stok-body"></div></div></div>
   <div class="card" id="ks-card" style="margin-bottom:14px">
     <div class="ct" id="ks-judul">🛠 Koreksi Stok — tercatat siapa, alasan & foto bukti</div>
     <div id="ks-info" style="font-size:11px;color:var(--t2);margin:-4px 0 10px"></div>
@@ -726,14 +738,6 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
     <button class="btn btg" id="ks-btn" onclick="simpanKoreksiStok()">💾 Simpan Koreksi</button>
     <div style="margin-top:12px;font-size:11px;font-weight:700;color:var(--t2)">RIWAYAT KOREKSI</div><div id="ks-log" style="font-size:12px"></div>
   </div>
-  <div style="display:flex;gap:4px;margin-bottom:14px;background:var(--s2);padding:4px;border-radius:10px;border:1px solid var(--b)">
-    <button id="stab-gunting" onclick="switchStokTab('gunting')" style="flex:1;padding:8px;border:none;border-radius:8px;font-family:var(--f);font-size:12px;font-weight:700;cursor:pointer;background:var(--a);color:#0a0a0a;transition:all .15s">✂️ Guntingan</button>
-    <button id="stab-jahitan" onclick="switchStokTab('jahitan')" style="flex:1;padding:8px;border:none;border-radius:8px;font-family:var(--f);font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--t2);transition:all .15s">🪡 Jahitan</button>
-    <button id="stab-produksi" onclick="switchStokTab('produksi')" style="flex:1;padding:8px;border:none;border-radius:8px;font-family:var(--f);font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--t2);transition:all .15s">📦 Produksi</button>
-  </div>
-  <div id="stok-panel-gunting"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:11px;color:var(--t2)">Bahan mentah per operator cutting</div><button onclick="loadStokGunting()" style="padding:6px 12px;background:var(--s2);border:1px solid var(--b);color:var(--t);border-radius:var(--rads);cursor:pointer;font-size:11px;font-family:var(--f);font-weight:600">🔄 Refresh</button></div><div id="stok-gunting-body"></div></div>
-  <div id="stok-panel-jahitan" style="display:none"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:11px;color:var(--t2)">Bahan di tangan penjahit (sudah diambil, belum disetor)</div><button onclick="loadStokJahitan()" style="padding:6px 12px;background:var(--s2);border:1px solid var(--b);color:var(--t);border-radius:var(--rads);cursor:pointer;font-size:11px;font-family:var(--f);font-weight:600">🔄 Refresh</button></div><div id="stok-jahitan-body"></div></div>
-  <div id="stok-panel-produksi" style="display:none"><div style="display:flex;gap:7px;margin-bottom:10px;flex-wrap:wrap"><input type="text" id="stok-q" placeholder="Cari nama item..." oninput="filterStok()" style="flex:2;min-width:150px"><button onclick="loadStok()" style="padding:7px 13px;background:var(--s2);border:1px solid var(--b);color:var(--t);border-radius:var(--rads);cursor:pointer;font-size:12px;font-family:var(--f);font-weight:600">🔄 Refresh</button></div><div class="tw"><div class="th2"><span class="tt">Stok Barang Jadi</span><span class="bdg" id="stok-cnt">0 item</span></div><div id="stok-body"></div></div></div>
 </div>
 
 <!-- STOK KELUAR -->
@@ -1680,7 +1684,7 @@ function go(name) {
   if (name==="kasbon")     loadKasbonHist();
   if (name==="bayar")      loadBayarHist();
   if (name==="qc")         { loadQCHist(); loadQCTunggu(); }
-  if (name==="stok")       { switchStokTab("gunting"); ksAturTampilan(); loadKoreksiLog(); loadKoreksiUsulan(); }
+  if (name==="stok")       { switchStokTab("ringkas"); ksAturTampilan(); loadKoreksiLog(); loadKoreksiUsulan(); }
   if (name==="keluar")     loadKeluarHist();
   if (name==="ringkasan")  { loadRingkasan(); const ub = document.getElementById("upah-batas"); if (ub) ub.value = upahSetorMulai(); const bn = document.getElementById("btn-nol-lama"); if (bn) bn.style.display = isOwner ? "" : "none"; }
   if (name==="setting")    { renderItemTable(); renderKainTags(); renderGudangTags(); isiPilihanGudang(); loadUpahKosong(); }
@@ -4093,16 +4097,60 @@ let stokTab = "gunting";
 let stokCache = {};
 function switchStokTab(tab) {
   stokTab = tab;
-  const tabs = ["gunting","jahitan","produksi"];
+  const tabs = ["ringkas","gunting","jahitan","produksi"];
   tabs.forEach(t=>{
     const btn = document.getElementById("stab-"+t);
     const panel = document.getElementById("stok-panel-"+t);
     if(btn){ btn.style.background = t===tab?"var(--a)":"transparent"; btn.style.color = t===tab?"#0a0a0a":"var(--t2)"; }
     if(panel) panel.style.display = t===tab?"":"none";
   });
+  if(tab==="ringkas") loadStokRingkas();
   if(tab==="gunting") loadStokGunting();
   if(tab==="jahitan") loadStokJahitan();
   if(tab==="produksi") loadStok();
+}
+// ── Ringkasan stok semua tahap + perkiraan ──
+let _rkData = null
+async function loadStokRingkas(segar) {
+  const el = document.getElementById("stok-ringkas-body"); if (!el) return
+  if (!_rkData || segar) {
+    const [sak, sg, sj, sm, qc, kel] = await Promise.all([fsGet("config","stok_ambil_kain"), fsGet("config","stok_guntingan"), fsGet("config","stok_jahitan"), fsGet("config","stok"), fsAll("qc"), fsAll("keluar")])
+    _rkData = { sak: sak || {}, sg: sg || {}, sj: sj || {}, sm: sm || {}, qc, kel }
+  }
+  const { sak, sg, sj, sm, qc, kel } = _rkData
+  const R = {}, row = k => (R[k] = R[k] || { cut: 0, gun: 0, jah: 0, tunggu: 0, jadi: 0, lolos: 0, rej: 0, lolos4: 0, kel4: 0 })
+  const jumlahNested = (peta, kol) => Object.values(peta).forEach(o => Object.entries(o || {}).forEach(([k, n]) => { if (+n > 0) row(k)[kol] += +n }))
+  jumlahNested(sak, "cut"); jumlahNested(sg, "gun"); jumlahNested(sj, "jah")
+  Object.entries(sm).forEach(([k, n]) => { if (+n > 0) row(k).jadi += +n })
+  const batas = new Date(Date.now() - 28 * 864e5).toISOString().slice(0, 10)
+  qc.forEach(d => (d.items || []).forEach(i => { const k = i.nama + "||" + i.ukuran, ok = +i.ok || 0, rj = +i.reject || 0
+    if (d.status === "menunggu") { row(k).tunggu += ok; return }
+    if (d.status === "ditolak") return
+    row(k).lolos += ok; row(k).rej += rj; if ((d.tanggal || "") >= batas) row(k).lolos4 += ok }))
+  kel.forEach(d => { if ((d.tanggal || "") < batas) return; (d.items || []).forEach(i => { const k = i.nama + "||" + i.ukuran; if (R[k] || +i.pcs) row(k).kel4 += +i.pcs || 0 }) })
+  const q = (document.getElementById("rk-q")?.value || "").toLowerCase()
+  const grp = {}
+  Object.entries(R).forEach(([k, v]) => { const [nm, uk] = k.split("||"); if (q && !nm.toLowerCase().includes(q)) return
+    if (!(v.cut + v.gun + v.jah + v.tunggu + v.jadi + v.kel4)) return; (grp[nm] = grp[nm] || []).push({ uk: uk || "—", ...v }) })
+  const nama = Object.keys(grp).sort()
+  if (!nama.length) { el.innerHTML = '<div class="empty">Belum ada barang di tahap mana pun.</div>'; return }
+  const URUT = ["XS","S","M","L","XL","XXL","XXXL","3XL","4XL","5XL"], ur = u => { const i = URUT.indexOf(String(u).toUpperCase()); return i < 0 ? 99 : i }
+  const mg = n => n >= 99 ? "—" : n < 1 ? "< 1 mgg" : `± ${Math.round(n)} mgg`
+  const hitung = (v, sumP) => { const proses = v.cut + v.gun + v.jah, rejRate = (v.lolos + v.rej) ? v.rej / (v.lolos + v.rej) : 0
+    const perkiraan = sumP != null ? sumP : Math.round(v.jadi + v.tunggu + proses * (1 - rejRate)), prod = v.lolos4 / 4, laku = v.kel4 / 4
+    return { proses, rejRate, perkiraan, prod, laku, selesai: prod > 0 ? proses / prod : (proses ? 99 : 0), cukup: laku > 0 ? perkiraan / laku : 99 } }
+  const th = 'style="padding:5px 6px;font-size:10px;color:var(--t2);text-align:right;font-weight:700;white-space:nowrap"', td = 'style="padding:5px 6px;text-align:right;font-family:var(--m);font-size:12px"'
+  const sel = n => n ? n : '<span style="color:var(--t2)">·</span>'
+  el.innerHTML = nama.map(nm => {
+    const rows = grp[nm].sort((a, b) => ur(a.uk) - ur(b.uk) || String(a.uk).localeCompare(b.uk))
+    const tot = rows.reduce((t, r) => { Object.keys(t).forEach(k => t[k] += r[k]); return t }, { cut: 0, gun: 0, jah: 0, tunggu: 0, jadi: 0, lolos: 0, rej: 0, lolos4: 0, kel4: 0 })
+    const sumP = rows.reduce((t, r) => t + hitung(r).perkiraan, 0), ht = hitung(tot, sumP)
+    const baris = (lbl, v, tebal) => { const h = hitung(v, tebal ? sumP : null); return `<tr style="border-top:1px solid var(--b)${tebal ? ";font-weight:800;background:var(--s2)" : ""}"><td style="padding:5px 6px;font-weight:700">${escH(lbl)}</td><td ${td}>${sel(v.cut)}</td><td ${td}>${sel(v.gun)}</td><td ${td}>${sel(v.jah)}</td><td ${td}>${sel(v.tunggu)}</td><td ${td}><b style="color:var(--g)">${sel(v.jadi)}</b></td><td ${td}><b>${h.perkiraan}</b></td><td ${td}>${h.prod ? (+h.prod.toFixed(1)) : "·"}</td><td ${td}>${h.laku ? (+h.laku.toFixed(1)) : "·"}</td><td ${td}>${h.laku ? `<span style="color:${h.cukup < 2 ? "var(--r)" : h.cukup < 4 ? "#c2410c" : "var(--g)"};font-weight:700">${mg(h.cukup)}</span>` : "·"}</td></tr>` }
+    return `<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline;margin-bottom:6px"><b>${escH(nm)}</b>
+      <span style="font-size:11px;color:var(--t2)">perkiraan jadi <b style="color:var(--t)">${ht.perkiraan} pcs</b>${ht.proses ? ` · proses selesai ${mg(ht.selesai)}` : ""}${ht.rejRate ? ` · reject ${Math.round(ht.rejRate * 100)}%` : ""}</span></div>
+      ${innerWidth < 700 ? '<div style="font-size:10px;color:var(--t2);text-align:right">geser tabel ke kanan →</div>' : ""}<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:620px"><thead><tr><th style="padding:5px 6px;font-size:10px;color:var(--t2);text-align:left">UKURAN</th><th ${th}>✂️ KAIN DI CUTTING</th><th ${th}>✂️ GUNTINGAN</th><th ${th}>🧵 DI PENJAHIT</th><th ${th}>⏳ TUNGGU QC</th><th ${th}>✅ JADI</th><th ${th}>PERKIRAAN JADI</th><th ${th}>LOLOS QC /MGG</th><th ${th}>KELUAR /MGG</th><th ${th}>CUKUP UNTUK</th></tr></thead>
+      <tbody>${rows.map(r => baris(r.uk, r)).join("")}${rows.length > 1 ? baris("Total", tot, true) : ""}</tbody></table></div></div>`
+  }).join("")
 }
 async function loadStok() {
   const data = (await db.collection("config").doc("stok").get()).data()||{};
