@@ -2503,7 +2503,7 @@ function ksIsiBarang() {
   const j = document.getElementById("ks-jenis").value, peta = ksPeta();
   let kunci = Object.keys(peta).sort();
   if (j === "kain") kunci = [...new Set([...(settings.kain || []).map(k => k.nama), ...kunci])].sort();
-  document.getElementById("ks-barang").innerHTML = '<option value="">— Pilih —</option>' + kunci.map(k => `<option value="${escH(k)}">${escH(k.replace("||", " · "))} (sekarang ${peta[k] || 0})</option>`).join("") + (j && j !== "kain" ? '<option value="__baru">➕ Item lain…</option>' : "");
+  document.getElementById("ks-barang").innerHTML = '<option value="">— Pilih —</option>' + kunci.map(k => `<option value="${escH(k)}">${escH(k.replace("||", " · "))} (sekarang ${peta[k] || 0})</option>`).join("") + (j && j !== "kain" && j !== "jadi" ? '<option value="__baru">➕ Item lain…</option>' : "");
   ksTampil();
 }
 function ksKunci() {
@@ -2532,6 +2532,7 @@ async function ksTerapkan({ jenis, pemegang, kunci, ke, alasan, fotos, diajukanO
   const data = (await fsGet("config", cfg.doc)) || {};   // baca ulang supaya tidak menimpa perubahan orang lain
   const peta = cfg.nested ? (data[pemegang] = data[pemegang] || {}) : data;
   const dari = +(peta[kunci] || 0);
+  if (jenis === "jadi" && ke > dari) throw new Error("Stok barang jadi hanya bisa bertambah lewat ✅ QC & Finishing");
   peta[kunci] = ke;
   await fsSet("config", cfg.doc, data);
   await fsAdd("koreksi_stok", { jenis, pemegang: pemegang || "", kunci, dari, ke, alasan, fotos: fotos || [], oleh: unama || uname || "admin",
@@ -2551,6 +2552,8 @@ async function simpanKoreksiStok() {
   const peta = cfg.nested ? (data[orang] || {}) : data;
   const dari = +(peta[kunci] || 0);
   if (dari === baru) return toast("Angkanya sama, tidak ada yang diubah", "w");
+  // Barang jadi hanya bertambah lewat ✅ QC & Finishing (supaya setiap pcs di stok sudah lolos QC). Koreksi hanya boleh mengurangi.
+  if (j === "jadi" && baru > dari) return showAlert("Lewat QC dulu", "Menambah stok barang jadi harus lewat menu ✅ QC & Finishing, supaya setiap barang di stok sudah dicek. Koreksi Stok hanya untuk mengurangi (hilang, rusak, salah hitung).");
   const label = `${kunci.replace("||", " ")}${cfg.nested ? " (" + orang + ")" : ""}`;
   if (!await confirm2(langsung ? `Ubah ${label} dari ${dari} menjadi ${baru}?` : `Ajukan koreksi ${label} dari ${dari} menjadi ${baru}? Stok baru berubah setelah disetujui Pak Adi.`)) return;
   const btn = document.getElementById("ks-btn"); if (btn) btn.disabled = true;
