@@ -709,6 +709,12 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
   </div>
   <div id="stok-panel-ringkas"><div style="display:flex;gap:7px;margin-bottom:8px;flex-wrap:wrap;align-items:center"><input type="text" id="rk-q" placeholder="Cari nama item..." oninput="loadStokRingkas()" style="flex:2;min-width:150px"><button onclick="loadStokRingkas(true)" style="padding:7px 13px;background:var(--s2);border:1px solid var(--b);color:var(--t);border-radius:var(--rads);cursor:pointer;font-size:12px">🔄 Muat ulang</button></div>
     <div style="font-size:11px;color:var(--t2);margin-bottom:10px;line-height:1.5">Semua tahap dalam satu tempat, dijumlah dari semua operator & penjahit. <b>Perkiraan jadi</b> = barang jadi + menunggu QC + yang masih diproses dikurangi rata-rata reject. Kecepatan dihitung dari 4 minggu terakhir (lolos QC & stok keluar).</div>
+    <details id="rk-massal" class="card" style="display:none;margin-bottom:12px"><summary style="cursor:pointer;font-weight:700">📥 Isi stok barang jadi sekaligus (Owner)</summary>
+      <div style="font-size:11px;color:var(--t2);margin:8px 0">Satu baris satu ukuran: <code>Nama item | Ukuran | Jumlah</code>. Angka yang ditulis = stok yang benar (bukan tambahan). Ukuran 2XL/3XL otomatis jadi XXL/XXXL.</div>
+      <textarea id="rk-massal-isi" rows="8" style="width:100%;font-family:var(--m);font-size:12px" placeholder="Baju Korpri Pria | S | 24&#10;Baju Korpri Pria | M | 24"></textarea>
+      <div class="fg" style="margin:8px 0"><label>Alasan</label><input type="text" id="rk-massal-alasan" value="Stok awal barang yang sudah ada (hitung dari Olsera/fisik)"></div>
+      <button type="button" class="btn btg" onclick="rkMassalCek()">👀 Cek dulu</button>
+      <div id="rk-massal-hasil" style="margin-top:10px"></div></details>
     <div id="stok-ringkas-body"><div class="empty">Memuat…</div></div></div>
   <div id="stok-panel-gunting" style="display:none"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:11px;color:var(--t2)">Bahan mentah per operator cutting</div><button onclick="loadStokGunting()" style="padding:6px 12px;background:var(--s2);border:1px solid var(--b);color:var(--t);border-radius:var(--rads);cursor:pointer;font-size:11px;font-family:var(--f);font-weight:600">🔄 Refresh</button></div><div id="stok-gunting-body"></div></div>
   <div id="stok-panel-jahitan" style="display:none"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:11px;color:var(--t2)">Bahan di tangan penjahit (sudah diambil, belum disetor)</div><button onclick="loadStokJahitan()" style="padding:6px 12px;background:var(--s2);border:1px solid var(--b);color:var(--t);border-radius:var(--rads);cursor:pointer;font-size:11px;font-family:var(--f);font-weight:600">🔄 Refresh</button></div><div id="stok-jahitan-body"></div></div>
@@ -4104,7 +4110,7 @@ function switchStokTab(tab) {
     if(btn){ btn.style.background = t===tab?"var(--a)":"transparent"; btn.style.color = t===tab?"#0a0a0a":"var(--t2)"; }
     if(panel) panel.style.display = t===tab?"":"none";
   });
-  if(tab==="ringkas") loadStokRingkas();
+  if(tab==="ringkas") { loadStokRingkas(); const m = document.getElementById("rk-massal"); if (m) m.style.display = isOwner ? "" : "none"; }
   if(tab==="gunting") loadStokGunting();
   if(tab==="jahitan") loadStokJahitan();
   if(tab==="produksi") loadStok();
@@ -4153,6 +4159,39 @@ async function loadStokRingkas(segar) {
   }).join("")
 }
 // Owner: ubah stok barang jadi langsung dari Ringkasan (stok awal / hitung fisik) — tercatat di riwayat koreksi
+// Owner: isi stok barang jadi banyak sekaligus (stok awal) — pratinjau dulu, lalu simpan satu kali
+let _rkMassal = []
+const rkUkuran = u => { const x = String(u || "").trim().toUpperCase().replace(/^UK\.?\s*/, ""); return ({ "2XL": "XXL", "3XL": "XXXL", "XXXXL": "4XL" })[x] || x }
+async function rkMassalCek() {
+  if (!isOwner) return
+  const el = document.getElementById("rk-massal-hasil"), sm = (await fsGet("config", "stok")) || {}
+  const itemYH = new Set((settings.items || []).map(i => String(i.nama).toLowerCase()))
+  const salah = [], baris = []
+  document.getElementById("rk-massal-isi").value.split(/\n+/).map(l => l.trim()).filter(Boolean).forEach((l, n) => {
+    const [nm, uk, j] = l.split("|").map(x => (x || "").trim())
+    const jml = +String(j).replace(/[^0-9]/g, "")
+    if (!nm || !uk || j === "" || isNaN(jml)) return salah.push(`Baris ${n + 1}: "${l}" — format Nama | Ukuran | Jumlah`)
+    const nama = (settings.items || []).find(i => String(i.nama).toLowerCase() === nm.toLowerCase())?.nama || nm, kunci = nama + "||" + rkUkuran(uk)
+    baris.push({ kunci, nama, uk: rkUkuran(uk), dari: +(sm[kunci] || 0), ke: jml, baru: !itemYH.has(nm.toLowerCase()) })
+  })
+  _rkMassal = baris.filter(b => b.dari !== b.ke)
+  el.innerHTML = (salah.length ? `<div style="color:var(--r);font-size:12px;margin-bottom:6px">${salah.map(escH).join("<br>")}</div>` : "")
+    + (baris.length ? `<table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="color:var(--t2);font-size:10px"><th style="text-align:left">BARANG</th><th>UK</th><th style="text-align:right">SEKARANG</th><th style="text-align:right">JADI</th></tr>${baris.map(b => `<tr style="border-top:1px solid var(--b)${b.dari === b.ke ? ";opacity:.45" : ""}"><td>${escH(b.nama)}${b.baru ? ' <span style="color:#c2410c;font-size:10px">⚠ tidak ada di item master</span>' : ""}</td><td style="text-align:center">${escH(b.uk)}</td><td style="text-align:right;font-family:var(--m)">${b.dari}</td><td style="text-align:right;font-family:var(--m);font-weight:800;color:${b.ke > b.dari ? "var(--g)" : b.ke < b.dari ? "var(--r)" : "inherit"}">${b.ke}</td></tr>`).join("")}</table>
+      ${_rkMassal.length ? `<button type="button" class="btn btg" style="margin-top:8px;width:100%" onclick="rkMassalSimpan()">💾 Simpan ${_rkMassal.length} perubahan</button>` : '<div style="font-size:12px;color:var(--t2);margin-top:6px">Semua angka sudah sama, tidak ada yang diubah.</div>'}` : "")
+}
+async function rkMassalSimpan() {
+  if (!isOwner || !_rkMassal.length) return
+  const alasan = document.getElementById("rk-massal-alasan").value.trim(); if (!alasan) return toast("Alasan wajib diisi", "w")
+  if (!await confirm2(`Simpan ${_rkMassal.length} perubahan stok barang jadi?`)) return
+  try {
+    const sm = (await fsGet("config", "stok")) || {}
+    const log = _rkMassal.map(b => { const dari = +(sm[b.kunci] || 0); sm[b.kunci] = b.ke; return { ...b, dari } })
+    await fsSet("config", "stok", sm)
+    for (const b of log) await fsAdd("koreksi_stok", { jenis: "jadi", pemegang: "", kunci: b.kunci, dari: b.dari, ke: b.ke, alasan, fotos: [], oleh: unama || uname || "owner", tanggal: hariIniISO() })
+    toast(`✓ ${log.length} stok barang jadi disimpan`); _rkMassal = []; document.getElementById("rk-massal-hasil").innerHTML = ""; document.getElementById("rk-massal-isi").value = ""
+    _rkData = null; await loadStokRingkas(true); loadKoreksiLog()
+  } catch (e) { showAlert("Gagal menyimpan", e.message || String(e)) }
+}
 async function rkEditJadi(nama, uk, skrg) {
   if (!isOwner) return
   const v = prompt(`Stok barang jadi ${nama} ukuran ${uk}\nSekarang: ${skrg} pcs\n\nAngka yang benar (hasil hitung fisik):`, String(skrg)); if (v === null) return
