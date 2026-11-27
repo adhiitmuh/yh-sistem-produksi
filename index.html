@@ -2510,7 +2510,7 @@ function ksIsiBarang() {
   const j = document.getElementById("ks-jenis").value, peta = ksPeta();
   let kunci = Object.keys(peta).sort();
   if (j === "kain") kunci = [...new Set([...(settings.kain || []).map(k => k.nama), ...kunci])].sort();
-  document.getElementById("ks-barang").innerHTML = '<option value="">— Pilih —</option>' + kunci.map(k => `<option value="${escH(k)}">${escH(k.replace("||", " · "))} (sekarang ${peta[k] || 0})</option>`).join("") + (j && j !== "kain" && j !== "jadi" ? '<option value="__baru">➕ Item lain…</option>' : "");
+  document.getElementById("ks-barang").innerHTML = '<option value="">— Pilih —</option>' + kunci.map(k => `<option value="${escH(k)}">${escH(k.replace("||", " · "))} (sekarang ${peta[k] || 0})</option>`).join("") + (j && j !== "kain" && (j !== "jadi" || isOwner) ? '<option value="__baru">➕ Item lain…</option>' : "");
   ksTampil();
 }
 function ksKunci() {
@@ -2539,7 +2539,7 @@ async function ksTerapkan({ jenis, pemegang, kunci, ke, alasan, fotos, diajukanO
   const data = (await fsGet("config", cfg.doc)) || {};   // baca ulang supaya tidak menimpa perubahan orang lain
   const peta = cfg.nested ? (data[pemegang] = data[pemegang] || {}) : data;
   const dari = +(peta[kunci] || 0);
-  if (jenis === "jadi" && ke > dari) throw new Error("Stok barang jadi hanya bisa bertambah lewat ✅ QC & Finishing");
+  if (jenis === "jadi" && ke > dari && !isOwner) throw new Error("Stok barang jadi hanya bisa bertambah lewat ✅ QC & Finishing");
   peta[kunci] = ke;
   await fsSet("config", cfg.doc, data);
   await fsAdd("koreksi_stok", { jenis, pemegang: pemegang || "", kunci, dari, ke, alasan, fotos: fotos || [], oleh: unama || uname || "admin",
@@ -2560,7 +2560,7 @@ async function simpanKoreksiStok() {
   const dari = +(peta[kunci] || 0);
   if (dari === baru) return toast("Angkanya sama, tidak ada yang diubah", "w");
   // Barang jadi hanya bertambah lewat ✅ QC & Finishing (supaya setiap pcs di stok sudah lolos QC). Koreksi hanya boleh mengurangi.
-  if (j === "jadi" && baru > dari) return showAlert("Lewat QC dulu", "Menambah stok barang jadi harus lewat menu ✅ QC & Finishing, supaya setiap barang di stok sudah dicek. Koreksi Stok hanya untuk mengurangi (hilang, rusak, salah hitung).");
+  if (j === "jadi" && baru > dari && !isOwner) return showAlert("Lewat QC dulu", "Menambah stok barang jadi harus lewat menu ✅ QC & Finishing, supaya setiap barang di stok sudah dicek. Koreksi Stok hanya untuk mengurangi (hilang, rusak, salah hitung). Stok awal barang yang sudah ada diisi oleh Pak Adi.");
   const label = `${kunci.replace("||", " ")}${cfg.nested ? " (" + orang + ")" : ""}`;
   if (!await confirm2(langsung ? `Ubah ${label} dari ${dari} menjadi ${baru}?` : `Ajukan koreksi ${label} dari ${dari} menjadi ${baru}? Stok baru berubah setelah disetujui Pak Adi.`)) return;
   const btn = document.getElementById("ks-btn"); if (btn) btn.disabled = true;
@@ -4145,12 +4145,21 @@ async function loadStokRingkas(segar) {
     const rows = grp[nm].sort((a, b) => ur(a.uk) - ur(b.uk) || String(a.uk).localeCompare(b.uk))
     const tot = rows.reduce((t, r) => { Object.keys(t).forEach(k => t[k] += r[k]); return t }, { cut: 0, gun: 0, jah: 0, tunggu: 0, jadi: 0, lolos: 0, rej: 0, lolos4: 0, kel4: 0 })
     const sumP = rows.reduce((t, r) => t + hitung(r).perkiraan, 0), ht = hitung(tot, sumP)
-    const baris = (lbl, v, tebal) => { const h = hitung(v, tebal ? sumP : null); return `<tr style="border-top:1px solid var(--b)${tebal ? ";font-weight:800;background:var(--s2)" : ""}"><td style="padding:5px 6px;font-weight:700">${escH(lbl)}</td><td ${td}>${sel(v.cut)}</td><td ${td}>${sel(v.gun)}</td><td ${td}>${sel(v.jah)}</td><td ${td}>${sel(v.tunggu)}</td><td ${td}><b style="color:var(--g)">${sel(v.jadi)}</b></td><td ${td}><b>${h.perkiraan}</b></td><td ${td}>${h.prod ? (+h.prod.toFixed(1)) : "·"}</td><td ${td}>${h.laku ? (+h.laku.toFixed(1)) : "·"}</td><td ${td}>${h.laku ? `<span style="color:${h.cukup < 2 ? "var(--r)" : h.cukup < 4 ? "#c2410c" : "var(--g)"};font-weight:700">${mg(h.cukup)}</span>` : "·"}</td></tr>` }
+    const baris = (lbl, v, tebal) => { const h = hitung(v, tebal ? sumP : null); return `<tr style="border-top:1px solid var(--b)${tebal ? ";font-weight:800;background:var(--s2)" : ""}"><td style="padding:5px 6px;font-weight:700">${escH(lbl)}</td><td ${td}>${sel(v.cut)}</td><td ${td}>${sel(v.gun)}</td><td ${td}>${sel(v.jah)}</td><td ${td}>${sel(v.tunggu)}</td><td ${td}>${isOwner && !tebal ? `<button type="button" data-n="${escH(nm)}" data-u="${escH(lbl)}" data-j="${v.jadi}" onclick="rkEditJadi(this.dataset.n,this.dataset.u,+this.dataset.j)" title="Ubah stok jadi (Owner)" style="border:1px dashed var(--g);background:transparent;border-radius:6px;padding:1px 8px;cursor:pointer;font-family:var(--m);font-weight:800;color:var(--g)">${v.jadi} ✏️</button>` : `<b style="color:var(--g)">${sel(v.jadi)}</b>`}</td><td ${td}><b>${h.perkiraan}</b></td><td ${td}>${h.prod ? (+h.prod.toFixed(1)) : "·"}</td><td ${td}>${h.laku ? (+h.laku.toFixed(1)) : "·"}</td><td ${td}>${h.laku ? `<span style="color:${h.cukup < 2 ? "var(--r)" : h.cukup < 4 ? "#c2410c" : "var(--g)"};font-weight:700">${mg(h.cukup)}</span>` : "·"}</td></tr>` }
     return `<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline;margin-bottom:6px"><b>${escH(nm)}</b>
       <span style="font-size:11px;color:var(--t2)">perkiraan jadi <b style="color:var(--t)">${ht.perkiraan} pcs</b>${ht.proses ? ` · proses selesai ${mg(ht.selesai)}` : ""}${ht.rejRate ? ` · reject ${Math.round(ht.rejRate * 100)}%` : ""}</span></div>
       ${innerWidth < 700 ? '<div style="font-size:10px;color:var(--t2);text-align:right">geser tabel ke kanan →</div>' : ""}<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:620px"><thead><tr><th style="padding:5px 6px;font-size:10px;color:var(--t2);text-align:left">UKURAN</th><th ${th}>✂️ KAIN DI CUTTING</th><th ${th}>✂️ GUNTINGAN</th><th ${th}>🧵 DI PENJAHIT</th><th ${th}>⏳ TUNGGU QC</th><th ${th}>✅ JADI</th><th ${th}>PERKIRAAN JADI</th><th ${th}>LOLOS QC /MGG</th><th ${th}>KELUAR /MGG</th><th ${th}>CUKUP UNTUK</th></tr></thead>
       <tbody>${rows.map(r => baris(r.uk, r)).join("")}${rows.length > 1 ? baris("Total", tot, true) : ""}</tbody></table></div></div>`
   }).join("")
+}
+// Owner: ubah stok barang jadi langsung dari Ringkasan (stok awal / hitung fisik) — tercatat di riwayat koreksi
+async function rkEditJadi(nama, uk, skrg) {
+  if (!isOwner) return
+  const v = prompt(`Stok barang jadi ${nama} ukuran ${uk}\nSekarang: ${skrg} pcs\n\nAngka yang benar (hasil hitung fisik):`, String(skrg)); if (v === null) return
+  const ke = Math.max(0, Math.floor(+String(v).replace(/[^0-9]/g, ""))); if (ke === skrg) return
+  const alasan = (prompt("Alasan (wajib), cth: stok awal barang yang sudah ada / hitung fisik 27 Nov:", ke > skrg ? "Stok awal barang yang sudah ada" : "Hitung fisik") || "").trim(); if (!alasan) return toast("Alasan wajib diisi", "w")
+  try { await ksTerapkan({ jenis: "jadi", pemegang: "", kunci: nama + "||" + (uk === "—" ? "" : uk), ke, alasan, fotos: [] }); toast(`✓ ${nama} ${uk}: ${skrg} → ${ke}`); _rkData = null; await loadStokRingkas(true); loadKoreksiLog() }
+  catch (e) { showAlert("Gagal", e.message || String(e)) }
 }
 async function loadStok() {
   const data = (await db.collection("config").doc("stok").get()).data()||{};
