@@ -4151,7 +4151,8 @@ async function loadStokRingkas(segar) {
     const rows = grp[nm].sort((a, b) => ur(a.uk) - ur(b.uk) || String(a.uk).localeCompare(b.uk))
     const tot = rows.reduce((t, r) => { Object.keys(t).forEach(k => t[k] += r[k]); return t }, { cut: 0, gun: 0, jah: 0, tunggu: 0, jadi: 0, lolos: 0, rej: 0, lolos4: 0, kel4: 0 })
     const sumP = rows.reduce((t, r) => t + hitung(r).perkiraan, 0), ht = hitung(tot, sumP)
-    const baris = (lbl, v, tebal) => { const h = hitung(v, tebal ? sumP : null); return `<tr style="border-top:1px solid var(--b)${tebal ? ";font-weight:800;background:var(--s2)" : ""}"><td style="padding:5px 6px;font-weight:700">${escH(lbl)}</td><td ${td}>${sel(v.cut)}</td><td ${td}>${sel(v.gun)}</td><td ${td}>${sel(v.jah)}</td><td ${td}>${sel(v.tunggu)}</td><td ${td}>${isOwner && !tebal ? `<button type="button" data-n="${escH(nm)}" data-u="${escH(lbl)}" data-j="${v.jadi}" onclick="rkEditJadi(this.dataset.n,this.dataset.u,+this.dataset.j)" title="Ubah stok jadi (Owner)" style="border:1px dashed var(--g);background:transparent;border-radius:6px;padding:1px 8px;cursor:pointer;font-family:var(--m);font-weight:800;color:var(--g)">${v.jadi} ✏️</button>` : `<b style="color:var(--g)">${sel(v.jadi)}</b>`}</td><td ${td}><b>${h.perkiraan}</b></td><td ${td}>${h.prod ? (+h.prod.toFixed(1)) : "·"}</td><td ${td}>${h.laku ? (+h.laku.toFixed(1)) : "·"}</td><td ${td}>${h.laku ? `<span style="color:${h.cukup < 2 ? "var(--r)" : h.cukup < 4 ? "#c2410c" : "var(--g)"};font-weight:700">${mg(h.cukup)}</span>` : "·"}</td></tr>` }
+    const baris = (lbl, v, tebal) => { const h = hitung(v, tebal ? sumP : null)
+      const ed = (jenis, n) => isOwner && !tebal ? `<button type="button" data-n="${escH(nm)}" data-u="${escH(lbl)}" data-jenis="${jenis}" onclick="rkEditTahap(this)" title="Ubah (Owner)" style="border:1px dashed var(--b);background:transparent;border-radius:6px;padding:1px 8px;cursor:pointer;font-family:var(--m);color:inherit">${n || 0} ✏️</button>` : sel(n); return `<tr style="border-top:1px solid var(--b)${tebal ? ";font-weight:800;background:var(--s2)" : ""}"><td style="padding:5px 6px;font-weight:700">${escH(lbl)}</td><td ${td}>${ed('ambil_kain', v.cut)}</td><td ${td}>${ed('guntingan', v.gun)}</td><td ${td}>${ed('jahitan', v.jah)}</td><td ${td}>${isOwner && !tebal && v.tunggu ? `<button type="button" onclick="go('qc')" title="Buka QC untuk disetujui" style="border:1px dashed #c2410c;background:transparent;border-radius:6px;padding:1px 8px;cursor:pointer;font-family:var(--m);color:#c2410c">${v.tunggu} ↗</button>` : sel(v.tunggu)}</td><td ${td}>${isOwner && !tebal ? `<button type="button" data-n="${escH(nm)}" data-u="${escH(lbl)}" data-j="${v.jadi}" onclick="rkEditJadi(this.dataset.n,this.dataset.u,+this.dataset.j)" title="Ubah stok jadi (Owner)" style="border:1px dashed var(--g);background:transparent;border-radius:6px;padding:1px 8px;cursor:pointer;font-family:var(--m);font-weight:800;color:var(--g)">${v.jadi} ✏️</button>` : `<b style="color:var(--g)">${sel(v.jadi)}</b>`}</td><td ${td}><b>${h.perkiraan}</b></td><td ${td}>${h.prod ? (+h.prod.toFixed(1)) : "·"}</td><td ${td}>${h.laku ? (+h.laku.toFixed(1)) : "·"}</td><td ${td}>${h.laku ? `<span style="color:${h.cukup < 2 ? "var(--r)" : h.cukup < 4 ? "#c2410c" : "var(--g)"};font-weight:700">${mg(h.cukup)}</span>` : "·"}</td></tr>` }
     return `<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline;margin-bottom:6px"><b>${escH(nm)}</b>
       <span style="font-size:11px;color:var(--t2)">perkiraan jadi <b style="color:var(--t)">${ht.perkiraan} pcs</b>${ht.proses ? ` · proses selesai ${mg(ht.selesai)}` : ""}${ht.rejRate ? ` · reject ${Math.round(ht.rejRate * 100)}%` : ""}</span></div>
       ${innerWidth < 700 ? '<div style="font-size:10px;color:var(--t2);text-align:right">geser tabel ke kanan →</div>' : ""}<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:620px"><thead><tr><th style="padding:5px 6px;font-size:10px;color:var(--t2);text-align:left">UKURAN</th><th ${th}>✂️ KAIN DI CUTTING</th><th ${th}>✂️ GUNTINGAN</th><th ${th}>🧵 DI PENJAHIT</th><th ${th}>⏳ TUNGGU QC</th><th ${th}>✅ JADI</th><th ${th}>PERKIRAAN JADI</th><th ${th}>LOLOS QC /MGG</th><th ${th}>KELUAR /MGG</th><th ${th}>CUKUP UNTUK</th></tr></thead>
@@ -4191,6 +4192,31 @@ async function rkMassalSimpan() {
     toast(`✓ ${log.length} stok barang jadi disimpan`); _rkMassal = []; document.getElementById("rk-massal-hasil").innerHTML = ""; document.getElementById("rk-massal-isi").value = ""
     _rkData = null; await loadStokRingkas(true); loadKoreksiLog()
   } catch (e) { showAlert("Gagal menyimpan", e.message || String(e)) }
+}
+// Owner: ubah stok tahap per orang (kain di cutting / guntingan per operator, bahan di penjahit)
+async function rkEditTahap(btn) {
+  if (!isOwner) return
+  const jenis = btn.dataset.jenis, cfg = KS[jenis], nama = btn.dataset.n, uk = btn.dataset.u, kunci = nama + "||" + (uk === "—" ? "" : uk)
+  const data = (await fsGet("config", cfg.doc)) || {}
+  const orang = [...new Set([...(settings[cfg.orang] || []), ...Object.keys(data)])].sort()
+  const judul = { ambil_kain: "✂️ Kain di cutting", guntingan: "✂️ Guntingan", jahitan: "🧵 Di penjahit" }[jenis]
+  const bg = document.createElement("div"); bg.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;display:flex;align-items:center;justify-content:center;padding:14px"
+  bg.innerHTML = `<div style="background:var(--s1,#fff);color:var(--t1,#111);border-radius:14px;max-width:420px;width:100%;max-height:90vh;overflow:auto;padding:14px">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><b>${judul}</b><div style="font-size:12px;color:var(--t2)">${escH(nama)} · ${escH(uk)}</div></div><button class="btn btn-tutup" data-x>✕ Tutup</button></div>
+    <div style="font-size:11px;color:var(--t2);margin:8px 0">Isi angka yang benar per ${cfg.orang === "operator" ? "operator cutting" : "penjahit"} (pcs). Kosongkan / 0 kalau tidak memegang.</div>
+    <div style="display:grid;grid-template-columns:1fr 90px;gap:6px;align-items:center">${orang.map(o => `<span style="font-size:13px">${escH(o)}</span><input type="number" min="0" data-o="${escH(o)}" value="${+((data[o] || {})[kunci] || 0) || ""}" placeholder="0" style="text-align:right">`).join("")}</div>
+    <div class="fg" style="margin-top:10px"><label>Alasan (wajib)</label><input type="text" data-alasan placeholder="cth: hitung fisik 27 Nov"></div>
+    <button class="btn btg" data-simpan style="width:100%;margin-top:8px">💾 Simpan</button></div>`
+  document.body.appendChild(bg)
+  const tutup = () => bg.remove(); bg.querySelector("[data-x]").onclick = tutup; bg.onclick = e => { if (e.target === bg) tutup() }
+  bg.querySelector("[data-simpan]").onclick = async () => {
+    const alasan = bg.querySelector("[data-alasan]").value.trim(); if (!alasan) return toast("Alasan wajib diisi", "w")
+    const ubah = [...bg.querySelectorAll("[data-o]")].map(i => ({ o: i.dataset.o, dari: +((data[i.dataset.o] || {})[kunci] || 0), ke: Math.max(0, Math.floor(+i.value || 0)) })).filter(x => x.dari !== x.ke)
+    if (!ubah.length) return tutup()
+    try { for (const x of ubah) await ksTerapkan({ jenis, pemegang: x.o, kunci, ke: x.ke, alasan, fotos: [] })
+      toast(`✓ ${ubah.length} perubahan disimpan`); tutup(); _rkData = null; await loadStokRingkas(true); loadKoreksiLog() }
+    catch (e) { showAlert("Gagal", e.message || String(e)) }
+  }
 }
 async function rkEditJadi(nama, uk, skrg) {
   if (!isOwner) return
