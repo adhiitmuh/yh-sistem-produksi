@@ -1325,8 +1325,12 @@ auth.onAuthStateChanged(async user => {
   if (user) {
     uid = user.uid;
     uname = user.email;
-    // Sign in anonymously ke main Firebase app agar Firestore & Storage rules terpenuhi
-    try { await firebase.auth().signInAnonymously(); } catch(e) { console.warn("Anonymous auth main app:", e.code); }
+    // Login ke project data YH memakai token dari Worker (dicek akses YH di Portal) supaya data YH bisa dikunci untuk umum.
+    // Selama Worker belum diberi kunci YH (503), aplikasi tetap jalan seperti sebelumnya.
+    try {
+      const tk = await fetch("https://harmoni-order-api.adhiitmuh.workers.dev/yh/token", { method: "POST", headers: { Authorization: "Bearer " + await user.getIdToken() } })
+      if (tk.ok) { const { token } = await tk.json(); if (token) await firebase.auth().signInWithCustomToken(token) }
+    } catch (e) { console.warn("Login data YH:", e.message || e) }
     const userSnap = await authDb.collection('users').doc(user.uid).get();
     const userDoc  = userSnap.exists ? userSnap.data() : null;
 
