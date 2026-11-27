@@ -708,7 +708,7 @@ body.light [style*="background:var(--gold)"]{background:#fef3c7!important;color:
     <button id="stab-produksi" onclick="switchStokTab('produksi')" style="flex:1;padding:8px;border:none;border-radius:8px;font-family:var(--f);font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--t2);transition:all .15s">📦 Produksi</button>
   </div>
   <div id="stok-panel-ringkas"><div style="display:flex;gap:7px;margin-bottom:8px;flex-wrap:wrap;align-items:center"><input type="text" id="rk-q" placeholder="Cari nama item..." oninput="loadStokRingkas()" style="flex:2;min-width:150px"><button onclick="loadStokRingkas(true)" style="padding:7px 13px;background:var(--s2);border:1px solid var(--b);color:var(--t);border-radius:var(--rads);cursor:pointer;font-size:12px">🔄 Muat ulang</button></div>
-    <div style="font-size:11px;color:var(--t2);margin-bottom:10px;line-height:1.5">Semua tahap dalam satu tempat, dijumlah dari semua operator & penjahit. <b>Perkiraan jadi</b> = barang jadi + menunggu QC + yang masih diproses dikurangi rata-rata reject. Kecepatan dihitung dari 4 minggu terakhir (lolos QC & stok keluar).</div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:10px;line-height:1.5">Semua tahap dalam satu tempat, dijumlah dari semua operator & penjahit. <b>Perkiraan jadi</b> = barang jadi + yang masih diproses (cutting, guntingan, di penjahit, disetor belum QC) dikurangi rata-rata reject. Kecepatan dihitung dari 4 minggu terakhir (lolos QC & stok keluar).</div>
     <details id="rk-massal" class="card" style="display:none;margin-bottom:12px"><summary style="cursor:pointer;font-weight:700">📥 Isi stok barang jadi sekaligus (Owner)</summary>
       <div style="font-size:11px;color:var(--t2);margin:8px 0">Satu baris satu ukuran: <code>Nama item | Ukuran | Jumlah</code>. Angka yang ditulis = stok yang benar (bukan tambahan). Ukuran 2XL/3XL otomatis jadi XXL/XXXL.</div>
       <textarea id="rk-massal-isi" rows="8" style="width:100%;font-family:var(--m);font-size:12px" placeholder="Baju Korpri Pria | S | 24&#10;Baju Korpri Pria | M | 24"></textarea>
@@ -1282,8 +1282,27 @@ async function fsQuery(col, ...wheres) {
 async function fsAll(col) {
   const snap = await db.collection(col).get();
   const docs = snap.docs.map(d => ({_id: d.id, ...d.data()}));
-  if (col === "transaksi") tandaiUpahAmbil(docs);
+  if (col === "transaksi") { tandaiUpahAmbil(docs); await tandaiUpahQC(docs); }
   return docs;
+}
+// ── Upah Setor Jahitan dibayar setelah lolos QC (setoran bertanda qcWajib) ──
+// Hasil QC (disetujui) per penjahit+item+ukuran dipasangkan ke setoran terlama dulu: lolos → berupah, reject → tidak berupah
+// (reject "perbaiki" kembali ke penjahit; setelah disetor ulang & lolos QC baru dibayar). Sisa = menunggu QC.
+async function tandaiUpahQC(docs) {
+  const setor = docs.filter(d => d.type === "jahit" && d.qcWajib); if (!setor.length) return docs
+  let qc = []; try { qc = (await db.collection("qc").get()).docs.map(x => x.data()) } catch (e) {}
+  const kunci = (o, n, u) => String(o||"").trim().toUpperCase() + "|" + String(n||"").trim().toUpperCase() + "|" + String(u||"").trim().toUpperCase()
+  const pool = {}
+  qc.filter(q => q.dariSetor && q.status !== "menunggu" && q.status !== "ditolak").forEach(q => (q.items||[]).forEach(i => {
+    const k = kunci(q.penjahit, i.nama, i.ukuran), p = pool[k] = pool[k] || { ok: 0, rj: 0 }; p.ok += +i.ok||0; p.rj += +i.reject||0 }))
+  setor.sort((a, b) => (a.tanggal||"").localeCompare(b.tanggal||"") || ((a.createdAt?.seconds||0) - (b.createdAt?.seconds||0))).forEach(d => {
+    let upah = 0, tunggu = 0, pcsTunggu = 0, pcsLolos = 0, pcsReject = 0
+    ;(d.items||[]).forEach(i => { const p = pool[kunci(d.orang, i.nama, i.ukuran)] || { ok: 0, rj: 0 }, n = +i.pcs||0, rate = +i.upah || (n ? (+i.subtotal||0)/n : 0)
+      const lolos = Math.min(n, p.ok); p.ok -= lolos; const rj = Math.min(n - lolos, p.rj); p.rj -= rj; const sisa = n - lolos - rj
+      upah += lolos * rate; tunggu += sisa * rate; pcsTunggu += sisa; pcsLolos += lolos; pcsReject += rj })
+    d._upah = Math.round(upah); d._upahMenunggu = Math.round(tunggu); d._pcsMenunggu = pcsTunggu; d._pcsLolos = pcsLolos; d._pcsReject = pcsReject
+  })
+  return docs
 }
 // ── Upah Ambil Jahitan vs Setor Jahitan ──
 // Dulu pekerjaan penjahit dicatat lewat Ambil Jahitan saja (upah dibayar dari situ). Sejak alur bersambung,
@@ -2037,11 +2056,14 @@ async function submitJahit() {
     const pjStok = sj[pj] || {};
     const fotos = await uploadFotos(fF.j);
     const jOrd = document.getElementById("j-ord")?.value || "";
-    await fsAdd("transaksi",{type:"jahit",tanggal:tgl,orang:pj,orderId:idOrder(jOrd),order:namaOrder(jOrd),items:it,totalPcs:tp,totalUpah:tu,...(cekJ.catatan?{lebihStok:cekJ.catatan}:{}),keterangan:document.getElementById("j-ket").value,fotos});
+    await fsAdd("transaksi",{type:"jahit",qcWajib:true,tanggal:tgl,orang:pj,orderId:idOrder(jOrd),order:namaOrder(jOrd),items:it,totalPcs:tp,totalUpah:tu,...(cekJ.catatan?{lebihStok:cekJ.catatan}:{}),keterangan:document.getElementById("j-ket").value,fotos});
     // Kurangi stok jahitan
     it.forEach(i => { const k=`${i.nama}||${i.ukuran}`; pjStok[k]=Math.max(0,(pjStok[k]||0)-i.pcs); });
     sj[pj]=pjStok; await fsSet("config","stok_jahitan",sj);
-    toast("✓ Setoran "+pj+" disimpan!");
+    // Barang yang disetor masuk antrean QC (belum stok jadi; upah dibayar setelah lolos QC)
+    const ss = (await fsGet("config","stok_setor")) || {}; const pjS = ss[pj] || {};
+    it.forEach(i => { const k=`${i.nama}||${i.ukuran}`; pjS[k]=(pjS[k]||0)+i.pcs; }); ss[pj]=pjS; await fsSet("config","stok_setor",ss);
+    toast("✓ Setoran "+pj+" disimpan — menunggu QC");
     kirimProgresOrder(jOrd);
     document.getElementById("j-pjt").value=""; document.getElementById("j-ket").value=""; document.getElementById("j-ord").value="";
     document.getElementById("j-blocks").innerHTML=""; addJahitBlock(); calcJ(); clearF("j"); loadPilihJahit();
@@ -2499,7 +2521,7 @@ async function loadLacak() {
 }
 
 // ── KOREKSI STOK (Admin) — setiap perubahan dicatat di koleksi koreksi_stok ──
-const KS = { kain:{doc:"stok_kain",nested:false}, ambil_kain:{doc:"stok_ambil_kain",nested:true,orang:"operator"}, guntingan:{doc:"stok_guntingan",nested:true,orang:"operator"}, jahitan:{doc:"stok_jahitan",nested:true,orang:"penjahit"}, jadi:{doc:"stok",nested:false} };
+const KS = { kain:{doc:"stok_kain",nested:false}, ambil_kain:{doc:"stok_ambil_kain",nested:true,orang:"operator"}, guntingan:{doc:"stok_guntingan",nested:true,orang:"operator"}, setor:{doc:"stok_setor",nested:true,orang:"penjahit"}, jahitan:{doc:"stok_jahitan",nested:true,orang:"penjahit"}, jadi:{doc:"stok",nested:false} };
 let _ksData = {};
 async function ksIsi() {
   const j = document.getElementById("ks-jenis").value, cfg = KS[j];
@@ -2535,7 +2557,7 @@ function ksTampil() {
 }
 // Koreksi stok: Owner (Pak Adi) langsung simpan; selain Owner (Admin lain / CS / staff) → usulan + foto bukti → disetujui Owner.
 const ksBolehLangsung = () => isOwner;
-const ksNamaJenis = { kain:"Kain", ambil_kain:"Kain dipegang operator", guntingan:"Guntingan", jahitan:"Dipegang penjahit", jadi:"Barang jadi" };
+const ksNamaJenis = { setor: "Disetor belum QC", kain:"Kain", ambil_kain:"Kain dipegang operator", guntingan:"Guntingan", jahitan:"Dipegang penjahit", jadi:"Barang jadi" };
 function ksAturTampilan() {
   const langsung = ksBolehLangsung();
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.innerHTML = v; };
@@ -3447,7 +3469,8 @@ function calcQCRow(i) {
 async function loadQCPending() {
   const pj = document.getElementById("qc-pjt").value; if(!pj) return;
   document.getElementById("qc-rows").innerHTML = ""; qcRows = [];
-  const stokRef = await db.collection("config").doc("stok_jahitan").get();
+  // Yang di-QC = barang yang sudah disetor penjahit (Setor Jahitan) dan belum di-QC
+  const stokRef = await db.collection("config").doc("stok_setor").get();
   const stokData = stokRef.exists ? stokRef.data() : {};
   const pjStok = stokData[pj] || {};
   const wrap = document.getElementById("qc-pending-wrap");
@@ -3477,16 +3500,18 @@ function tampilReject(n) {
 // Terapkan hasil QC ke stok: kurangi stok di tangan penjahit, tambah barang lolos ke stok barang jadi
 async function terapkanQC(d) {
   const nasib = d.nasibReject || "perbaiki", adaReject = (+d.totalReject || 0) > 0;
+  const ss = (await db.collection("config").doc("stok_setor").get()).data()||{};
   const sj = (await db.collection("config").doc("stok_jahitan").get()).data()||{};
-  const pjStok = {...(sj[d.penjahit]||{})};
   const sm = (await db.collection("config").doc("stok").get()).data()||{};
+  const pjSetor = {...(ss[d.penjahit]||{})}, pjStok = {...(sj[d.penjahit]||{})};
   (d.items || []).forEach(it => {
-    const key = it.nama+"||"+it.ukuran;
-    // reject yang dikembalikan untuk diperbaiki tetap tercatat di tangan penjahit
-    pjStok[key] = Math.max(0,(pjStok[key]||0)-(+it.ok||0)-(adaReject&&nasib==="perbaiki"?0:(+it.reject||0)));
-    sm[key] = (sm[key]||0) + (+it.ok||0);
+    const key = it.nama+"||"+it.ukuran, ok = +it.ok||0, rj = +it.reject||0;
+    pjSetor[key] = Math.max(0,(pjSetor[key]||0)-ok-rj);           // keluar dari antrean QC
+    sm[key] = (sm[key]||0) + ok;                                    // lolos → stok barang jadi
+    if (adaReject && nasib==="perbaiki" && rj) pjStok[key] = (pjStok[key]||0) + rj;   // dikembalikan ke penjahit untuk diperbaiki
   });
-  sj[d.penjahit] = pjStok;
+  ss[d.penjahit] = pjSetor; sj[d.penjahit] = pjStok;
+  await db.collection("config").doc("stok_setor").set(ss);
   await db.collection("config").doc("stok_jahitan").set(sj);
   await db.collection("config").doc("stok").set(sm);
 }
@@ -3537,7 +3562,7 @@ async function submitQC() {
   if (btn) { btn.disabled = true; btn.textContent = "⏳ Menyimpan..."; }
   try {
     const fotos = await uploadFotos(fF["qc"]||[]);
-    const dataQC = {penjahit:pj, operator:op, order:ord, orderId:idOrder(ordId), tanggal:tgl, ket, fotos, items,
+    const dataQC = {dariSetor:true, penjahit:pj, operator:op, order:ord, orderId:idOrder(ordId), tanggal:tgl, ket, fotos, items,
       ...(totReject>0?{totalReject:totReject, alasanReject:alasan, nasibReject:nasib}:{})};
     if (langsung) {
       await fsAdd("qc", {...dataQC, status:"disetujui", disetujuiOleh: unama || uname || "admin"});
@@ -3632,6 +3657,10 @@ async function submitBayar() {
   const msg = pk>0
     ? `Simpan pembayaran ${pj}?\n\nTF: Rp${jml.toLocaleString("id")}\nPotong Kasbon: Rp${pk.toLocaleString("id")}\nTotal upah lunas: Rp${total.toLocaleString("id")}${statusLbl}`
     : `Simpan pembayaran Rp${jml.toLocaleString("id")} untuk ${pj}?${statusLbl}`;
+  // Peringatan: upah yang belum lolos QC belum boleh dibayar
+  try { const tx = (await fsAll("transaksi")).filter(d => d.orang === pj), kb = (await fsAll("kasbon")).filter(d => d.penjahit === pj), byr = (await fsAll("pembayaran")).filter(d => d.penjahit === pj)
+    const siap = tx.reduce((t,d)=>t+upahTx(d),0) - byr.reduce((t,d)=>t+(+d.jumlah||0)+(+d.potong_kasbon||0),0), tunggu = tx.reduce((t,d)=>t+(d._upahMenunggu||0),0)
+    if (total > siap && !await confirm2(`⚠️ Upah ${pj} yang sudah lolos QC & belum dibayar: ${fmtRp(Math.max(0,siap))}.\nYang dibayar sekarang: ${fmtRp(total)} (lebih ${fmtRp(total-Math.max(0,siap))}).${tunggu?`\n${fmtRp(tunggu)} masih menunggu QC.`:""}\n\nTetap simpan?`)) return } catch (e) {}
   if(!await confirm2(msg)) return;
   toast("Uploading bukti...");
   const fotos = await uploadFotos(fF.by);
@@ -3943,11 +3972,12 @@ function upahTx(d) { if (!d) return 0; if (d._upah != null) return d._upah; retu
 const perkiraanAmbil = d => d && d.type === "ambil" ? (+d.perkiraanUpah || +d.totalUpah || 0) : 0;
 function statusBayarTx(d) {
   const upah = upahTx(d);
-  if (!upah) return "";
+  const tunggu = d._upahMenunggu ? `<span style="font-size:9px;background:rgba(234,88,12,.1);color:#c2410c;padding:2px 7px;border-radius:20px;font-weight:800;border:1px solid #c2410c">⏳ ${d._pcsMenunggu} PCS MENUNGGU QC · ${fmtRp(d._upahMenunggu)}</span> ` : ""
+  if (!upah) return tunggu;
   const dibayar = d._dibayar || 0;
-  if (dibayar >= upah) return `<span style="font-size:9px;background:var(--gdim);color:var(--g);padding:2px 7px;border-radius:20px;font-weight:800;border:1px solid var(--g)">✓ SUDAH DIBAYAR</span>`;
-  if (dibayar > 0) return `<span style="font-size:9px;background:var(--adim);color:var(--a);padding:2px 7px;border-radius:20px;font-weight:800;border:1px solid var(--a)">◐ DIBAYAR ${fmtRp(dibayar)} · KURANG ${fmtRp(upah - dibayar)}</span>`;
-  return `<span style="font-size:9px;background:var(--rdim, rgba(239,68,68,.12));color:var(--r);padding:2px 7px;border-radius:20px;font-weight:800;border:1px solid var(--r)">⏳ BELUM DIBAYAR</span>`;
+  if (dibayar >= upah) return tunggu + `<span style="font-size:9px;background:var(--gdim);color:var(--g);padding:2px 7px;border-radius:20px;font-weight:800;border:1px solid var(--g)">✓ SUDAH DIBAYAR</span>`;
+  if (dibayar > 0) return tunggu + `<span style="font-size:9px;background:var(--adim);color:var(--a);padding:2px 7px;border-radius:20px;font-weight:800;border:1px solid var(--a)">◐ DIBAYAR ${fmtRp(dibayar)} · KURANG ${fmtRp(upah - dibayar)}</span>`;
+  return tunggu + `<span style="font-size:9px;background:var(--rdim, rgba(239,68,68,.12));color:var(--r);padding:2px 7px;border-radius:20px;font-weight:800;border:1px solid var(--r)">⏳ BELUM DIBAYAR</span>`;
 }
 function renderRingkasan() {
   let list = Object.values(ringData);
@@ -4124,13 +4154,13 @@ let _rkData = null
 async function loadStokRingkas(segar) {
   const el = document.getElementById("stok-ringkas-body"); if (!el) return
   if (!_rkData || segar) {
-    const [sak, sg, sj, sm, qc, kel] = await Promise.all([fsGet("config","stok_ambil_kain"), fsGet("config","stok_guntingan"), fsGet("config","stok_jahitan"), fsGet("config","stok"), fsAll("qc"), fsAll("keluar")])
-    _rkData = { sak: sak || {}, sg: sg || {}, sj: sj || {}, sm: sm || {}, qc, kel }
+    const [sak, sg, sj, sm, qc, kel, ss] = await Promise.all([fsGet("config","stok_ambil_kain"), fsGet("config","stok_guntingan"), fsGet("config","stok_jahitan"), fsGet("config","stok"), fsAll("qc"), fsAll("keluar"), fsGet("config","stok_setor")])
+    _rkData = { sak: sak || {}, sg: sg || {}, sj: sj || {}, sm: sm || {}, qc, kel, ss: ss || {} }
   }
-  const { sak, sg, sj, sm, qc, kel } = _rkData
-  const R = {}, row = k => (R[k] = R[k] || { cut: 0, gun: 0, jah: 0, tunggu: 0, jadi: 0, lolos: 0, rej: 0, lolos4: 0, kel4: 0 })
+  const { sak, sg, sj, sm, qc, kel, ss } = _rkData
+  const R = {}, row = k => (R[k] = R[k] || { cut: 0, gun: 0, jah: 0, setor: 0, tunggu: 0, jadi: 0, lolos: 0, rej: 0, lolos4: 0, kel4: 0 })
   const jumlahNested = (peta, kol) => Object.values(peta).forEach(o => Object.entries(o || {}).forEach(([k, n]) => { if (+n > 0) row(k)[kol] += +n }))
-  jumlahNested(sak, "cut"); jumlahNested(sg, "gun"); jumlahNested(sj, "jah")
+  jumlahNested(sak, "cut"); jumlahNested(sg, "gun"); jumlahNested(sj, "jah"); jumlahNested(ss, "setor")
   Object.entries(sm).forEach(([k, n]) => { if (+n > 0) row(k).jadi += +n })
   const batas = new Date(Date.now() - 28 * 864e5).toISOString().slice(0, 10)
   qc.forEach(d => (d.items || []).forEach(i => { const k = i.nama + "||" + i.ukuran, ok = +i.ok || 0, rj = +i.reject || 0
@@ -4141,25 +4171,25 @@ async function loadStokRingkas(segar) {
   const q = (document.getElementById("rk-q")?.value || "").toLowerCase()
   const grp = {}
   Object.entries(R).forEach(([k, v]) => { const [nm, uk] = k.split("||"); if (q && !nm.toLowerCase().includes(q)) return
-    if (!(v.cut + v.gun + v.jah + v.tunggu + v.jadi + v.kel4)) return; (grp[nm] = grp[nm] || []).push({ uk: uk || "—", ...v }) })
+    if (!(v.cut + v.gun + v.jah + v.setor + v.tunggu + v.jadi + v.kel4)) return; (grp[nm] = grp[nm] || []).push({ uk: uk || "—", ...v }) })
   const nama = Object.keys(grp).sort()
   if (!nama.length) { el.innerHTML = '<div class="empty">Belum ada barang di tahap mana pun.</div>'; return }
   const URUT = ["XS","S","M","L","XL","XXL","XXXL","3XL","4XL","5XL"], ur = u => { const i = URUT.indexOf(String(u).toUpperCase()); return i < 0 ? 99 : i }
   const mg = n => n >= 99 ? "—" : n < 1 ? "< 1 mgg" : `± ${Math.round(n)} mgg`
-  const hitung = (v, sumP) => { const proses = v.cut + v.gun + v.jah, rejRate = (v.lolos + v.rej) ? v.rej / (v.lolos + v.rej) : 0
-    const perkiraan = sumP != null ? sumP : Math.round(v.jadi + v.tunggu + proses * (1 - rejRate)), prod = v.lolos4 / 4, laku = v.kel4 / 4
+  const hitung = (v, sumP) => { const proses = v.cut + v.gun + v.jah + v.setor, rejRate = (v.lolos + v.rej) ? v.rej / (v.lolos + v.rej) : 0
+    const perkiraan = sumP != null ? sumP : Math.round(v.jadi + proses * (1 - rejRate)), prod = v.lolos4 / 4, laku = v.kel4 / 4
     return { proses, rejRate, perkiraan, prod, laku, selesai: prod > 0 ? proses / prod : (proses ? 99 : 0), cukup: laku > 0 ? perkiraan / laku : 99 } }
   const th = 'style="padding:5px 6px;font-size:10px;color:var(--t2);text-align:right;font-weight:700;white-space:nowrap"', td = 'style="padding:5px 6px;text-align:right;font-family:var(--m);font-size:12px"'
   const sel = n => n ? n : '<span style="color:var(--t2)">·</span>'
   el.innerHTML = nama.map(nm => {
     const rows = grp[nm].sort((a, b) => ur(a.uk) - ur(b.uk) || String(a.uk).localeCompare(b.uk))
-    const tot = rows.reduce((t, r) => { Object.keys(t).forEach(k => t[k] += r[k]); return t }, { cut: 0, gun: 0, jah: 0, tunggu: 0, jadi: 0, lolos: 0, rej: 0, lolos4: 0, kel4: 0 })
+    const tot = rows.reduce((t, r) => { Object.keys(t).forEach(k => t[k] += r[k]); return t }, { cut: 0, gun: 0, jah: 0, setor: 0, tunggu: 0, jadi: 0, lolos: 0, rej: 0, lolos4: 0, kel4: 0 })
     const sumP = rows.reduce((t, r) => t + hitung(r).perkiraan, 0), ht = hitung(tot, sumP)
     const baris = (lbl, v, tebal) => { const h = hitung(v, tebal ? sumP : null)
-      const ed = (jenis, n) => isOwner && !tebal ? `<button type="button" data-n="${escH(nm)}" data-u="${escH(lbl)}" data-jenis="${jenis}" onclick="rkEditTahap(this)" title="Ubah (Owner)" style="border:1px dashed var(--b);background:transparent;border-radius:6px;padding:1px 8px;cursor:pointer;font-family:var(--m);color:inherit">${n || 0} ✏️</button>` : sel(n); return `<tr style="border-top:1px solid var(--b)${tebal ? ";font-weight:800;background:var(--s2)" : ""}"><td style="padding:5px 6px;font-weight:700">${escH(lbl)}</td><td ${td}>${ed('ambil_kain', v.cut)}</td><td ${td}>${ed('guntingan', v.gun)}</td><td ${td}>${ed('jahitan', v.jah)}</td><td ${td}>${isOwner && !tebal && v.tunggu ? `<button type="button" onclick="go('qc')" title="Buka QC untuk disetujui" style="border:1px dashed #c2410c;background:transparent;border-radius:6px;padding:1px 8px;cursor:pointer;font-family:var(--m);color:#c2410c">${v.tunggu} ↗</button>` : sel(v.tunggu)}</td><td ${td}>${isOwner && !tebal ? `<button type="button" data-n="${escH(nm)}" data-u="${escH(lbl)}" data-j="${v.jadi}" onclick="rkEditJadi(this.dataset.n,this.dataset.u,+this.dataset.j)" title="Ubah stok jadi (Owner)" style="border:1px dashed var(--g);background:transparent;border-radius:6px;padding:1px 8px;cursor:pointer;font-family:var(--m);font-weight:800;color:var(--g)">${v.jadi} ✏️</button>` : `<b style="color:var(--g)">${sel(v.jadi)}</b>`}</td><td ${td}><b>${h.perkiraan}</b></td><td ${td}>${h.prod ? (+h.prod.toFixed(1)) : "·"}</td><td ${td}>${h.laku ? (+h.laku.toFixed(1)) : "·"}</td><td ${td}>${h.laku ? `<span style="color:${h.cukup < 2 ? "var(--r)" : h.cukup < 4 ? "#c2410c" : "var(--g)"};font-weight:700">${mg(h.cukup)}</span>` : "·"}</td></tr>` }
+      const ed = (jenis, n) => isOwner && !tebal ? `<button type="button" data-n="${escH(nm)}" data-u="${escH(lbl)}" data-jenis="${jenis}" onclick="rkEditTahap(this)" title="Ubah (Owner)" style="border:1px dashed var(--b);background:transparent;border-radius:6px;padding:1px 8px;cursor:pointer;font-family:var(--m);color:inherit">${n || 0} ✏️</button>` : sel(n); return `<tr style="border-top:1px solid var(--b)${tebal ? ";font-weight:800;background:var(--s2)" : ""}"><td style="padding:5px 6px;font-weight:700">${escH(lbl)}</td><td ${td}>${ed('ambil_kain', v.cut)}</td><td ${td}>${ed('guntingan', v.gun)}</td><td ${td}>${ed('jahitan', v.jah)}</td><td ${td}>${ed('setor', v.setor)}</td><td ${td}>${isOwner && !tebal && v.tunggu ? `<button type="button" onclick="go('qc')" title="Buka QC untuk disetujui" style="border:1px dashed #c2410c;background:transparent;border-radius:6px;padding:1px 8px;cursor:pointer;font-family:var(--m);color:#c2410c">${v.tunggu} ↗</button>` : sel(v.tunggu)}</td><td ${td}>${isOwner && !tebal ? `<button type="button" data-n="${escH(nm)}" data-u="${escH(lbl)}" data-j="${v.jadi}" onclick="rkEditJadi(this.dataset.n,this.dataset.u,+this.dataset.j)" title="Ubah stok jadi (Owner)" style="border:1px dashed var(--g);background:transparent;border-radius:6px;padding:1px 8px;cursor:pointer;font-family:var(--m);font-weight:800;color:var(--g)">${v.jadi} ✏️</button>` : `<b style="color:var(--g)">${sel(v.jadi)}</b>`}</td><td ${td}><b>${h.perkiraan}</b></td><td ${td}>${h.prod ? (+h.prod.toFixed(1)) : "·"}</td><td ${td}>${h.laku ? (+h.laku.toFixed(1)) : "·"}</td><td ${td}>${h.laku ? `<span style="color:${h.cukup < 2 ? "var(--r)" : h.cukup < 4 ? "#c2410c" : "var(--g)"};font-weight:700">${mg(h.cukup)}</span>` : "·"}</td></tr>` }
     return `<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline;margin-bottom:6px"><b>${escH(nm)}</b>
       <span style="font-size:11px;color:var(--t2)">perkiraan jadi <b style="color:var(--t)">${ht.perkiraan} pcs</b>${ht.proses ? ` · proses selesai ${mg(ht.selesai)}` : ""}${ht.rejRate ? ` · reject ${Math.round(ht.rejRate * 100)}%` : ""}</span></div>
-      ${innerWidth < 700 ? '<div style="font-size:10px;color:var(--t2);text-align:right">geser tabel ke kanan →</div>' : ""}<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:620px"><thead><tr><th style="padding:5px 6px;font-size:10px;color:var(--t2);text-align:left">UKURAN</th><th ${th}>✂️ KAIN DI CUTTING</th><th ${th}>✂️ GUNTINGAN</th><th ${th}>🧵 DI PENJAHIT</th><th ${th}>⏳ TUNGGU QC</th><th ${th}>✅ JADI</th><th ${th}>PERKIRAAN JADI</th><th ${th}>LOLOS QC /MGG</th><th ${th}>KELUAR /MGG</th><th ${th}>CUKUP UNTUK</th></tr></thead>
+      ${innerWidth < 700 ? '<div style="font-size:10px;color:var(--t2);text-align:right">geser tabel ke kanan →</div>' : ""}<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:700px"><thead><tr><th style="padding:5px 6px;font-size:10px;color:var(--t2);text-align:left">UKURAN</th><th ${th}>✂️ KAIN DI CUTTING</th><th ${th}>✂️ GUNTINGAN</th><th ${th}>🧵 DI PENJAHIT</th><th ${th}>📥 DISETOR, BELUM QC</th><th ${th}>⏳ QC BELUM DISETUJUI</th><th ${th}>✅ JADI</th><th ${th}>PERKIRAAN JADI</th><th ${th}>LOLOS QC /MGG</th><th ${th}>KELUAR /MGG</th><th ${th}>CUKUP UNTUK</th></tr></thead>
       <tbody>${rows.map(r => baris(r.uk, r)).join("")}${rows.length > 1 ? baris("Total", tot, true) : ""}</tbody></table></div></div>`
   }).join("")
 }
@@ -4203,7 +4233,7 @@ async function rkEditTahap(btn) {
   const jenis = btn.dataset.jenis, cfg = KS[jenis], nama = btn.dataset.n, uk = btn.dataset.u, kunci = nama + "||" + (uk === "—" ? "" : uk)
   const data = (await fsGet("config", cfg.doc)) || {}
   const orang = [...new Set([...(settings[cfg.orang] || []), ...Object.keys(data)])].sort()
-  const judul = { ambil_kain: "✂️ Kain di cutting", guntingan: "✂️ Guntingan", jahitan: "🧵 Di penjahit" }[jenis]
+  const judul = { ambil_kain: "✂️ Kain di cutting", guntingan: "✂️ Guntingan", jahitan: "🧵 Di penjahit", setor: "📥 Disetor, belum QC" }[jenis]
   const bg = document.createElement("div"); bg.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;display:flex;align-items:center;justify-content:center;padding:14px"
   bg.innerHTML = `<div style="background:var(--s1,#fff);color:var(--t1,#111);border-radius:14px;max-width:420px;width:100%;max-height:90vh;overflow:auto;padding:14px">
     <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><b>${judul}</b><div style="font-size:12px;color:var(--t2)">${escH(nama)} · ${escH(uk)}</div></div><button class="btn btn-tutup" data-x>✕ Tutup</button></div>
@@ -4359,6 +4389,7 @@ async function loadProgress() {
     const totalHolding = holding.reduce((s,k)=>s+pjStok[k],0);
     const totalSetor = txDocs.filter(d=>d.orang===pj&&d.type==="jahit").reduce((s,d)=>s+(d.items||[]).reduce((ss,i)=>ss+(i.pcs||i.qty||0),0),0);
     const totalUpah = txDocs.filter(d=>d.orang===pj).reduce((s,d)=>s+upahTx(d),0);
+    const upahTunggu = txDocs.filter(d=>d.orang===pj).reduce((s,d)=>s+(d._upahMenunggu||0),0), pcsTunggu = txDocs.filter(d=>d.orang===pj).reduce((s,d)=>s+(d._pcsMenunggu||0),0);
     const totalKasbon = kbDocs.filter(d=>d.penjahit===pj).reduce((s,d)=>s+(d.jumlah||0),0);
     const totalBayar = byDocs.filter(d=>d.penjahit===pj).reduce((s,d)=>s+(d.jumlah||0),0);
     const saldo = totalUpah - totalKasbon - totalBayar;
@@ -4370,6 +4401,7 @@ async function loadProgress() {
         <div class="sc"><div class="scl">Upah</div><div class="scv" style="color:var(--a);font-size:11px">${fmtRp(totalUpah)}</div></div>
         <div class="sc"><div class="scl">Saldo</div><div class="scv" style="color:${saldo>=0?"var(--g)":"var(--r)"};font-size:11px">${fmtRp(saldo)}</div></div>
       </div>
+      ${upahTunggu?`<div style="margin-top:8px;font-size:11px;color:#c2410c;font-weight:700">⏳ ${pcsTunggu} pcs sudah disetor, menunggu QC — upah ${fmtRp(upahTunggu)} belum bisa dibayar</div>`:""}
       ${holding.length?`<div style="margin-top:8px;font-size:11px;color:var(--t2)">Bahan dipegang: ${holding.map(k=>`${k.replace("||"," ")}: ${pjStok[k]}`).join(" · ")}</div>`:""}
     </div>`;
   }).join("");
